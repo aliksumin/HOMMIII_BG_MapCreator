@@ -1,0 +1,161 @@
+import { assetUrl, CREATURE_BANKS, EXPANSIONS, isRandomTile, MAP_LOCATIONS, PORTRAITS, TILES, tileName } from "../../data/catalog.ts";
+import { CUBE_COLORS, FACTION_BORDER } from "../../data/game.ts";
+import { hexPoints } from "../../lib/mapdraw.ts";
+import type { MapTile } from "../../model/types.ts";
+import { Toggle } from "../ui/Form.tsx";
+
+const MINI: readonly [number, number][] = [
+  [-21.5, -37],
+  [21.5, -37],
+  [-43, 0],
+  [0, 0],
+  [43, 0],
+  [-21.5, 37],
+  [21.5, 37],
+];
+
+interface Props {
+  tile: MapTile;
+  field: number | null;
+  onField: (field: number) => void;
+  onChange: (recipe: (tile: MapTile) => void) => void;
+  onDelete: () => void;
+  onDuplicate: () => void;
+}
+
+/** Edits the selected tile and one of its seven Fields. */
+export function Inspector({ tile, field, onField, onChange, onDelete, onDuplicate }: Props) {
+  const info = TILES[tile.tileId];
+  const f = field ?? 3;
+  return (
+    <aside className="inspector">
+      <div className="inspector-head">
+        {info && <img src={assetUrl(info.img)} alt="" style={{ transform: `rotate(${tile.rotation * 60}deg)` }} />}
+        <div>
+          <b>{tileName(tile.tileId)}</b>
+          <span className="hint">
+            {tile.tileId}
+            {info ? ` \u00b7 ${EXPANSIONS[info.expansion] ?? info.expansion}` : ""}
+          </span>
+        </div>
+      </div>
+      <div className="inspector-actions">
+        <button type="button" className="btn small" title="Rotate left (Shift+R)" onClick={() => onChange((t) => void (t.rotation = (t.rotation + 5) % 6))}>
+          &#x21BA; Rotate
+        </button>
+        <button type="button" className="btn small" title="Rotate right (R)" onClick={() => onChange((t) => void (t.rotation = (t.rotation + 1) % 6))}>
+          Rotate &#x21BB;
+        </button>
+        <button type="button" className="btn small" onClick={onDuplicate} title="Arm another tile of this kind">
+          Same again
+        </button>
+        <button type="button" className="btn small danger" title="Delete (Del)" onClick={onDelete}>
+          Delete
+        </button>
+      </div>
+      {isRandomTile(tile.tileId) && (
+        <label className="field">
+          <span className="field-label">Faction border</span>
+          <select value={tile.faction} onChange={(e) => onChange((t) => void (t.faction = e.target.value))}>
+            <option value="">None</option>
+            {Object.keys(FACTION_BORDER).map((k) => (
+              <option key={k} value={k}>
+                {k.charAt(0) + k.slice(1).toLowerCase()}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <Toggle
+        checked={tile.suggestedPlacement}
+        onChange={(on) => onChange((t) => void (t.suggestedPlacement = on))}
+        label="Suggested placement (drawn faded)"
+      />
+
+      <h4>Fields</h4>
+      <svg className="mini-flower" viewBox="-70 -62 140 124" role="img" aria-label="Pick a Field">
+        <title>Pick a Field</title>
+        {MINI.map(([x, y], i) => {
+          const cube = CUBE_COLORS.find((c) => c.id === tile.cubes[i]);
+          const marked = tile.hero[i] || tile.mapLocations[i] || tile.creaturebanks[i] || tile.blockedHex[i];
+          return (
+            // biome-ignore lint/a11y/useKeyWithClickEvents: the selects below are the keyboard path
+            <g key={i} onClick={() => onField(i)} className={`mini-field ${f === i ? "on" : ""}`}>
+              <polygon points={hexPoints(x, y, 0.5)} />
+              {cube && <rect x={x - 5} y={y - 14} width={10} height={10} fill={cube.color} stroke="#000" strokeWidth={0.8} />}
+              {marked && <circle cx={x} cy={y + 6} r={4} className="mark" />}
+              <text x={x} y={y + 4}>
+                {i + 1}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <p className="hint">Field {f + 1} of the tile as printed (rotation not applied). Click a Field on the map to pick it too.</p>
+
+      <div className="field">
+        <span className="field-label">Cube</span>
+        <div className="cube-row">
+          <button type="button" className={tile.cubes[f] === 0 ? "on" : ""} onClick={() => onChange((t) => void (t.cubes[f] = 0))} title="No cube">
+            &#x2205;
+          </button>
+          {CUBE_COLORS.map((c) => (
+            <button
+              type="button"
+              key={c.id}
+              title={c.label}
+              className={tile.cubes[f] === c.id ? "on" : ""}
+              style={{ background: c.color }}
+              onClick={() => onChange((t) => void (t.cubes[f] = c.id))}
+            />
+          ))}
+        </div>
+      </div>
+      <label className="field">
+        <span className="field-label">Hero</span>
+        <select value={tile.hero[f]} onChange={(e) => onChange((t) => void (t.hero[f] = e.target.value))}>
+          <option value="">None</option>
+          {Object.entries(PORTRAITS)
+            .sort((a, b) => a[1].faction.localeCompare(b[1].faction) || a[1].desc.localeCompare(b[1].desc))
+            .map(([k, p]) => (
+              <option key={k} value={k}>
+                {p.desc} ({p.faction.charAt(0) + p.faction.slice(1).toLowerCase()})
+              </option>
+            ))}
+        </select>
+      </label>
+      <label className="field">
+        <span className="field-label">Location token</span>
+        <select value={tile.mapLocations[f]} onChange={(e) => onChange((t) => void (t.mapLocations[f] = e.target.value))}>
+          <option value="">None</option>
+          {Object.entries(MAP_LOCATIONS).map(([k, l]) => (
+            <option key={k} value={k}>
+              {l.desc}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="field">
+        <span className="field-label">Creature Bank</span>
+        <select value={tile.creaturebanks[f]} onChange={(e) => onChange((t) => void (t.creaturebanks[f] = e.target.value))}>
+          <option value="">None</option>
+          {Object.entries(CREATURE_BANKS).map(([k, b]) => (
+            <option key={k} value={k}>
+              {b.desc}
+            </option>
+          ))}
+        </select>
+      </label>
+      {(tile.mapLocations[f] || tile.creaturebanks[f]) && (
+        <button
+          type="button"
+          className="btn small"
+          onClick={() => onChange((t) => void (t.fieldReplacementRotations[f] = ((t.fieldReplacementRotations[f] ?? 0) + 1) % 6))}
+        >
+          Rotate token &#x21BB;
+        </button>
+      )}
+      <Toggle checked={tile.blockedHex[f]} onChange={(on) => onChange((t) => void (t.blockedHex[f] = on))} label="Blocked Field" />
+    </aside>
+  );
+}

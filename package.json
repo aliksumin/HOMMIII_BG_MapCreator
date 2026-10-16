@@ -1,0 +1,30 @@
+{
+  "name": "homm3bg-scenario-creator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Step-by-step scenario and map editor for Heroes of Might & Magic III: The Board Game. Exports Mission Book files (.tex, .map, map PNG) and a PDF.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test \"tests/**/*.test.ts\"",
+    "assets": "node tools/import-assets.mjs"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "jspdf": "4.2.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zustand": "5.0.15"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "sharp": "0.35.4",
+    "typescript": "7.0.2",
+    "vite": "8.3.2"
+  }
+}
