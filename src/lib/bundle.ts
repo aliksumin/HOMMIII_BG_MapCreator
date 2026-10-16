@@ -1,0 +1,107 @@
+// The export bundle: every file a mission book pull request needs, at the
+// path it takes in that repository, plus the PDF and the project file.
+
+import { strToU8, zipSync } from "fflate";
+import { categoryInfo } from "../data/game.ts";
+import { upgradeScenario } from "../model/defaults.ts";
+import type { Scenario } from "../model/types.ts";
+import { mapFiles, slugify } from "./document.ts";
+import { dataUrlToBytes } from "./images.ts";
+import { registrationLines, scenarioToLatex } from "./latex.ts";
+import { encodeMap } from "./mapfile.ts";
+import { renderMapPng } from "./mapdraw.ts";
+import { scenarioToPdf } from "./pdf.ts";
+
+export const PROJECT_EXTENSION = ".scenario.json";
+
+/** The repository path of the scenario .tex file. */
+export function texPath(s: Scenario): string {
+  return `draft-scenarios/${s.category}/${slugify(s.name)}.tex`;
+}
+
+/** The project file: the whole editor state, to reopen later. */
+export function projectJson(s: Scenario): string {
+  return `${JSON.stringify({ app: "homm3bg-scenario-creator", ...s }, null, 2)}\n`;
+}
+
+/** Reads a project file. */
+export function parseProject(text: string): Scenario {
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("This file is not a scenario project (it is not JSON).");
+  }
+  if (typeof data !== "object" || data === null || (data as { version?: unknown }).version !== 1) {
+    throw new Error("This file is not a scenario project of this app.");
+  }
+  const { app: _app, ...rest } = data as Record<string, unknown>;
+  return upgradeScenario(rest as Partial<Scenario>);
+}
+
+export function submitGuide(s: Scenario): string {
+  const info = categoryInfo(s.category);
+  const slug = slugify(s.name);
+  const maps = mapFiles(s);
+  const lines = [
+    `# Submitting "${s.name || "Untitled Scenario"}" to the Mission Book`,
+    "",
+    "This folder mirrors the layout of https://github.com/qwrtln/Homm3BG-mission-book.",
+    "New scenarios start in the Draft Scenarios booklet (`draft-scenarios/`).",
+    "",
+    "## 1. Copy the files into your clone of the repository",
+    "",
+    `- \`${texPath(s)}\``,
+    ...maps.flatMap((m) => [`- \`assets/maps/${m.file}.png\``, `- \`assets/map-files/${m.file}.map\``]),
+    ...(s.titleImage?.kind === "upload" ? [`- \`assets/images/${slug}.png\``] : []),
+    "",
+    "## 2. Register the scenario",
+    "",
+    `Add these lines at the end of \`draft-scenarios/${s.category}/main.tex\`:`,
+    "",
+    "```latex",
+    registrationLines(s, info.pathMacro).trimEnd(),
+    "```",
+    "",
+    "## 3. Build and check",
+    "",
+    "Build only your scenario with the repository's container script:",
+    "",
+    "```bash",
+    `./run.sh tools/build.sh -s '${(s.name || slug).toLowerCase().split(/\s+/).slice(0, 2).join(" ")}'`,
+    "```",
+    "",
+    "Or paste the `.tex` into the online Scenario Builder (https://qwrtln.github.io/Homm3BG-mission-book/builder/),",
+    "which compiles it in the browser and opens the pull request for you.",
+    "",
+    "## 4. Open a pull request",
+    "",
+    "One scenario per pull request. Attach screenshots of the built pages (or the PDF from this folder).",
+    "",
+    "The `.scenario.json` file reopens this scenario in the Scenario Creator.",
+    "",
+  ];
+  return lines.join("\n");
+}
+
+/** Builds the ZIP. */
+export async function buildBundle(s: Scenario, onProgress?: (what: string) => void): Promise<Uint8Array> {
+  const slug = slugify(s.name);
+  const root = `${slug}/`;
+  const files: Record<string, Uint8Array> = {};
+  files[`${root}${texPath(s)}`] = strToU8(scenarioToLatex(s));
+  for (const map of mapFiles(s)) {
+    onProgress?.(`Rendering ${map.file}.png...`);
+    files[`${root}assets/maps/${map.file}.png`] = new Uint8Array(await (await renderMapPng(map.layout.tiles)).arrayBuffer());
+    files[`${root}assets/map-files/${map.file}.map`] = strToU8(`${encodeMap(map.layout.tiles)}\n`);
+  }
+  if (s.titleImage?.kind === "upload" && s.titleImage.dataUrl) {
+    files[`${root}assets/images/${slug}.png`] = dataUrlToBytes(s.titleImage.dataUrl);
+  }
+  const pdf = await scenarioToPdf(s, onProgress);
+  files[`${root}${slug}.pdf`] = new Uint8Array(await pdf.arrayBuffer());
+  files[`${root}${slug}${PROJECT_EXTENSION}`] = strToU8(projectJson(s));
+  files[`${root}HOW-TO-SUBMIT.md`] = strToU8(submitGuide(s));
+  onProgress?.("Zipping...");
+  return zipSync(files, { level: 6 });
+}
