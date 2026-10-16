@@ -59,6 +59,19 @@ test("campaign headings carry the campaign and open its table of contents entry"
   assert.ok(tex.includes("\\newpage\n\n\\begin{multicols*}{2}\n\n\\subsection*{\\MakeUppercase{The Story}}"));
 });
 
+test("automatic Map Setup lists each layout with different tiles", () => {
+  const s = sample();
+  s.maps[0].playerCounts = [2];
+  s.maps.push({ id: "m2", name: "Big", playerCounts: [3, 4], caption: "", tiles: [newTile("S0", 7, 9), newTile("S0", 8, 12), newTile("S0", 12, 9)] });
+  s.maps.push({ id: "m3", name: "Same as first", playerCounts: [5], caption: "", tiles: s.maps[0].tiles.map((t) => ({ ...t })) });
+  const tex = scenarioToLatex(s);
+  assert.ok(tex.includes("\\textbf{For 2/5 players:}\n\\begin{itemize}\n  \\item 2 \u00d7 Starting (I) Map Tiles\n  \\item 1 \u00d7 Far (II--III) Map Tile\n\\end{itemize}"));
+  assert.ok(tex.includes("\\textbf{For 3/4 players:}\n\\begin{itemize}\n  \\item 3 \u00d7 Starting (I) Map Tiles\n\\end{itemize}"));
+  // one layout (or several with the same tiles) keeps the plain list
+  s.maps = [s.maps[0]];
+  assert.ok(!scenarioToLatex(s).includes("players:}"));
+});
+
 test("helpers", () => {
   assert.equal(formatPlayerCount([4, 2]), "2 or 4");
   assert.equal(formatPlayerCount([1, 2, 4]), "1, 2 or 4");

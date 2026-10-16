@@ -148,6 +148,15 @@ function roundsLabel(rounds: number[]): Inline[] {
   return runs;
 }
 
+/** "2/4 players" for layouts that name their player counts, else their names. */
+function layoutsLabel(layouts: MapLayout[]): string {
+  if (layouts.every((l) => l.playerCounts.length)) {
+    const counts = [...new Set(layouts.flatMap((l) => l.playerCounts))].sort((a, b) => a - b);
+    return `For ${counts.join("/")} player${counts.length === 1 && counts[0] === 1 ? "" : "s"}`;
+  }
+  return layouts.map((l) => l.name.trim() || "Unnamed map").join(" and ");
+}
+
 /** The heading kind line, e.g. "Clash Scenario" or "Castle Campaign - The Queen's Gambit". */
 export function scenarioKind(s: Scenario): string {
   if (s.kindOverride.trim()) return s.kindOverride.trim();
@@ -246,38 +255,53 @@ export function buildDocument(s: Scenario): ScenarioDoc {
     }
   }
 
-  // Map Setup
+  // Map Setup. Counted automatically, every layout with its own tile totals
+  // gets its own list, labelled by its player counts (or its name).
   const groups = TILE_GROUPS.filter((g) => g.key in s.mapSetup.counts) as typeof TILE_GROUPS;
-  const tileItems: Inline[][] = [];
+  const notes = s.mapSetup.notes as Record<string, string>;
+  const lists: { label: string; items: Inline[][] }[] = [];
   let perPlayer = false;
   if (s.mapSetup.auto) {
-    const firstMap = s.maps.find((m) => m.tiles.length);
-    if (firstMap) {
-      const counts = countTiles(firstMap.tiles);
-      for (const g of TILE_GROUPS) {
-        if (!counts[g.key]) continue;
-        const note = (s.mapSetup.notes as Record<string, string>)[g.key] ?? "";
-        tileItems.push(tileLine({ n: counts[g.key], perPlayer: false }, g.book, note));
-      }
+    const distinct = new Map<string, { layouts: MapLayout[]; items: Inline[][] }>();
+    for (const layout of s.maps.filter((m) => m.tiles.length)) {
+      const counts = countTiles(layout.tiles);
+      const key = JSON.stringify(counts);
+      const entry = distinct.get(key) ?? {
+        layouts: [],
+        items: TILE_GROUPS.filter((g) => counts[g.key]).map((g) =>
+          tileLine({ n: counts[g.key], perPlayer: false }, g.book, notes[g.key] ?? ""),
+        ),
+      };
+      entry.layouts.push(layout);
+      distinct.set(key, entry);
     }
+    const entries = [...distinct.values()];
+    for (const entry of entries) lists.push({ label: entries.length > 1 ? layoutsLabel(entry.layouts) : "", items: entry.items });
   } else {
+    const items: Inline[][] = [];
     for (const g of groups) {
       const key = g.key as keyof Scenario["mapSetup"]["counts"];
       const count = s.mapSetup.counts[key];
       if (!count || count.n <= 0) continue;
       perPlayer ||= count.perPlayer;
-      tileItems.push(tileLine(count, g.book, s.mapSetup.notes[key]));
+      items.push(tileLine(count, g.book, s.mapSetup.notes[key]));
     }
+    if (items.length) lists.push({ label: "", items });
   }
   const extra = s.mapSetup.extra.map((e) => e.trim()).filter(Boolean).map(md);
-  if (tileItems.length || extra.length) {
+  if (lists.length || extra.length) {
     push({ k: "heading", text: "Map Setup" });
     const intro: Inline[] = [{ t: "text", s: "Take the following Map Tiles and arrange them as shown in the Scenario map layout" }];
     if (perPlayer) intro.push({ t: "text", s: " (" }, { t: "math", s: "P" }, { t: "text", s: " stands for the number of players)" });
     intro.push({ t: "text", s: ":" });
-    push({ k: "para", runs: intro }, { k: "list", items: [...tileItems, ...extra] });
+    push({ k: "para", runs: intro });
+    if (lists.length === 1 && !lists[0].label) {
+      push({ k: "list", items: [...lists[0].items, ...extra] });
+    } else {
+      for (const list of lists) push({ k: "label", runs: [{ t: "text", s: `${list.label}:` }] }, { k: "list", items: list.items });
+      if (extra.length) push({ k: "list", items: extra });
+    }
   }
-
   if (s.heroesPlacement.trim()) push({ k: "heading", text: "Heroes Placement" }, ...paraBlocks(s.heroesPlacement));
   if (s.victory.trim()) push({ k: "heading", text: "Victory Conditions" }, ...paraBlocks(s.victory));
   if (s.defeat.trim()) push({ k: "heading", text: "Defeat Conditions" }, ...paraBlocks(s.defeat));

@@ -22,8 +22,14 @@ export function StepMapSetup() {
               if (!on && counts) for (const k of KEYS) d.mapSetup.counts[k] = { n: counts[k], perPlayer: false };
             })
           }
-          label={<>Count the tiles from the map{firstMap ? <> &ldquo;{firstMap.name}&rdquo;</> : ""}</>}
+          label="Count the tiles from the map"
         />
+        {s.maps.filter((m) => m.tiles.length).length > 1 && s.mapSetup.auto && (
+          <p className="hint">
+            Layouts with different tiles each get their own list, labelled by their player counts (or names). The counts below are for the
+            first layout.
+          </p>
+        )}
         <p className="hint">
           Turn this off to type the counts yourself, for example when the count grows with the number of players
           (&ldquo;<i>2P</i> &times; Far (II&ndash;III) Map Tiles&rdquo;).

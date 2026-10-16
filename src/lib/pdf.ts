@@ -69,6 +69,8 @@ function glyphNames(doc: ScenarioDoc): Set<string> {
     if (block.k === "list") block.items.forEach(visit);
     else if (block.k !== "heading") visit(block.runs);
   }
+  // The heading badge draws the rating glyph even when the text never uses it.
+  if (doc.rating) names.add(doc.rating);
   return names;
 }
 
