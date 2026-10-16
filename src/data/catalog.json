@@ -1,0 +1,2259 @@
+{
+  "generatedFrom": {
+    "zedero": "https://github.com/zedero/homm3boardgame",
+    "missionBook": "https://github.com/qwrtln/Homm3BG-mission-book"
+  },
+  "factions": {
+    "CASTLE": "Castle",
+    "NECROPOLIS": "Necropolis",
+    "DUNGEON": "Dungeon",
+    "TOWER": "Tower",
+    "RAMPART": "Rampart",
+    "FORTRESS": "Fortress",
+    "INFERNO": "Inferno",
+    "STRONGHOLD": "Stronghold",
+    "CONFLUX": "Conflux",
+    "COVE": "Cove"
+  },
+  "expansions": {
+    "RANDOM": "Random",
+    "CORE": "Core",
+    "TOWER": "Tower",
+    "RAMPART": "Rampart",
+    "FORTRESS": "Fortress",
+    "INFERNO": "Inferno",
+    "STRONGHOLD": "Stronghold",
+    "CONFLUX": "Conflux",
+    "COVE": "Cove",
+    "SG2": "Stretch Goals 2"
+  },
+  "tiles": {
+    "#C1": {
+      "id": "#C1",
+      "img": "assets/tiles/_C1.webp",
+      "desc": "Center Tile #C1",
+      "expansion": "TOWER",
+      "ground": "SNOW",
+      "group": "CENTER",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "#F1": {
+      "id": "#F1",
+      "img": "assets/tiles/_F1.webp",
+      "desc": "Far Tile #F1",
+      "expansion": "TOWER",
+      "ground": "SNOW",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#F2": {
+      "id": "#F2",
+      "img": "assets/tiles/_F2.webp",
+      "desc": "Far Tile #F2",
+      "expansion": "TOWER",
+      "ground": "SNOW",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "#F3": {
+      "id": "#F3",
+      "img": "assets/tiles/_F3.webp",
+      "desc": "Far Tile #F3",
+      "expansion": "TOWER",
+      "ground": "SNOW",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "#F4": {
+      "id": "#F4",
+      "img": "assets/tiles/_F4.webp",
+      "desc": "Far Tile #F4",
+      "expansion": "TOWER",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#F5": {
+      "id": "#F5",
+      "img": "assets/tiles/_F5.webp",
+      "desc": "Far Tile #F5",
+      "expansion": "TOWER",
+      "ground": "SUBTERRAIN",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "#F6": {
+      "id": "#F6",
+      "img": "assets/tiles/_F6.webp",
+      "desc": "Far Tile #F6",
+      "expansion": "TOWER",
+      "ground": "CURSED",
+      "group": "FAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#F7": {
+      "id": "#F7",
+      "img": "assets/tiles/_F7.webp",
+      "desc": "Far Tile #F7",
+      "expansion": "TOWER",
+      "ground": "SNOW",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "#F8": {
+      "id": "#F8",
+      "img": "assets/tiles/_F8.webp",
+      "desc": "Far Tile #F8",
+      "expansion": "TOWER",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "#F9": {
+      "id": "#F9",
+      "img": "assets/tiles/_F9.webp",
+      "desc": "Far Tile #F9",
+      "expansion": "TOWER",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "#F10": {
+      "id": "#F10",
+      "img": "assets/tiles/_F10.webp",
+      "desc": "Far Tile #F10",
+      "expansion": "TOWER",
+      "ground": "LAVA",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#N1": {
+      "id": "#N1",
+      "img": "assets/tiles/_N1.webp",
+      "desc": "Near Tile #N1",
+      "expansion": "TOWER",
+      "ground": "SNOW",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#N2": {
+      "id": "#N2",
+      "img": "assets/tiles/_N2.webp",
+      "desc": "Far Tile #N2",
+      "expansion": "TOWER",
+      "ground": "SNOW",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "#N3": {
+      "id": "#N3",
+      "img": "assets/tiles/_N3.webp",
+      "desc": "Far Tile #N3",
+      "expansion": "TOWER",
+      "ground": "GRASS",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "F10": {
+      "id": "F10",
+      "img": "assets/tiles/F10.webp",
+      "desc": "Far Tile F10",
+      "expansion": "RAMPART",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "F11": {
+      "id": "F11",
+      "img": "assets/tiles/F11.webp",
+      "desc": "Far Tile F11",
+      "expansion": "RAMPART",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "F12": {
+      "id": "F12",
+      "img": "assets/tiles/F12.webp",
+      "desc": "Far Tile F12",
+      "expansion": "RAMPART",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F13": {
+      "id": "F13",
+      "img": "assets/tiles/F13.webp",
+      "desc": "Far Tile F13",
+      "expansion": "FORTRESS",
+      "ground": "SWAMP",
+      "group": "FAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F14": {
+      "id": "F14",
+      "img": "assets/tiles/F14.webp",
+      "desc": "Far Tile F14",
+      "expansion": "FORTRESS",
+      "ground": "SWAMP",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F15": {
+      "id": "F15",
+      "img": "assets/tiles/F15.webp",
+      "desc": "Far Tile F15",
+      "expansion": "FORTRESS",
+      "ground": "SWAMP",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "F17": {
+      "id": "F17",
+      "img": "assets/tiles/F17.webp",
+      "desc": "Far Tile F17",
+      "expansion": "INFERNO",
+      "ground": "LAVA",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "F18": {
+      "id": "F18",
+      "img": "assets/tiles/F18.webp",
+      "desc": "Far Tile F18",
+      "expansion": "INFERNO",
+      "ground": "LAVA",
+      "group": "FAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "C3": {
+      "id": "C3",
+      "img": "assets/tiles/C3.webp",
+      "desc": "Center Tile C3",
+      "expansion": "RAMPART",
+      "ground": "GRASS",
+      "group": "CENTER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "C4": {
+      "id": "C4",
+      "img": "assets/tiles/C4.webp",
+      "desc": "Center Tile C4",
+      "expansion": "FORTRESS",
+      "ground": "SWAMP",
+      "group": "CENTER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "N7": {
+      "id": "N7",
+      "img": "assets/tiles/N7.webp",
+      "desc": "Near Tile N7",
+      "expansion": "RAMPART",
+      "ground": "GRASS",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "N8": {
+      "id": "N8",
+      "img": "assets/tiles/N8.webp",
+      "desc": "Near Tile N8",
+      "expansion": "RAMPART",
+      "ground": "GRASS",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "N9": {
+      "id": "N9",
+      "img": "assets/tiles/N9.webp",
+      "desc": "Near Tile N9",
+      "expansion": "FORTRESS",
+      "ground": "SWAMP",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "N10": {
+      "id": "N10",
+      "img": "assets/tiles/N10.webp",
+      "desc": "Near Tile N10",
+      "expansion": "FORTRESS",
+      "ground": "SWAMP",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "N11": {
+      "id": "N11",
+      "img": "assets/tiles/N11.webp",
+      "desc": "Near Tile N11",
+      "expansion": "INFERNO",
+      "ground": "LAVA",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "#S1": {
+      "id": "#S1",
+      "img": "assets/tiles/_S1.webp",
+      "desc": "Startingtile Tile #S1",
+      "expansion": "TOWER",
+      "ground": "SNOW",
+      "group": "STARTINGTILE",
+      "blocked": [
+        1,
+        0,
+        1,
+        1,
+        1,
+        0
+      ]
+    },
+    "C1": {
+      "id": "C1",
+      "img": "assets/tiles/C1.webp",
+      "desc": "Center Tile C1",
+      "expansion": "CORE",
+      "ground": "SUBTERRAIN",
+      "group": "CENTER",
+      "blocked": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "C2": {
+      "id": "C2",
+      "img": "assets/tiles/C2.webp",
+      "desc": "Center Tile C2",
+      "expansion": "CORE",
+      "ground": "SUBTERRAIN",
+      "group": "CENTER",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "C5": {
+      "id": "C5",
+      "img": "assets/tiles/C5.webp",
+      "desc": "Center Tile C5",
+      "expansion": "INFERNO",
+      "ground": "LAVA",
+      "group": "CENTER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "F1": {
+      "id": "F1",
+      "img": "assets/tiles/F1.webp",
+      "desc": "Far Tile F1",
+      "expansion": "CORE",
+      "ground": "CURSED",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "F2": {
+      "id": "F2",
+      "img": "assets/tiles/F2.webp",
+      "desc": "Far Tile F2",
+      "expansion": "CORE",
+      "ground": "SUBTERRAIN",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "F3": {
+      "id": "F3",
+      "img": "assets/tiles/F3.webp",
+      "desc": "Far Tile F3",
+      "expansion": "CORE",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "F4": {
+      "id": "F4",
+      "img": "assets/tiles/F4.webp",
+      "desc": "Far Tile F4",
+      "expansion": "CORE",
+      "ground": "CURSED",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F5": {
+      "id": "F5",
+      "img": "assets/tiles/F5.webp",
+      "desc": "Far Tile F5",
+      "expansion": "CORE",
+      "ground": "SUBTERRAIN",
+      "group": "FAR",
+      "blocked": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F6": {
+      "id": "F6",
+      "img": "assets/tiles/F6.webp",
+      "desc": "Far Tile F6",
+      "expansion": "CORE",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F7": {
+      "id": "F7",
+      "img": "assets/tiles/F7.webp",
+      "desc": "Far Tile F7",
+      "expansion": "CORE",
+      "ground": "CURSED",
+      "group": "FAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F8": {
+      "id": "F8",
+      "img": "assets/tiles/F8.webp",
+      "desc": "Far Tile F8",
+      "expansion": "CORE",
+      "ground": "SUBTERRAIN",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "F9": {
+      "id": "F9",
+      "img": "assets/tiles/F9.webp",
+      "desc": "Far Tile F9",
+      "expansion": "CORE",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "F16": {
+      "id": "F16",
+      "img": "assets/tiles/F16.webp",
+      "desc": "Far Tile F16",
+      "expansion": "INFERNO",
+      "ground": "LAVA",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "N1": {
+      "id": "N1",
+      "img": "assets/tiles/N1.webp",
+      "desc": "Near Tile N1",
+      "expansion": "CORE",
+      "ground": "CURSED",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "N2": {
+      "id": "N2",
+      "img": "assets/tiles/N2.webp",
+      "desc": "Near Tile N2",
+      "expansion": "CORE",
+      "ground": "SUBTERRAIN",
+      "group": "NEAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "N3": {
+      "id": "N3",
+      "img": "assets/tiles/N3.webp",
+      "desc": "Near Tile N3",
+      "expansion": "CORE",
+      "ground": "GRASS",
+      "group": "NEAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "N4": {
+      "id": "N4",
+      "img": "assets/tiles/N4.webp",
+      "desc": "Near Tile N4",
+      "expansion": "CORE",
+      "ground": "CURSED",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "N5": {
+      "id": "N5",
+      "img": "assets/tiles/N5.webp",
+      "desc": "Near Tile N5",
+      "expansion": "CORE",
+      "ground": "SUBTERRAIN",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "N6": {
+      "id": "N6",
+      "img": "assets/tiles/N6.webp",
+      "desc": "Near Tile N6",
+      "expansion": "CORE",
+      "ground": "GRASS",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "S7": {
+      "id": "S7",
+      "img": "assets/tiles/S7.webp",
+      "desc": "Startingtile Tile S7",
+      "expansion": "STRONGHOLD",
+      "ground": "ROUGH",
+      "group": "STARTINGTILE",
+      "blocked": [
+        0,
+        1,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    "F19": {
+      "id": "F19",
+      "img": "assets/tiles/F19.webp",
+      "desc": "Far Tile F19",
+      "expansion": "STRONGHOLD",
+      "ground": "ROUGH",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F20": {
+      "id": "F20",
+      "img": "assets/tiles/F20.webp",
+      "desc": "Far Tile F20",
+      "expansion": "STRONGHOLD",
+      "ground": "ROUGH",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "F21": {
+      "id": "F21",
+      "img": "assets/tiles/F21.webp",
+      "desc": "Far Tile F21",
+      "expansion": "STRONGHOLD",
+      "ground": "ROUGH",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "N13": {
+      "id": "N13",
+      "img": "assets/tiles/N13.webp",
+      "desc": "Near Tile N13",
+      "expansion": "STRONGHOLD",
+      "ground": "ROUGH",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "S8": {
+      "id": "S8",
+      "img": "assets/tiles/S8.webp",
+      "desc": "Startingtile Tile S8",
+      "expansion": "CONFLUX",
+      "ground": "GRASS",
+      "group": "STARTINGTILE",
+      "blocked": [
+        1,
+        1,
+        1,
+        0,
+        1,
+        0
+      ]
+    },
+    "F22": {
+      "id": "F22",
+      "img": "assets/tiles/F22.webp",
+      "desc": "Far Tile F22",
+      "expansion": "CONFLUX",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F23": {
+      "id": "F23",
+      "img": "assets/tiles/F23.webp",
+      "desc": "Far Tile F23",
+      "expansion": "CONFLUX",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F24": {
+      "id": "F24",
+      "img": "assets/tiles/F24.webp",
+      "desc": "Far Tile F24",
+      "expansion": "CONFLUX",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "N14": {
+      "id": "N14",
+      "img": "assets/tiles/N14.webp",
+      "desc": "Elemental Fire Near Tile N14",
+      "expansion": "CONFLUX",
+      "ground": "ELEMENTAL_FIRE",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "N15": {
+      "id": "N15",
+      "img": "assets/tiles/N15.webp",
+      "desc": "Elemental Fire Near Tile N15",
+      "expansion": "CONFLUX",
+      "ground": "ELEMENTAL_FIRE",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "N16": {
+      "id": "N16",
+      "img": "assets/tiles/N16.webp",
+      "desc": "Elemental Water Near Tile N16",
+      "expansion": "CONFLUX",
+      "ground": "ELEMENTAL_WATER",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "N17": {
+      "id": "N17",
+      "img": "assets/tiles/N17.webp",
+      "desc": "Elemental Water Near Tile N17",
+      "expansion": "CONFLUX",
+      "ground": "ELEMENTAL_WATER",
+      "group": "NEAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "N18": {
+      "id": "N18",
+      "img": "assets/tiles/N18.webp",
+      "desc": "Elemental Air Near Tile N18",
+      "expansion": "CONFLUX",
+      "ground": "ELEMENTAL_AIR",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "N19": {
+      "id": "N19",
+      "img": "assets/tiles/N19.webp",
+      "desc": "Elemental Air Near Tile N19",
+      "expansion": "CONFLUX",
+      "ground": "ELEMENTAL_AIR",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "N20": {
+      "id": "N20",
+      "img": "assets/tiles/N20.webp",
+      "desc": "Elemental Earth Near Tile N20",
+      "expansion": "CONFLUX",
+      "ground": "ELEMENTAL_EARTH",
+      "group": "NEAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "N21": {
+      "id": "N21",
+      "img": "assets/tiles/N21.webp",
+      "desc": "Elemental Earth Near Tile N21",
+      "expansion": "CONFLUX",
+      "ground": "ELEMENTAL_EARTH",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "S9": {
+      "id": "S9",
+      "img": "assets/tiles/S9.webp",
+      "desc": "Startingtile Tile S9",
+      "expansion": "COVE",
+      "ground": "HIGHLANDS",
+      "group": "STARTINGTILE",
+      "blocked": [
+        1,
+        1,
+        1,
+        0,
+        1,
+        0
+      ]
+    },
+    "F25": {
+      "id": "F25",
+      "img": "assets/tiles/F25.webp",
+      "desc": "Far Tile F25",
+      "expansion": "COVE",
+      "ground": "HIGHLANDS",
+      "group": "FAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F26": {
+      "id": "F26",
+      "img": "assets/tiles/F26.webp",
+      "desc": "Far Tile F26",
+      "expansion": "COVE",
+      "ground": "HIGHLANDS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "F27": {
+      "id": "F27",
+      "img": "assets/tiles/F27.webp",
+      "desc": "Far Tile F27",
+      "expansion": "COVE",
+      "ground": "HIGHLANDS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "N22": {
+      "id": "N22",
+      "img": "assets/tiles/N22.webp",
+      "desc": "Near Tile N22",
+      "expansion": "COVE",
+      "ground": "HIGHLANDS",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "N12": {
+      "id": "N12",
+      "img": "assets/tiles/N12.webp",
+      "desc": "Near Tile N12",
+      "expansion": "INFERNO",
+      "ground": "LAVA",
+      "group": "NEAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "S1": {
+      "id": "S1",
+      "img": "assets/tiles/S1.webp",
+      "desc": "Startingtile Tile S1",
+      "expansion": "CORE",
+      "ground": "CURSED",
+      "group": "STARTINGTILE",
+      "blocked": [
+        0,
+        1,
+        1,
+        1,
+        0,
+        1
+      ]
+    },
+    "S2": {
+      "id": "S2",
+      "img": "assets/tiles/S2.webp",
+      "desc": "Startingtile Tile S2",
+      "expansion": "CORE",
+      "ground": "SUBTERRAIN",
+      "group": "STARTINGTILE",
+      "blocked": [
+        1,
+        0,
+        1,
+        1,
+        1,
+        0
+      ]
+    },
+    "S3": {
+      "id": "S3",
+      "img": "assets/tiles/S3.webp",
+      "desc": "Startingtile Tile S3",
+      "expansion": "CORE",
+      "ground": "GRASS",
+      "group": "STARTINGTILE",
+      "blocked": [
+        0,
+        1,
+        1,
+        1,
+        0,
+        1
+      ]
+    },
+    "S4": {
+      "id": "S4",
+      "img": "assets/tiles/S4.webp",
+      "desc": "Startingtile Tile S4",
+      "expansion": "RAMPART",
+      "ground": "GRASS",
+      "group": "STARTINGTILE",
+      "blocked": [
+        0,
+        1,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    "S5": {
+      "id": "S5",
+      "img": "assets/tiles/S5.webp",
+      "desc": "Startingtile Tile S5",
+      "expansion": "FORTRESS",
+      "ground": "SWAMP",
+      "group": "STARTINGTILE",
+      "blocked": [
+        1,
+        1,
+        1,
+        0,
+        1,
+        0
+      ]
+    },
+    "S6": {
+      "id": "S6",
+      "img": "assets/tiles/S6.webp",
+      "desc": "Startingtile Tile S6",
+      "expansion": "INFERNO",
+      "ground": "LAVA",
+      "group": "STARTINGTILE",
+      "blocked": [
+        0,
+        1,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    "#N8": {
+      "id": "#N8",
+      "img": "assets/tiles/__N8.webp",
+      "desc": "Water Tile #N8",
+      "expansion": "SG2",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#N9": {
+      "id": "#N9",
+      "img": "assets/tiles/__N9.webp",
+      "desc": "Water Tile #N9",
+      "expansion": "SG2",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#N10": {
+      "id": "#N10",
+      "img": "assets/tiles/__N10.webp",
+      "desc": "Water Tile #N10",
+      "expansion": "SG2",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#N11": {
+      "id": "#N11",
+      "img": "assets/tiles/__N11.webp",
+      "desc": "Water Tile #N11",
+      "expansion": "SG2",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "W1": {
+      "id": "W1",
+      "img": "assets/tiles/W1.webp",
+      "desc": "Water Near Tile W1",
+      "expansion": "COVE",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "W2": {
+      "id": "W2",
+      "img": "assets/tiles/W2.webp",
+      "desc": "Water Near Tile W2",
+      "expansion": "COVE",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "W3": {
+      "id": "W3",
+      "img": "assets/tiles/W3.webp",
+      "desc": "Water Near Tile W3",
+      "expansion": "COVE",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "W4": {
+      "id": "W4",
+      "img": "assets/tiles/W4.webp",
+      "desc": "Water Near Tile W4",
+      "expansion": "COVE",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "W5": {
+      "id": "W5",
+      "img": "assets/tiles/W5.webp",
+      "desc": "Water Near Tile W5",
+      "expansion": "COVE",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "W6": {
+      "id": "W6",
+      "img": "assets/tiles/W6.webp",
+      "desc": "Water Near Tile W6",
+      "expansion": "COVE",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "U1": {
+      "id": "U1",
+      "img": "assets/tiles/U1.webp",
+      "desc": "Subterranean Tile U1",
+      "expansion": "STRONGHOLD",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "U2": {
+      "id": "U2",
+      "img": "assets/tiles/U2.webp",
+      "desc": "Subterranean Tile U2",
+      "expansion": "STRONGHOLD",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "U3": {
+      "id": "U3",
+      "img": "assets/tiles/U3.webp",
+      "desc": "Subterranean Tile U3",
+      "expansion": "STRONGHOLD",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "U4": {
+      "id": "U4",
+      "img": "assets/tiles/U4.webp",
+      "desc": "Subterranean Tile U4",
+      "expansion": "STRONGHOLD",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "U5": {
+      "id": "U5",
+      "img": "assets/tiles/U5.webp",
+      "desc": "Subterranean Tile U5",
+      "expansion": "STRONGHOLD",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "U6": {
+      "id": "U6",
+      "img": "assets/tiles/U6.webp",
+      "desc": "Subterranean Tile U6",
+      "expansion": "STRONGHOLD",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "U7": {
+      "id": "U7",
+      "img": "assets/tiles/U7.webp",
+      "desc": "Subterranean Tile U7",
+      "expansion": "STRONGHOLD",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "W7": {
+      "id": "W7",
+      "img": "assets/tiles/W7.webp",
+      "desc": "Water Tile W7",
+      "expansion": "COVE",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "#F11": {
+      "id": "#F11",
+      "img": "assets/tiles/__F11.webp",
+      "desc": "Far Tile #F11",
+      "expansion": "SG2",
+      "ground": "ROUGH",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "#F12": {
+      "id": "#F12",
+      "img": "assets/tiles/__F12.webp",
+      "desc": "Far Tile #F12",
+      "expansion": "SG2",
+      "ground": "GRASS",
+      "group": "FAR",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#F13": {
+      "id": "#F13",
+      "img": "assets/tiles/__F13.webp",
+      "desc": "Far Tile #F13",
+      "expansion": "SG2",
+      "ground": "HIGHLANDS",
+      "group": "FAR",
+      "blocked": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#N4": {
+      "id": "#N4",
+      "img": "assets/tiles/__N4.webp",
+      "desc": "Subterranean Tile #N4",
+      "expansion": "SG2",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0
+      ]
+    },
+    "#N5": {
+      "id": "#N5",
+      "img": "assets/tiles/__N5.webp",
+      "desc": "Subterranean Tile #N5",
+      "expansion": "SG2",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#N6": {
+      "id": "#N6",
+      "img": "assets/tiles/__N6.webp",
+      "desc": "Subterranean Tile #N6",
+      "expansion": "SG2",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "#N7": {
+      "id": "#N7",
+      "img": "assets/tiles/__N7.webp",
+      "desc": "Subterranean Tile #N7",
+      "expansion": "SG2",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    "#C2": {
+      "id": "#C2",
+      "img": "assets/tiles/__C2.webp",
+      "desc": "Subterranean Tile #C2",
+      "expansion": "SG2",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#C3": {
+      "id": "#C3",
+      "img": "assets/tiles/__C3.webp",
+      "desc": "Subterranean Tile #C3",
+      "expansion": "SG2",
+      "ground": "SUBTERRAIN",
+      "group": "SUBTERRANEAN",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    "#C4": {
+      "id": "#C4",
+      "img": "assets/tiles/__C4.webp",
+      "desc": "Water Tile #C4",
+      "expansion": "SG2",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "#C5": {
+      "id": "#C5",
+      "img": "assets/tiles/__C5.webp",
+      "desc": "Water Tile #C5",
+      "expansion": "SG2",
+      "ground": "WATER",
+      "group": "WATER",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "S0": {
+      "id": "S0",
+      "img": "assets/tiles/special-random-1.webp",
+      "desc": "Random Starting tile",
+      "expansion": "RANDOM",
+      "ground": "RANDOM",
+      "group": "RANDOM",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "F0": {
+      "id": "F0",
+      "img": "assets/tiles/special-random-2-3.webp",
+      "desc": "Random Far Tile",
+      "expansion": "RANDOM",
+      "ground": "RANDOM",
+      "group": "RANDOM",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "N0": {
+      "id": "N0",
+      "img": "assets/tiles/special-random-4-5.webp",
+      "desc": "Random Near Tile",
+      "expansion": "RANDOM",
+      "ground": "RANDOM",
+      "group": "RANDOM",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "C0": {
+      "id": "C0",
+      "img": "assets/tiles/special-random-6-7.webp",
+      "desc": "Random Center Tile",
+      "expansion": "RANDOM",
+      "ground": "RANDOM",
+      "group": "RANDOM",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "NW0": {
+      "id": "NW0",
+      "img": "assets/tiles/special-random-4-5-water.webp",
+      "desc": "Random Near Water Tile",
+      "expansion": "RANDOM",
+      "ground": "WATER",
+      "group": "RANDOM",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "CW0": {
+      "id": "CW0",
+      "img": "assets/tiles/special-random-6-7-water.webp",
+      "desc": "Random Center Water Tile",
+      "expansion": "RANDOM",
+      "ground": "WATER",
+      "group": "RANDOM",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "NU0": {
+      "id": "NU0",
+      "img": "assets/tiles/special-random-4-5-subterranean.webp",
+      "desc": "Random Near Subterranean Tile",
+      "expansion": "RANDOM",
+      "ground": "SUBTERRAIN",
+      "group": "RANDOM",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "CU0": {
+      "id": "CU0",
+      "img": "assets/tiles/special-random-6-7-subterranean.webp",
+      "desc": "Random Center Subterranean Tile",
+      "expansion": "RANDOM",
+      "ground": "SUBTERRAIN",
+      "group": "RANDOM",
+      "blocked": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "portraits": {
+    "CATHERINE": {
+      "desc": "Catherine",
+      "faction": "CASTLE",
+      "img": "assets/portraits/catherine.webp"
+    },
+    "SANDRO": {
+      "desc": "Sandro",
+      "faction": "NECROPOLIS",
+      "img": "assets/portraits/sandro.webp"
+    },
+    "MUTARE": {
+      "desc": "Mutare",
+      "faction": "DUNGEON",
+      "img": "assets/portraits/mutare.webp"
+    },
+    "SOLMYR": {
+      "desc": "Solmyr",
+      "faction": "TOWER",
+      "img": "assets/portraits/solmyr.webp"
+    },
+    "ALAMAR": {
+      "desc": "Alamar",
+      "faction": "DUNGEON",
+      "img": "assets/portraits/alamar.webp"
+    },
+    "DRACON": {
+      "desc": "Dracon",
+      "faction": "TOWER",
+      "img": "assets/portraits/dracon.webp"
+    },
+    "RION": {
+      "desc": "Rion",
+      "faction": "CASTLE",
+      "img": "assets/portraits/rion.webp"
+    },
+    "TAMIKA": {
+      "desc": "Tamika",
+      "faction": "NECROPOLIS",
+      "img": "assets/portraits/tamika.webp"
+    },
+    "GEM": {
+      "desc": "Gem",
+      "faction": "RAMPART",
+      "img": "assets/portraits/gem.webp"
+    },
+    "GELU": {
+      "desc": "Gelu",
+      "faction": "RAMPART",
+      "img": "assets/portraits/gelu.webp"
+    },
+    "ADRIENNE": {
+      "desc": "Adrienne",
+      "faction": "FORTRESS",
+      "img": "assets/portraits/adrienne.webp"
+    },
+    "WYSTAN": {
+      "desc": "Wystan",
+      "faction": "FORTRESS",
+      "img": "assets/portraits/wystan.webp"
+    },
+    "ADELAIDE": {
+      "desc": "Adelaide",
+      "faction": "CASTLE",
+      "img": "assets/portraits/adelaide.webp"
+    },
+    "JEDDITE": {
+      "desc": "Jeddite",
+      "faction": "DUNGEON",
+      "img": "assets/portraits/jeddite.webp"
+    },
+    "MEPHALA": {
+      "desc": "Mephala",
+      "faction": "RAMPART",
+      "img": "assets/portraits/mephala.webp"
+    },
+    "HAART_DEATH": {
+      "desc": "Lord Haart Deathknight",
+      "faction": "NECROPOLIS",
+      "img": "assets/portraits/haart-dead.webp"
+    },
+    "HAART_KNIGHT": {
+      "desc": "Lord Haart Knight",
+      "faction": "CASTLE",
+      "img": "assets/portraits/haart-knight.webp"
+    },
+    "VIDOMINA": {
+      "desc": "Vidomina",
+      "faction": "NECROPOLIS",
+      "img": "assets/portraits/vidomina.webp"
+    },
+    "DEEMER": {
+      "desc": "Deemer",
+      "faction": "DUNGEON",
+      "img": "assets/portraits/deemer.webp"
+    },
+    "TAZAR": {
+      "desc": "Tazar",
+      "faction": "FORTRESS",
+      "img": "assets/portraits/tazar.webp"
+    },
+    "BRON": {
+      "desc": "Bron",
+      "faction": "FORTRESS",
+      "img": "assets/portraits/bron.webp"
+    },
+    "CLANCY": {
+      "desc": "Clancy",
+      "faction": "RAMPART",
+      "img": "assets/portraits/clancy.webp"
+    },
+    "IONA": {
+      "desc": "Iona",
+      "faction": "TOWER",
+      "img": "assets/portraits/iona.webp"
+    },
+    "JOSEPHINE": {
+      "desc": "Josephine",
+      "faction": "TOWER",
+      "img": "assets/portraits/josephine.webp"
+    },
+    "FIONA": {
+      "desc": "Fiona",
+      "faction": "INFERNO",
+      "img": "assets/portraits/fiona.webp"
+    },
+    "XYRON": {
+      "desc": "Xyron",
+      "faction": "INFERNO",
+      "img": "assets/portraits/xyron.webp"
+    },
+    "ZYDAR": {
+      "desc": "Zydar",
+      "faction": "INFERNO",
+      "img": "assets/portraits/zydar.webp"
+    },
+    "RASHKA": {
+      "desc": "Rashka",
+      "faction": "INFERNO",
+      "img": "assets/portraits/rashka.webp"
+    }
+  },
+  "creatureBanks": {
+    "CB1": {
+      "id": "CB1",
+      "img": "assets/creature-banks/CB1.webp",
+      "desc": "Derelict Ship",
+      "amount": 2
+    },
+    "CB2": {
+      "id": "CB2",
+      "img": "assets/creature-banks/CB2.webp",
+      "desc": "Pyramid",
+      "amount": 2
+    }
+  },
+  "mapLocations": {
+    "subterranean-gate-surface": {
+      "id": "subterranean-gate-surface",
+      "img": "assets/map-locations/subterranean-gate-surface.webp",
+      "desc": "Gate: Surface"
+    },
+    "subterranean-gate-underground": {
+      "id": "subterranean-gate-underground",
+      "img": "assets/map-locations/subterranean-gate-underground.webp",
+      "desc": "Gate: Subterranean"
+    },
+    "monolith-2w-01a": {
+      "id": "monolith-2w-01a",
+      "img": "assets/map-locations/monolith-2w-01a.webp",
+      "desc": "Monolith 2W 01A"
+    },
+    "monolith-2w-01b": {
+      "id": "monolith-2w-01b",
+      "img": "assets/map-locations/monolith-2w-01b.webp",
+      "desc": "Monolith 2W 01B"
+    },
+    "monolith-2w-02a": {
+      "id": "monolith-2w-02a",
+      "img": "assets/map-locations/monolith-2w-02a.webp",
+      "desc": "Monolith 2W 02A"
+    },
+    "monolith-2w-02b": {
+      "id": "monolith-2w-02b",
+      "img": "assets/map-locations/monolith-2w-02b.webp",
+      "desc": "Monolith 2W 02B"
+    },
+    "monolith-2w-03a": {
+      "id": "monolith-2w-03a",
+      "img": "assets/map-locations/monolith-2w-03a.webp",
+      "desc": "Monolith 2W 03A"
+    },
+    "monolith-2w-03b": {
+      "id": "monolith-2w-03b",
+      "img": "assets/map-locations/monolith-2w-03b.webp",
+      "desc": "Monolith 2W 03B"
+    },
+    "monolith-1w-01-in": {
+      "id": "monolith-1w-01-in",
+      "img": "assets/map-locations/monolith-1w-01-in.webp",
+      "desc": "Monolith 1W 01 Entrance"
+    },
+    "monolith-1w-01-out": {
+      "id": "monolith-1w-01-out",
+      "img": "assets/map-locations/monolith-1w-01-out.webp",
+      "desc": "Monolith 1W 01 Exit"
+    },
+    "monolith-1w-02-in": {
+      "id": "monolith-1w-02-in",
+      "img": "assets/map-locations/monolith-1w-02-in.webp",
+      "desc": "Monolith 1W 02 Entrance"
+    },
+    "monolith-1w-02-out": {
+      "id": "monolith-1w-02-out",
+      "img": "assets/map-locations/monolith-1w-02-out.webp",
+      "desc": "Monolith 1W 02 Exit"
+    },
+    "monolith-1w-03-in": {
+      "id": "monolith-1w-03-in",
+      "img": "assets/map-locations/monolith-1w-03-in.webp",
+      "desc": "Monolith 1W 03 Entrance"
+    },
+    "monolith-1w-03-out": {
+      "id": "monolith-1w-03-out",
+      "img": "assets/map-locations/monolith-1w-03-out.webp",
+      "desc": "Monolith 1W 03 Exit"
+    },
+    "whirlpool-plus1": {
+      "id": "whirlpool-plus1",
+      "img": "assets/map-locations/whirlpool-plus1.webp",
+      "desc": "Whirlpool +1"
+    },
+    "whirlpool-zero": {
+      "id": "whirlpool-zero",
+      "img": "assets/map-locations/whirlpool-zero.webp",
+      "desc": "Whirlpool 0"
+    },
+    "whirlpool-minus1": {
+      "id": "whirlpool-minus1",
+      "img": "assets/map-locations/whirlpool-minus1.webp",
+      "desc": "Whirlpool -1"
+    }
+  },
+  "glyphs": [
+    "1_valuables",
+    "2_building_materials",
+    "2_treasure_die",
+    "2_valuables",
+    "3_gold",
+    "4_building_materials",
+    "6_gold",
+    "activation",
+    "arrow_right",
+    "artifact",
+    "attack",
+    "azure",
+    "bronze",
+    "building_citadel",
+    "building_city_hall",
+    "building_mage_guild",
+    "building_materials",
+    "building_special_gears",
+    "building_special_tent",
+    "damage",
+    "defense",
+    "empower",
+    "experience",
+    "expert",
+    "gold",
+    "golden",
+    "hand",
+    "health_points",
+    "initiative",
+    "instant",
+    "level1",
+    "level4",
+    "level6",
+    "magic",
+    "map",
+    "might",
+    "morale_negative",
+    "morale_positive",
+    "movement",
+    "movement_token_green",
+    "movement_token_red",
+    "necro",
+    "ongoing",
+    "paralysis",
+    "pay",
+    "permanent",
+    "plusone",
+    "recruit",
+    "reinforce",
+    "resource",
+    "resource_die",
+    "silver",
+    "skill",
+    "spellpower",
+    "treasure",
+    "unit_alternative",
+    "unit_attack",
+    "unit_flying",
+    "unit_ground",
+    "unit_passive",
+    "unit_ranged",
+    "unit_retaliation",
+    "valuables",
+    "zero"
+  ],
+  "titleImages": [
+    "astral",
+    "ballistics",
+    "berserk",
+    "blind",
+    "bloody-grail",
+    "catherine",
+    "chain_of_lightning",
+    "crusader",
+    "dragon",
+    "earth_magic",
+    "earthquake",
+    "exile",
+    "experience",
+    "firewall",
+    "forgetfulness",
+    "frenzy",
+    "gelu",
+    "gold-mine",
+    "hp",
+    "implosion",
+    "intelligence",
+    "interference",
+    "kingofthehill",
+    "logistics",
+    "luck",
+    "magic_arrow",
+    "magic_mirror",
+    "mines",
+    "movement_token_shadow",
+    "obelisk",
+    "orb_of_the_firmament",
+    "pathfinding",
+    "population_token",
+    "precision",
+    "quiet_eye_of_the_dragon",
+    "random",
+    "sentinel",
+    "shackles_of_war",
+    "slayer",
+    "title",
+    "town_portal",
+    "two_way_monolith"
+  ]
+}
