@@ -1,10 +1,10 @@
 // Checks a scenario before export: what the mission book CI would reject,
 // and what a reviewer would ask for.
 
-import { tileName } from "../data/catalog.ts";
+import { CREATURE_BANKS, MAP_LOCATIONS, TILES, tileGroup, tileName } from "../data/catalog.ts";
 import { BOOK_TERMS } from "../data/game.ts";
-import type { Scenario } from "../model/types.ts";
-import { connectedGroups } from "./hex.ts";
+import type { MapLayout, MapTile, Scenario } from "../model/types.ts";
+import { cellKey, connectedGroups, fieldCell, neighbours } from "./hex.ts";
 import { countTiles, duplicateTiles } from "./document.ts";
 import { scenarioToLatex } from "./latex.ts";
 import { brokenRefs, paragraphRefs } from "./storybook.ts";
@@ -31,6 +31,102 @@ export function capsFindings(tex: string): { line: number; word: string; text: s
     }
   });
   return found;
+}
+
+/** Subterranean Tiles, including the face-down ones that tileGroup files under near and center. */
+function isSubterranean(tileId: string): boolean {
+  return tileGroup(tileId) === "subterranean" || tileId === "NU0" || tileId === "CU0";
+}
+
+const GATE_SURFACE = "subterranean-gate-surface";
+const GATE_UNDERGROUND = "subterranean-gate-underground";
+
+/** The Monolith that pairs with a Monolith token, or null for any other token. */
+function monolithPartner(id: string): string | null {
+  let m = /^(monolith-2w-\d+)([ab])$/.exec(id);
+  if (m) return m[1] + (m[2] === "a" ? "b" : "a");
+  m = /^(monolith-1w-\d+)-(in|out)$/.exec(id);
+  if (m) return `${m[1]}-${m[2] === "in" ? "out" : "in"}`;
+  return null;
+}
+
+/**
+ * Map tokens placed against the rules: Subterranean Gate halves without their
+ * other half, a lone Whirlpool, unpaired Monoliths, and Creature Banks off the
+ * Blocked Field of a Water or Subterranean Tile.
+ */
+export function tokenFindings(layout: MapLayout): string[] {
+  const out: string[] = [];
+  const map = `Map "${layout.name}"`;
+  const tokenName = (id: string) => MAP_LOCATIONS[id]?.desc ?? id;
+
+  // The tile and token on each board Field.
+  const board = new Map<string, { tile: MapTile; token: string }>();
+  for (const tile of layout.tiles) {
+    tile.mapLocations.forEach((token, field) => {
+      const [r, c] = fieldCell(tile, field);
+      board.set(cellKey(r, c), { tile, token });
+    });
+  }
+  const nextTo = (tile: MapTile, field: number, half: string, subterranean: boolean) =>
+    neighbours(...fieldCell(tile, field)).some(([r, c]) => {
+      const next = board.get(cellKey(r, c));
+      return next?.token === half && isSubterranean(next.tile.tileId) === subterranean;
+    });
+
+  let surface = 0;
+  let underground = 0;
+  const whirlpools: MapTile[] = [];
+  const monoliths = new Map<string, MapTile>();
+  for (const tile of layout.tiles) {
+    const name = tileName(tile.tileId);
+    tile.mapLocations.forEach((token, field) => {
+      if (token === GATE_SURFACE) {
+        surface++;
+        if (isSubterranean(tile.tileId)) {
+          out.push(`${map} has the surface half of a Subterranean Gate on ${name}, which is a Subterranean Tile.`);
+        } else if (!nextTo(tile, field, GATE_UNDERGROUND, true)) {
+          out.push(`${map} has a Subterranean Gate on ${name} with no underground half on a neighbouring Subterranean Tile.`);
+        }
+      } else if (token === GATE_UNDERGROUND) {
+        underground++;
+        if (!isSubterranean(tile.tileId)) {
+          out.push(`${map} has the underground half of a Subterranean Gate on ${name}, which is not a Subterranean Tile.`);
+        } else if (!nextTo(tile, field, GATE_SURFACE, false)) {
+          out.push(`${map} has a Subterranean Gate on ${name} with no surface half next to it.`);
+        }
+      } else if (token.startsWith("whirlpool-")) {
+        whirlpools.push(tile);
+      } else if (monolithPartner(token)) {
+        monoliths.set(token, tile);
+      }
+    });
+
+    // Water and Subterranean Tiles mark the Field a Creature Bank goes on as Blocked.
+    // Those with no Blocked Field at all have unknown data and are not checked.
+    const blocked = TILES[tile.tileId]?.blocked;
+    if (blocked?.length === 7 && blocked.some(Boolean)) {
+      tile.creaturebanks.forEach((bank, field) => {
+        if (bank && !blocked[field]) {
+          out.push(`${map} has the Creature Bank ${CREATURE_BANKS[bank]?.desc ?? bank} on ${name} off the Tile's Blocked Field.`);
+        }
+      });
+    }
+  }
+
+  if (surface !== underground) {
+    out.push(`${map} has ${surface} surface and ${underground} underground halves of Subterranean Gates; each Gate needs one of each.`);
+  }
+  if (whirlpools.length === 1) {
+    out.push(`${map} has a single Whirlpool (on ${tileName(whirlpools[0].tileId)}), which leads nowhere: place at least two.`);
+  }
+  for (const [token, tile] of monoliths) {
+    const partner = monolithPartner(token);
+    if (partner && !monoliths.has(partner)) {
+      out.push(`${map} has ${tokenName(token)} on ${tileName(tile.tileId)} without its partner ${tokenName(partner)}.`);
+    }
+  }
+  return out;
 }
 
 export function lintScenario(s: Scenario): Finding[] {
@@ -61,6 +157,7 @@ export function lintScenario(s: Scenario): Finding[] {
     if (s.category !== "campaigns" && s.playerCounts.length === 1 && counts.starting && counts.starting < s.playerCounts[0]) {
       warn("map", `Map "${layout.name}" has ${counts.starting} Starting Tiles for ${s.playerCounts[0]} players.`);
     }
+    for (const message of tokenFindings(layout)) warn("map", message);
   }
   if (!s.mapSetup.auto && maps.length) {
     const counts = countTiles(maps[0].tiles);
