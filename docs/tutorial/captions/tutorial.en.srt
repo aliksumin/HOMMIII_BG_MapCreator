@@ -1,0 +1,364 @@
+1
+00:00:00,298 --> 00:00:09,314
+HoMM3 Board Game Scenario Creator
+A step-by-step tutorial: write a Scenario, build its map, export it for the Mission Book.
+
+2
+00:00:10,043 --> 00:00:18,187
+Welcome
+The Scenario Creator runs in your browser. Everything you make is kept in this browser until you export it.
+
+3
+00:00:18,187 --> 00:00:27,901
+Four Scenario types
+Clash (player against player), Cooperative, Alliance and Campaign. The type sets the heading and where the file goes in the Mission Book.
+
+4
+00:00:27,901 --> 00:00:39,227
+Continue or open a file
+Projects you worked on are listed under Continue. You can also open a saved .scenario.json project, or a .map file from the community map editor.
+
+5
+00:00:39,227 --> 00:00:44,051
+Start a Clash
+For this demo we start a two-player Clash Scenario.
+
+6
+00:00:44,051 --> 00:00:59,247
+The editor
+Ten steps on the left, the form in the middle, and the live Mission Book page on the right. A red mark on a step means something there still needs filling in.
+
+7
+00:00:59,255 --> 00:01:03,609
+Name the Scenario
+The name becomes the heading and the file name.
+
+8
+00:01:03,609 --> 00:01:06,691
+File name
+Below the field you see the .tex file name the Mission Book will get.
+
+9
+00:01:06,691 --> 00:01:17,208
+Live page
+The page preview on the right updates with every change. Hide page gives the form more room.
+
+10
+00:01:17,208 --> 00:01:25,853
+Type and heading
+You can still change the type here. Campaigns add a campaign name, scenario number and faction.
+
+11
+00:01:25,853 --> 00:01:35,830
+Heading line and title lines
+Leave the heading line empty for the standard one. Use two title lines for a long name.
+
+12
+00:01:35,830 --> 00:01:43,053
+Difficulty rating
+An optional badge in the corner of the heading.
+
+13
+00:01:43,053 --> 00:01:47,194
+Author
+Your name, and optionally where the Scenario first appeared, with a link.
+
+14
+00:01:47,194 --> 00:01:56,740
+Title icon
+Pick the round icon left of the heading from the Mission Book's library, or upload your own PNG.
+
+15
+00:01:58,310 --> 00:02:10,344
+Flavor text
+One or two paragraphs that set the scene. They print in italics under the Author line.
+
+16
+00:02:10,344 --> 00:02:18,683
+The Story
+Campaigns often tell a longer story on its own page after the map. Separate paragraphs with a blank line.
+
+17
+00:02:26,515 --> 00:02:38,938
+Length and players
+10 Rounds, for 2 or 3 players. The page prints it as “2 or 3”.
+
+18
+00:02:38,938 --> 00:02:47,541
+Resources
+Starting Resources per resource, and Starting Income as a position on the income track.
+
+19
+00:02:47,541 --> 00:02:58,457
+Starting Units
+Add lines yourself or click a suggestion. Lines take the text markup, so icons like Bronze print as game icons.
+
+20
+00:02:58,457 --> 00:03:03,484
+Town Buildings
+Tick the buildings every player starts with.
+
+21
+00:03:03,484 --> 00:03:15,364
+Tile pool and Bonus
+Turn on the Map Tile Pool if players place random tiles while exploring. The Bonus line takes one option, or several to choose from.
+
+22
+00:03:18,765 --> 00:03:28,442
+The tile box
+Face-down tiles first (Starting I, Far II–III, Near IV–V, Center VI–VII, plus water and underground), then every printed tile of every expansion.
+
+23
+00:03:28,442 --> 00:03:35,743
+Click, then click the board
+Click a tile to pick it up, then click the board to place it. The outline shows whether it fits.
+
+24
+00:03:35,743 --> 00:03:40,405
+Drag and drop
+Or drag a tile from the box straight onto the board.
+
+25
+00:03:40,405 --> 00:03:48,556
+Place several
+A picked tile stays in your hand, so you can place several. Esc puts it down.
+
+26
+00:03:48,556 --> 00:04:01,532
+Printed tiles
+Search the box by tile number or terrain, or filter by expansion, and place a printed tile where the Scenario needs a specific one.
+
+27
+00:04:01,532 --> 00:04:09,870
+The status bar
+It counts the tiles by kind and warns when the map falls apart into unconnected parts, like now.
+
+28
+00:04:09,870 --> 00:04:15,986
+Move a tile
+Drag a placed tile to move it. It snaps to the hex grid.
+
+29
+00:04:15,986 --> 00:04:23,218
+Rotate
+Select a tile and press R to rotate it (Shift+R the other way), or use the Rotate buttons in the panel on the right.
+
+30
+00:04:23,218 --> 00:04:33,212
+Navigate the board
+Drag the empty board to pan, use the mouse wheel or these buttons to zoom, and the last button fits the whole map.
+
+31
+00:04:35,712 --> 00:04:45,486
+The inspector
+Select a tile to edit it: rotation, faction border, and what stands on each of its seven Fields.
+
+32
+00:04:45,486 --> 00:04:51,624
+Faction borders
+A face-down Starting tile can get a faction border, so each player knows where they start.
+
+33
+00:04:51,624 --> 00:04:57,769
+Fields
+Click a Field on the map, or pick it in the little flower, then put things on it.
+
+34
+00:04:57,769 --> 00:05:03,102
+Heroes
+Place a Hero portrait on a Field, for example where each player's Main Hero starts.
+
+35
+00:05:03,102 --> 00:05:14,879
+Cubes
+Cubes in faction colors, or black, mark Fields such as flagged Mines.
+
+36
+00:05:14,879 --> 00:05:26,379
+Location tokens
+Monoliths, Whirlpools and Subterranean Gates go on Fields as tokens; here a two-way Monolith pair. Rotate token turns one.
+
+37
+00:05:26,379 --> 00:05:31,883
+Creature Banks
+Creature Banks such as the Pyramid sit on a Field the same way.
+
+38
+00:05:31,883 --> 00:05:38,751
+Blocked Fields
+Mark a Field as blocked when the Scenario closes it off. Suggested placement draws a tile faded, as a hint.
+
+39
+00:05:42,922 --> 00:05:55,513
+Layouts
+A Scenario can have several map layouts, for example one per player count. Each has a name, the player counts it is for, and a caption under the image.
+
+40
+00:05:55,513 --> 00:06:01,047
+.map and PNG
+Export .map saves the layout in the community map editor's format (for assets/map-files/); Export PNG renders the map image (for assets/maps/).
+
+41
+00:06:01,047 --> 00:06:08,809
+A second layout
+Add a layout for three players, then fill it from the .map file we just saved.
+
+42
+00:06:08,809 --> 00:06:25,377
+Import .map
+Paste the text from the community map editor, or open a .map file. Replace the layout or add the tiles to it.
+
+43
+00:06:25,377 --> 00:06:28,588
+Layout tabs
+Switch layouts with the tabs. Duplicate copies the current layout as a starting point.
+
+44
+00:06:30,260 --> 00:06:41,669
+Tile list
+The Map Setup list is counted from the map. Layouts with different tiles each get their own list, labelled by their player counts.
+
+45
+00:06:41,669 --> 00:06:53,854
+Your own counts
+Turn counting off to type the counts, or mark a count as per player, which prints as “2P”.
+
+46
+00:06:53,854 --> 00:07:00,209
+Notes
+Add a note to any tile line.
+
+47
+00:07:00,209 --> 00:07:03,894
+Heroes Placement
+Say where the Heroes start. Campaigns use this for the AI Heroes too.
+
+48
+00:07:07,108 --> 00:07:19,484
+AI Hero Setup
+Campaigns and some cooperative Scenarios fight an AI Hero: its faction, army, AI deck, spell deck, skills and special rules. Campaigns switch this on by itself.
+
+49
+00:07:19,484 --> 00:07:21,892
+Not for a Clash
+Our Clash has no AI Hero, so we switch it off again.
+
+50
+00:07:28,591 --> 00:07:36,889
+Victory
+Write how the Scenario is won. Suggestions add a common condition as a new paragraph.
+
+51
+00:07:36,889 --> 00:07:39,895
+Defeat
+And how it is lost, or say there is no defeat other than the end of the last Round.
+
+52
+00:07:47,173 --> 00:08:03,027
+Events by Round
+Add an event, pick the Round it happens in, then type the events or click a suggestion.
+
+53
+00:08:03,027 --> 00:08:13,391
+Repeats
+Pick several Rounds for an event that repeats; the book prints them in order (“6th and 9th Rounds”). A suggestion repeats another event.
+
+54
+00:08:19,671 --> 00:08:39,277
+Additional Rules
+Rules that change the game for this Scenario: an optional introduction and one bullet per rule.
+
+55
+00:08:39,277 --> 00:08:48,291
+Own sections
+Sections of your own, such as “Enemy Spawning and Movement”, follow the Additional Rules, each with a title, text and bullets.
+
+56
+00:08:49,225 --> 00:09:00,595
+Markup instead of LaTeX
+Every text field takes a small markup: **bold**, *italic*, :gold: for any game icon, "quotes" and -- for a dash.
+
+57
+00:09:00,595 --> 00:09:05,819
+The Icon button
+The Icon button opens the game icons; “Show all” lists every one. A click inserts its :name:.
+
+58
+00:09:05,819 --> 00:09:15,153
+Rendered on the page
+The page shows bold text, the dash, curly quotes and the gold icon, exactly as the Mission Book prints them.
+
+59
+00:09:16,085 --> 00:09:26,091
+Undo and redo
+Removed something by mistake? Undo it with the arrow buttons, or Ctrl+Z and Ctrl+Y.
+
+60
+00:09:26,091 --> 00:09:31,065
+Autosave
+Every change is saved in this browser as you work. Clearing the browser's data clears it too, so keep a file.
+
+61
+00:09:31,065 --> 00:09:41,654
+Save file
+Save file downloads the project as .scenario.json. Open it on the start screen to keep editing, on any computer.
+
+62
+00:09:41,654 --> 00:09:47,072
+Back to the start
+The logo takes you to the start screen. The project is listed under Continue; click it to carry on.
+
+63
+00:09:48,688 --> 00:09:57,426
+Checklist
+The checklist lists what is missing (Fix) and what a reviewer would ask about (Check), with a link to the step.
+
+64
+00:09:57,426 --> 00:10:14,948
+Capitalisation lint
+It also runs the Mission Book's capitalisation check: game terms such as Hero, Field or Round are written with a capital.
+
+65
+00:10:14,948 --> 00:10:18,519
+Fixed
+With “Hero” capitalised the checklist is clear.
+
+66
+00:10:18,519 --> 00:10:24,684
+Page preview
+The Preview shows the full Mission Book page, map included.
+
+67
+00:10:24,684 --> 00:10:34,988
+LaTeX
+The LaTeX tab shows the .tex file the app writes, a Copy button, and the line to register it in main.tex.
+
+68
+00:10:34,988 --> 00:10:44,991
+How to submit
+The submit guide: where each file goes, the main.tex line, how to build, and the pull request. It is also in the ZIP.
+
+69
+00:10:45,995 --> 00:10:58,725
+The ZIP bundle
+One click builds the whole bundle: the .tex, each layout's map PNG and .map file, the PDF, the project file and HOW-TO-SUBMIT.md.
+
+70
+00:10:58,725 --> 00:11:03,965
+PDF
+The PDF lays out the Scenario like the book, to print or share.
+
+71
+00:11:03,965 --> 00:11:10,130
+Single files
+Or download single files: the .tex, the project file, and each layout's .map and PNG below.
+
+72
+00:11:10,648 --> 00:11:22,663
+Exported files
+The ZIP mirrors the Mission Book repository: the .tex goes to draft-scenarios/, the map PNGs to assets/maps/, the .map files to assets/map-files/. HOW-TO-SUBMIT.md has the rest.
+
+73
+00:11:22,663 --> 00:11:27,668
+Happy scenario writing!
+Write, lay out the map, check, export, and open a pull request to the Mission Book.
