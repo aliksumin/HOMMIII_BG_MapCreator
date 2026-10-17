@@ -6,8 +6,8 @@ The art and data under `public/assets/` and `src/data/catalog.json` come from ot
 their own licenses:
 
 - **Map tiles, Hero portraits, location tokens, Creature Banks and the tile catalog** - from the
-  HoMM3 Board Game Scenario Map Editor by zedero, https://github.com/zedero/homm3boardgame (MIT). Resized to WebP. The ten
-  Creature Banks the editor has no art for yet are plain name tokens drawn by `tools/bank-tokens.mjs`.
+  HoMM3 Board Game Scenario Map Editor by zedero, https://github.com/zedero/homm3boardgame (MIT). Resized to WebP. Creature
+  Banks are plain name tokens drawn by `tools/bank-tokens.mjs` until the editor has art for all twelve (issue #14).
 - **Game icons (glyphs), scenario title icons, page layout art and section headings** - from the
   Fan-Made Mission Book, https://github.com/qwrtln/Homm3BG-mission-book, licensed CC BY-NC-SA 4.0. Resized to WebP.
   The same layout originates in the Rewritten Rule Book, https://github.com/Heegu-sama/Homm3BG (CC BY-NC-SA 4.0).

@@ -2048,13 +2048,13 @@
   "creatureBanks": {
     "CB1": {
       "id": "CB1",
-      "img": "assets/creature-banks/CB1.webp",
+      "img": "assets/creature-banks/CB1.svg",
       "desc": "Derelict Ship",
       "amount": 2
     },
     "CB2": {
       "id": "CB2",
-      "img": "assets/creature-banks/CB2.webp",
+      "img": "assets/creature-banks/CB2.svg",
       "desc": "Pyramid",
       "amount": 2
     },

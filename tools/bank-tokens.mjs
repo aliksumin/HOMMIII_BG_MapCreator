@@ -1,7 +1,7 @@
-// Plain hex tokens for the Creature Banks the community map editor lists
-// without art yet: the bank's name on a dark hex with a gold rim, the size of
-// the CB1/CB2 pictures (150 x 150). tools/import-assets.mjs writes one for
-// every bank it has no picture for.
+// Plain hex tokens for the Creature Banks: the bank's name on a dark hex with a
+// gold rim, 150 x 150 like the community map editor's token pictures.
+// tools/import-assets.mjs draws all of them this way until the editor has art
+// for every bank (issue #14).
 
 const SIZE = 150;
 const C = SIZE / 2;
