@@ -11,6 +11,8 @@ their own licenses:
 - **Game icons (glyphs), scenario title icons, page layout art and section headings** - from the
   Fan-Made Mission Book, https://github.com/qwrtln/Homm3BG-mission-book, licensed CC BY-NC-SA 4.0. Resized to WebP.
   The same layout originates in the Rewritten Rule Book, https://github.com/Heegu-sama/Homm3BG (CC BY-NC-SA 4.0).
+- **App icon** (`public/favicon.svg` and the PNG and ICO files made from it) - an original emblem drawn for this
+  project (a map hex with a banner), not game art; same MIT license as the code.
 - **Liberation Serif fonts** - SIL Open Font License; see `public/assets/fonts/Liberation-license.txt`.
 
 Because of the CC BY-NC-SA 4.0 parts, the app as distributed with these assets is for non-commercial use, and
