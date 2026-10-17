@@ -445,7 +445,8 @@ async function main() {
       fs.mkdirSync(clips);
       for (const c of chapters) {
         const name = `${String(c.num).padStart(2, "0")}-${c.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.mp4`;
-        await run(ffmpegPath, ["-y", "-loglevel", "error", "-ss", c.start.toFixed(3), "-to", (c.end ?? total).toFixed(3), "-i", raw,
+        await run(ffmpegPath, ["-y", "-loglevel", "error", "-ss", c.start.toFixed(3), "-i", raw, "-t", ((c.end ?? total) - c.start).toFixed(3),
+          "-map", "0:v", "-map_chapters", "-1",
           "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", path.join(clips, name)]);
       }
       fs.rmSync(raw, { force: true });
