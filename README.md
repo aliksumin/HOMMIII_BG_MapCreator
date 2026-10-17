@@ -16,6 +16,14 @@ It exports exactly what a Mission Book pull request needs, plus a PDF:
 | `<name>.scenario.json` | the project file, to reopen and keep editing |
 | `HOW-TO-SUBMIT.md` | the line to add to `main.tex` and the build/PR steps |
 
+## Tutorial video
+
+[![Scenario Creator tutorial on YouTube](https://img.youtube.com/vi/akaf_XUwnU0/maxresdefault.jpg)](https://youtu.be/akaf_XUwnU0)
+
+[Watch the 11-minute tutorial on YouTube](https://youtu.be/akaf_XUwnU0). It goes through every step of a demo scenario,
+from the start screen and the map editor to the checks and the Mission Book bundle.
+To re-record it after the app changes, see [`docs/tutorial/`](docs/tutorial/README.md).
+
 ## The steps
 
 1. **Basics** - name, type (Clash, Cooperative, Alliance, Campaign), heading line, rating, author, source, title icon.

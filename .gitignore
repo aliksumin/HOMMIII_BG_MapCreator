@@ -9,3 +9,6 @@ dist/
 *.log
 .DS_Store
 .vite/
+
+# The tutorial video and its clips (made by docs/tutorial/capture.mjs; kept out of git: size, and the art has its own licenses)
+HoMM3-Scenario-Creator-tutorial/
