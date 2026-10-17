@@ -48,9 +48,14 @@ Work is saved automatically in the browser; use **Save file** to keep a project 
 `examples/template-scenario/` holds a finished sample Scenario that uses every feature (open it with **Open the template**
 on the start screen); see its README.
 
-## Run it
+## Use it online
 
-Needs Node 24.
+Open **https://aliksumin.github.io/HOMMIII_BG_MapCreator/**. Nothing to install; your work stays in your browser
+(use **Save file** to keep a project file). The site is rebuilt from `main` on every merge.
+
+## Run it on your PC
+
+Needs Node 24. Clone the repository, then:
 
 ```bash
 npm ci
@@ -60,7 +65,17 @@ npm ci
 npm run dev
 ```
 
-Then open http://localhost:5173. Other scripts: `npm test` (unit tests for the `.map`, hex and LaTeX code),
+Then open http://localhost:5173.
+
+Without cloning: download `scenario-creator-<version>.zip` from the
+[Releases](https://github.com/aliksumin/HOMMIII_BG_MapCreator/releases) page, unzip it, and serve the folder
+(opening `index.html` straight from disk does not work, because browsers block the app's scripts on `file://`):
+
+```bash
+npx serve <unzipped-folder>
+```
+
+Other scripts: `npm test` (unit tests for the `.map`, hex and LaTeX code),
 `npm run typecheck`, `npm run build` (static site in `dist/`, works from any sub-path).
 
 ## Assets
