@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>Scenario Creator</title>
+  <!-- An original emblem: a map hex in dark blue with a gold rim, and a gold banner on a pole. -->
+  <polygon points="32,4 56.25,18 56.25,46 32,60 7.75,46 7.75,18" fill="#1d2a52" stroke="#d8b45a" stroke-width="5.5" stroke-linejoin="round"/>
+  <g transform="translate(-2 0)">
+    <line x1="24" y1="16" x2="24" y2="49" stroke="#f3e2b3" stroke-width="5" stroke-linecap="round"/>
+    <path d="M26 17 H48 L41.5 25.5 L48 34 H26 Z" fill="#d8b45a" stroke="#f3e2b3" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+</svg>
