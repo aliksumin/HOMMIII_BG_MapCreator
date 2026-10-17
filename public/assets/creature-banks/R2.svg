@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="150" height="150" viewBox="0 0 150 150">
+<title>Random (Near)</title>
+<defs><radialGradient id="g" cx="50%" cy="40%" r="65%"><stop offset="0" stop-color="#5a4630"/><stop offset="1" stop-color="#1a120a"/></radialGradient></defs>
+<polygon points="75.0,3.0 137.4,39.0 137.4,111.0 75.0,147.0 12.6,111.0 12.6,39.0" fill="#c9a85a" stroke="#5c4a22" stroke-width="2"/>
+<polygon points="75.0,10.0 131.3,42.5 131.3,107.5 75.0,140.0 18.7,107.5 18.7,42.5" fill="url(#g)"/>
+<polygon points="75.0,16.0 126.1,45.5 126.1,104.5 75.0,134.0 23.9,104.5 23.9,45.5" fill="none" stroke="#dbca86" stroke-opacity="0.55" stroke-width="1.2"/>
+<text x="75" y="50" font-family="'Liberation Serif', Georgia, 'Times New Roman', serif" font-size="7" letter-spacing="0.8" text-anchor="middle" fill="#b09e69">CREATURE BANK</text>
+<g font-family="'Liberation Serif', Georgia, 'Times New Roman', serif" font-weight="700" fill="#f2e3bd"><text x="75" y="93" font-size="44" text-anchor="middle">?</text><text x="75" y="113" font-size="13" letter-spacing="2" text-anchor="middle">NEAR</text></g>
+</svg>

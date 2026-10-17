@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canPlace, cellCenter, fieldCenter, type Point, pixelToCell, TILE_H, TILE_W, boardBounds } from "../../lib/hex.ts";
+import { duplicateTiles } from "../../lib/document.ts";
 import { flowerPath, hexPoints, tileImageUrl } from "../../lib/mapdraw.ts";
 import { MapLayers } from "./MapLayers.tsx";
 import type { MapTile } from "../../model/types.ts";
@@ -177,6 +178,7 @@ export function Board({ tiles, selectedId, selectedField, armed, onPlace, onMove
   };
 
   const selected = shown.find((t) => t.id === selectedId) ?? null;
+  const dupes = duplicateTiles(tiles);
   const ghostUrl = armed ? tileImageUrl(armed) : null;
 
   return (
@@ -206,6 +208,15 @@ export function Board({ tiles, selectedId, selectedField, armed, onPlace, onMove
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
           <path d={gridPath} className="grid-hex" />
           <MapLayers tiles={shown} fadedId={dragging?.id} clipId="board-hero-clip" />
+          {dupes.size > 0 && (
+            <g className="dupes">
+              {shown
+                .filter((t) => dupes.has(t.tileId))
+                .map((t) => (
+                  <path key={t.id} d={flowerPath(cellCenter(t.row, t.col).x, cellCenter(t.row, t.col).y)} />
+                ))}
+            </g>
+          )}
           {selected && (
             <g className="selection">
               <path d={flowerPath(cellCenter(selected.row, selected.col).x, cellCenter(selected.row, selected.col).y)} className={dragValid ? "" : "invalid"} />
