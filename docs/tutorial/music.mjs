@@ -1,872 +1,559 @@
-// Background music for the tutorial video: five short pieces composed for it
-// (see score.mjs) in the manner of the classic Heroes III soundtrack, and
-// synthesized here from scratch: no samples, nothing taken from the game's
-// music.
+// Background music for the tutorial video, scored to the picture: a warm
+// pad that changes chord with the steps and captions, a low pedal per part,
+// and harp plucks, glass bells and soft swells on what happens on screen.
+// The score (keys, chords, motif, which event plays what) is in score.mjs;
+// this file turns the recording's timeline into sound. Synthesized from
+// scratch: no samples, nothing taken from the game's music. Deterministic:
+// the same timeline gives the same file.
 //
-//   node docs/tutorial/music.mjs --out <capture output folder>
+//   node docs/tutorial/music.mjs --out <capture output folder>   mix into the video and clips
+//   node docs/tutorial/music.mjs --cues --timeline <timeline.json>   print the cue sheet
+//   node docs/tutorial/music.mjs --wav music.wav --timeline <timeline.json>
+//   node docs/tutorial/music.mjs --check
 //
-// renders music for the recording in that folder (each piece starts where its
-// group of tutorial steps starts) and mixes it under
-// HoMM3-Scenario-Creator-tutorial.mp4 and every clip in clips/. capture.mjs
-// calls addMusic() itself unless it is given --no-music.
+// capture.mjs calls addMusic() itself unless it is given --no-music.
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CUE_CHAPTERS, CUES } from "./score.mjs";
+import { BPM, MOTIF, RULES, SECTIONS } from "./score.mjs";
 
-const SR = 44100;
+const SR = 48000;
+const TAU = 2 * Math.PI;
+const BEAT = 60 / BPM;
+const clamp = (x, a = 0, b = 1) => (x < a ? a : x > b ? b : x);
+const smooth = (t) => t * t * (3 - 2 * t);
+
+// ------------------------------------------------------------ pitch and harmony
+
+const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const SCALES = { major: [0, 2, 4, 5, 7, 9, 11], lydian: [0, 2, 4, 6, 7, 9, 11], mixolydian: [0, 2, 4, 5, 7, 9, 10] };
+
+/** "F#4" -> MIDI note. */
+function midi(name) {
+  const m = /^([A-G])(#|b)?(-?\d)$/.exec(name);
+  if (!m) throw new Error(`Bad note "${name}"`);
+  return 12 * (Number(m[3]) + 1) + PC[m[1]] + (m[2] === "#" ? 1 : m[2] === "b" ? -1 : 0);
+}
+const hz = (m) => 440 * 2 ** ((m - 69) / 12);
+
+/** Scale degree (may be negative or above 6) in a section's key, around octave `oct`. */
+function degree(section, d, oct) {
+  const sc = SCALES[section.key.mode];
+  const tonic = 12 * (oct + 1) + PC[section.key.tonic];
+  return tonic + sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7);
+}
+
+// ------------------------------------------------------------ randomness (seeded)
+
+function hash32(...xs) {
+  let h = 2166136261 >>> 0;
+  for (const x of xs) {
+    h ^= (x | 0) + 0x9e3779b9 + (h << 6) + (h >>> 2);
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+  }
+  return h >>> 0;
+}
+function rng(seed) {
+  let a = seed >>> 0;
+  const f = () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  f.range = (lo, hi) => lo + (hi - lo) * f();
+  return f;
+}
+const SEED = 3;
+const R = (...k) => rng(hash32(SEED, ...k));
+
+// ------------------------------------------------------------ the cue sheet
+
+/**
+ * Turns the timeline into what plays: chord changes, pedal changes,
+ * struck notes (bells, plucks) and swells, each with the reason.
+ */
+export function cueSheet(timeline) {
+  const total = timeline.total;
+  let events = timeline.events;
+  if (!events?.length) {
+    // an older timeline: chapters and captions only
+    events = [
+      ...timeline.chapters.map((c) => ({ t: c.start, type: "chapter", chapter: c.num, num: c.num })),
+      ...timeline.cues.map((c) => ({ t: c.start, type: "caption", chapter: timeline.chapters.findLast((ch) => ch.start <= c.start + 1e-6)?.num ?? 0 })),
+    ];
+  }
+  events = [...events].sort((a, b) => a.t - b.t);
+  const sectionOf = (chapter) => SECTIONS.findLast((s) => s.from <= chapter) ?? SECTIONS[0];
+  const grid = (t, g) => Math.round(t / g) * g;
+
+  const chords = []; // { t, notes, section }
+  const pedals = []; // { t, note }
+  const notes = []; // { t, kind: bell|pluck|horn, m, vel, pan, dur?, why }
+  const swells = []; // { t, dur, w, why }
+  let section = null;
+  let chordIx = -1;
+  let lastChordT = -99;
+  let bellLine = 0;
+  let pluckStep = 0;
+  const changeChord = (t, why) => {
+    chordIx = (chordIx + 1) % section.chords.length;
+    chords.push({ t, notes: section.chords[chordIx].split(" ").map(midi), why });
+    lastChordT = t;
+  };
+  const chord = () => chords.at(-1).notes;
+
+  for (const e of events) {
+    const sec = sectionOf(e.chapter ?? 0);
+    if (sec !== section) {
+      section = sec;
+      chordIx = -1;
+      pedals.push({ t: grid(e.t, BEAT), note: midi(sec.pedal), section: sec });
+      changeChord(grid(e.t, BEAT), `${sec.name}`);
+      if (e.t > 1) for (const r of RULES.section ?? []) notes.push({ t: grid(e.t, BEAT), kind: "horn", m: chord(), vel: r.vel, dur: r.dur, pan: 0, why: `horns: ${sec.name}` });
+    } else if ((e.type === "chapter" || e.type === "caption") && e.t - lastChordT > 3.5) {
+      changeChord(grid(e.t, BEAT), e.type === "chapter" ? `step ${e.num}` : "caption");
+    }
+
+    for (const rule of RULES[e.type] ?? []) {
+      const g = rule.play === "pluck" ? BEAT / 4 : BEAT / 2;
+      const t = Math.max(0, grid(e.t, g));
+      const c = chord();
+      switch (rule.play) {
+        case "motif": {
+          const step = rule.slow ? 2 * BEAT : BEAT;
+          const kind = e.type === "chapter" && events.find((x) => x.type === "chapter" && sectionOf(x.chapter) === sec) !== e ? "pluck" : "bell";
+          MOTIF.forEach((d, i) =>
+            notes.push({ t: t + i * step, kind, m: degree(sec, d, 5), vel: rule.vel * (1 - 0.06 * i), pan: [-0.25, 0.15, -0.1, 0.25, 0][i % 5], why: `motif ${i + 1}` }),
+          );
+          if (rule.slow) notes.push({ t: t + MOTIF.length * step, kind: "bell", m: degree(sec, 0, 3), vel: rule.vel * 0.8, pan: 0, why: "low bell" });
+          break;
+        }
+        case "bell": {
+          // the bell line moves through the chord's upper tones: up two, down one
+          const tones = c.map((m) => m + 12).filter((m) => m >= 62 && m <= 86);
+          const pool = tones.length ? tones : c.map((m) => m + 24);
+          bellLine = (bellLine + (bellLine % 3 === 2 ? -1 : 2)) % (pool.length * 2);
+          let m = pool[bellLine % pool.length] + 12 * (rule.octave ?? 0);
+          while (m > 88) m -= 12;
+          notes.push({ t, kind: "bell", m, vel: rule.vel, pan: [-0.3, 0.3, 0, -0.15, 0.15][notes.length % 5], why: e.type });
+          break;
+        }
+        case "pluck": {
+          let m;
+          if (rule.root) m = degree(sec, 0, 3 + (rule.octave ?? 0) + 1);
+          else {
+            m = degree(sec, pluckStep % 12, 4);
+            pluckStep++;
+          }
+          notes.push({ t, kind: "pluck", m, vel: rule.vel, pan: e.x ? clamp((e.x / 1440) * 1.2 - 0.6, -0.6, 0.6) : 0, why: e.type });
+          break;
+        }
+        case "roll": {
+          const span = Math.min(1.2, Math.max(0.4, e.dur ?? 0.6));
+          c.forEach((m, i) => notes.push({ t: t + (i * span) / c.length, kind: "pluck", m: m + 12, vel: rule.vel, pan: -0.4 + i * 0.25, why: `${e.type} roll` }));
+          break;
+        }
+        case "run": {
+          const n = 5;
+          const span = Math.max(0.5, e.dur ?? 0.8);
+          for (let i = 0; i < n; i++) notes.push({ t: t + (i * span) / n, kind: "pluck", m: degree(sec, 2 + i, 4), vel: rule.vel, pan: -0.4 + i * 0.2, why: `${e.type} run` });
+          break;
+        }
+        case "swell":
+          swells.push({ t: e.t, dur: rule.dur ?? e.dur ?? 1, w: rule.vel, why: e.type });
+          break;
+        case "chime":
+          notes.push({ t, kind: "bell", m: degree(sec, 0, 5), vel: rule.vel, pan: -0.2, why: "export" });
+          notes.push({ t: t + BEAT / 2, kind: "bell", m: degree(sec, 4, 5), vel: rule.vel * 0.85, pan: 0.2, why: "export" });
+          break;
+      }
+    }
+  }
+
+  // Close events share the space: in each second, the busier it is, the softer each note.
+  notes.sort((a, b) => a.t - b.t);
+  for (const n of notes) {
+    const near = notes.filter((o) => o.kind === n.kind && Math.abs(o.t - n.t) < 1).length;
+    n.vel *= 1 / Math.sqrt(Math.max(1, near - 1));
+  }
+  // and the same pluck note never repeats within a quarter second
+  const kept = notes.filter((n, i) => !notes.slice(Math.max(0, i - 6), i).some((o) => o.kind === n.kind && o.m === n.m && n.t - o.t < 0.25));
+  return { total, chords, pedals, notes: kept.filter((n) => n.t < total - 0.5), swells };
+}
 
 // ------------------------------------------------------------ synthesis
 
-function rng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
+class Bus {
+  constructor(n) {
+    this.L = new Float32Array(n);
+    this.R = new Float32Array(n);
+  }
+}
+const pan = (p) => [Math.cos(((p + 1) * Math.PI) / 4), Math.sin(((p + 1) * Math.PI) / 4)];
+
+/** Stereo state-variable low-pass, cutoff fc(i) in Hz, in place. */
+function lowpass(bus, fc, q = 0.6) {
+  const k = 1 / q;
+  let a1 = 0, a2 = 0, a3 = 0, l1 = 0, l2 = 0, r1 = 0, r2 = 0;
+  for (let i = 0; i < bus.L.length; i++) {
+    if ((i & 31) === 0) {
+      const g = Math.tan((Math.PI * Math.min(fc(i), SR * 0.45)) / SR);
+      a1 = 1 / (1 + g * (g + k));
+      a2 = g * a1;
+      a3 = g * a2;
+    }
+    let v3 = bus.L[i] - l2;
+    let v1 = a1 * l1 + a2 * v3;
+    let v2 = l2 + a2 * l1 + a3 * v3;
+    l1 = 2 * v1 - l1;
+    l2 = 2 * v2 - l2;
+    bus.L[i] = v2;
+    v3 = bus.R[i] - r2;
+    v1 = a1 * r1 + a2 * v3;
+    v2 = r2 + a2 * r1 + a3 * v3;
+    r1 = 2 * v1 - r1;
+    r2 = 2 * v2 - r2;
+    bus.R[i] = v2;
+  }
 }
 
-const hz = (m) => 440 * 2 ** ((m - 69) / 12);
+/** Glass bell and harp: damped partials [ratio, level, ring time at 440 Hz]. */
+const BELL = [[1, 1, 3.4], [1.0015, 0.3, 2.8], [2, 0.2, 1.7], [3.01, 0.07, 1], [4.2, 0.045, 0.5], [5.42, 0.025, 0.3]];
+const HARP = Array.from({ length: 8 }, (_, i) => [
+  (i + 1) * (1 + 0.0003 * (i + 1) ** 2),
+  (Math.abs(Math.sin(Math.PI * (i + 1) * 0.19)) / (i + 1) ** 1.1) * Math.exp(-0.2 * i),
+  1.8 / (1 + 0.5 * i),
+]);
 
-class Mix {
-  constructor(seconds) {
-    this.n = Math.ceil(seconds * SR);
-    this.L = new Float32Array(this.n);
-    this.R = new Float32Array(this.n);
-    this.wetL = new Float32Array(this.n);
-    this.wetR = new Float32Array(this.n);
-  }
-  /** Adds a mono signal at time t (s) with pan (-1..1), gain and reverb send. */
-  put(t, sig, pan, gain, send) {
-    const at = Math.round(t * SR);
-    const gl = gain * Math.cos(((pan + 1) * Math.PI) / 4);
-    const gr = gain * Math.sin(((pan + 1) * Math.PI) / 4);
-    const end = Math.min(sig.length, this.n - at);
-    for (let i = Math.max(0, -at); i < end; i++) {
-      const v = sig[i];
-      this.L[at + i] += v * gl;
-      this.R[at + i] += v * gr;
-      this.wetL[at + i] += v * gl * send;
-      this.wetR[at + i] += v * gr * send;
+function strike(bus, send, at, m, parts, amp, p, attack, vel, r) {
+  const f0 = hz(m);
+  const [gl, gr] = pan(p);
+  const s0 = Math.round(at * SR);
+  const na = Math.max(1, Math.round(attack * SR));
+  const tsc = (440 / f0) ** 0.35;
+  for (const [pi, [ratio, a, t60]] of parts.entries()) {
+    const T = t60 * tsc;
+    const n = Math.min(bus.L.length - s0, Math.ceil(T * 1.3 * SR));
+    const g0 = amp * a * (pi < 2 ? 1 : 0.45 + 0.55 * vel);
+    for (let ch = 0; ch < 2; ch++) {
+      const f = f0 * ratio * (1 + (ch ? 0.0003 : -0.0003) * (pi + 1));
+      if (f >= SR * 0.45) continue;
+      const w = (TAU * f) / SR;
+      const rr = 10 ** (-3 / (T * SR));
+      const c = 2 * rr * Math.cos(w);
+      const r2 = rr * rr;
+      const phi = r() * TAU;
+      const g = g0 * (ch ? gr : gl);
+      let y1 = Math.sin(phi - w) / rr;
+      let y0 = Math.sin(phi);
+      const out = ch ? bus.R : bus.L;
+      const sendOut = ch ? send.R : send.L;
+      for (let j = 0; j < n; j++) {
+        const v = y0 * g * (j < na ? 0.5 - 0.5 * Math.cos((Math.PI * j) / na) : 1);
+        out[s0 + j] += v;
+        sendOut[s0 + j] += v * 0.5;
+        const y = c * y0 - r2 * y1;
+        y1 = y0;
+        y0 = y;
+      }
     }
   }
 }
 
-/** Harp / lute: Karplus-Strong plucked string. */
-function pluck(m, seconds, rand, bright = 0.5) {
-  const f = hz(m);
-  const N = Math.max(2, Math.round(SR / f));
-  const buf = new Float32Array(N);
-  let prev = 0;
+/** Band-limited wavetable: a soft string tone. */
+const TL = 4096;
+const WT = (() => {
+  const wt = new Float64Array(TL + 1);
+  let mx = 0;
+  for (let i = 0; i <= TL; i++) {
+    let v = 0;
+    for (let h = 1; h <= 12; h++) v += Math.sin((TAU * h * i) / TL) / h ** 1.25;
+    wt[i] = v;
+    mx = Math.max(mx, Math.abs(v));
+  }
+  return wt.map((v) => v / mx);
+})();
+
+/** One sustained voice from the wavetable, with an envelope env(t) and slow drift. */
+function voice(bus, m, i0, i1, env, level, p, r, cents = 0) {
+  const [gl, gr] = pan(p);
+  const inc = ((hz(m) * 2 ** ((cents + r.range(-2, 2)) / 1200)) / SR) * TL;
+  const dph = r() * TAU;
+  const drate = r.range(0.06, 0.14);
+  let ph = r() * TL;
+  for (let b = i0; b < i1; b += 256) {
+    const be = Math.min(i1, b + 256);
+    const g0 = env(b / SR) * level;
+    const g1 = env(be / SR) * level;
+    const k = inc * (1 + 0.0017 * Math.sin(dph + (TAU * drate * b) / SR));
+    for (let i = b; i < be; i++) {
+      const x = ph | 0;
+      const v = (WT[x] + (WT[x + 1] - WT[x]) * (ph - x)) * (g0 + ((g1 - g0) * (i - b)) / 256);
+      bus.L[i] += v * gl;
+      bus.R[i] += v * gr;
+      ph += k;
+      if (ph >= TL) ph -= TL;
+    }
+  }
+}
+
+/** 8-line feedback delay network, about 3.6 s, with input diffusion and a wet EQ. */
+function reverb(send, out, wet = 1.1) {
+  const N = send.L.length;
+  const LENS = [2111, 2339, 2557, 2803, 3023, 3253, 3491, 3727].map((l) => Math.round((l * SR) / 48000));
+  const T60 = 3.6;
+  const DAMP = 0.42;
+  const AP = [[241, 0.62], [173, 0.62], [571, 0.55], [419, 0.55]];
+  const PRE = Math.round(0.022 * SR);
+  const buf = LENS.map((l) => new Float64Array(l));
+  const ix = new Int32Array(8);
+  const G = LENS.map((l) => 10 ** ((-3 * l) / (SR * T60)));
+  const lp = new Float64Array(8);
+  const y = new Float64Array(8);
+  const apb = AP.map(([l]) => new Float64Array(l));
+  const api = new Int32Array(AP.length);
+  const pre = new Float64Array(PRE);
+  const s8 = 1 / Math.sqrt(8);
+  const hpA = Math.exp((-TAU * 140) / SR);
+  const lpA = Math.exp((-TAU * 6500) / SR);
+  let pi = 0, hl = 0, hr = 0, zl = 0, zr = 0;
   for (let i = 0; i < N; i++) {
-    const x = rand() * 2 - 1;
-    prev = prev + bright * (x - prev); // soften the attack
-    buf[i] = prev;
+    let x = pre[pi];
+    pre[pi] = (send.L[i] + send.R[i]) * 0.5;
+    if (++pi === PRE) pi = 0;
+    for (let a = 0; a < AP.length; a++) {
+      const B = apb[a];
+      const dd = B[api[a]];
+      const g = AP[a][1];
+      const w = x + g * dd;
+      x = dd - g * w;
+      B[api[a]] = w;
+      if (++api[a] === B.length) api[a] = 0;
+    }
+    for (let j = 0; j < 8; j++) {
+      const v = buf[j][ix[j]];
+      lp[j] = v + DAMP * (lp[j] - v);
+      y[j] = lp[j] * G[j];
+    }
+    const oL = y[0] - y[2] + y[4] - y[6];
+    const oR = y[1] - y[3] + y[5] - y[7];
+    for (let h = 1; h < 8; h <<= 1)
+      for (let j = 0; j < 8; j += h << 1)
+        for (let k = j; k < j + h; k++) {
+          const u = y[k];
+          const v = y[k + h];
+          y[k] = u + v;
+          y[k + h] = u - v;
+        }
+    for (let j = 0; j < 8; j++) {
+      buf[j][ix[j]] = x * (j & 1 ? -0.35 : 0.35) + y[j] * s8;
+      if (++ix[j] === LENS[j]) ix[j] = 0;
+    }
+    hl = oL + hpA * (hl - oL);
+    zl = oL - hl + lpA * (zl - (oL - hl));
+    hr = oR + hpA * (hr - oR);
+    zr = oR - hr + lpA * (zr - (oR - hr));
+    out.L[i] += zl * wet;
+    out.R[i] += zr * wet;
   }
-  const out = new Float32Array(Math.round(seconds * SR));
-  // loss per period for a ring time (T60) that shortens as the pitch rises
-  const t60 = Math.max(0.8, 2.4 - f / 700);
-  const decay = 10 ** (-3 / (t60 * f));
-  let idx = 0;
-  for (let i = 0; i < out.length; i++) {
-    const a = buf[idx];
-    const b = buf[(idx + 1) % N];
-    buf[idx] = decay * 0.5 * (a + b);
-    out[i] = a;
-    idx = (idx + 1) % N;
-  }
-  return tail(out);
 }
 
-/** Fades the last 0.25 s so a note cut short does not click. */
-function tail(sig) {
-  const n = Math.min(sig.length, Math.round(0.25 * SR));
-  for (let i = 0; i < n; i++) sig[sig.length - 1 - i] *= i / n;
-  return sig;
+/** Gated loudness of a stereo bus in dB (400 ms blocks, absolute and relative gates). */
+function gatedLoudness(L, Rt) {
+  const blk = Math.round(0.4 * SR);
+  const hop = Math.round(0.1 * SR);
+  const e = [];
+  for (let s = 0; s + blk <= L.length; s += hop) {
+    let sum = 0;
+    for (let i = s; i < s + blk; i++) sum += L[i] * L[i] + Rt[i] * Rt[i];
+    e.push(sum / blk);
+  }
+  const abs = e.filter((v) => 10 * Math.log10(v + 1e-20) > -70);
+  const mean = abs.reduce((a, b) => a + b, 0) / (abs.length || 1);
+  const rel = abs.filter((v) => 10 * Math.log10(v + 1e-20) > 10 * Math.log10(mean + 1e-20) - 10);
+  return 10 * Math.log10(rel.reduce((a, b) => a + b, 0) / (rel.length || 1) + 1e-20);
 }
 
-/** Soft piano: slightly inharmonic partials with per-partial decay. */
-function piano(m, seconds, vel = 1) {
-  const f = hz(m);
-  const out = new Float32Array(Math.round(seconds * SR));
-  const B = 0.0003;
-  for (let k = 1; k <= 8; k++) {
-    const fk = f * k * Math.sqrt(1 + B * k * k);
-    if (fk > SR / 2.2) break;
-    const amp = vel / k ** 1.4;
-    const d = 0.8 + 0.45 * k + f / 900;
-    const w = (2 * Math.PI * fk) / SR;
-    for (let i = 0; i < out.length; i++) {
+/** Renders the score for a timeline: stereo 48 kHz, as 16-bit PCM. */
+export function renderMusic(timeline, { target = -21, ceiling = -3 } = {}) {
+  const sheet = cueSheet(timeline);
+  const N = Math.ceil(sheet.total * SR);
+  const END = N / SR;
+  const dry = new Bus(N);
+  const send = new Bus(N);
+
+  // Pads: one chord at a time, three slightly detuned voices per note,
+  // crossfading on each change, through a low-pass that opens with the swells
+  // and the section's brightness.
+  const pads = new Bus(N);
+  sheet.chords.forEach((c, ci) => {
+    const last = ci === sheet.chords.length - 1;
+    const s = c.t;
+    const e = last ? END : sheet.chords[ci + 1].t;
+    const on = ci === 0 ? 0 : s - 0.5;
+    const rise = ci === 0 ? 3 : 2.2;
+    const off = last ? END - 2 : e - 0.4;
+    const fall = last ? 2 : 2.6;
+    const env = (t) => smooth(clamp((t - on) / rise)) * (1 - smooth(clamp((t - off) / fall)));
+    const i0 = Math.max(0, Math.floor(on * SR));
+    const i1 = Math.min(N, Math.ceil((off + fall) * SR));
+    const lvl = 0.1 / Math.sqrt(c.notes.length * 3);
+    c.notes.forEach((m, ni) =>
+      [[-7, -0.6], [0, 0], [6, 0.6]].forEach(([cents, p], vi) => voice(pads, m, i0, i1, env, lvl, p * 0.8, R(0xa0d1, ci, ni, vi), cents)),
+    );
+  });
+
+  // Swell envelope: each swell a smooth bump, then gently smoothed.
+  const SW = new Float64Array(Math.ceil(END * 100) + 2); // 100 per second
+  for (const s of sheet.swells) {
+    const a = Math.round(s.t * 100);
+    const b = Math.round((s.t + s.dur) * 100);
+    for (let k = a; k <= b && k < SW.length; k++) SW[k] += s.w * Math.sin((Math.PI * (k - a)) / Math.max(1, b - a)) ** 2;
+  }
+  for (let k = 1; k < SW.length; k++) SW[k] = Math.max(SW[k], SW[k - 1] * 0.985);
+  const swellAt = (i) => {
+    const f = (i / SR) * 100;
+    const k = Math.floor(f);
+    return Math.min(1, SW[k] + (SW[k + 1] - SW[k]) * (f - k));
+  };
+  const brightAt = (i) => {
+    const t = i / SR;
+    const p = sheet.pedals.findLast((x) => x.t <= t) ?? sheet.pedals[0];
+    return p.section.bright;
+  };
+  lowpass(pads, (i) => 900 + 700 * swellAt(i) + 700 * brightAt(i) + 200 * Math.sin((TAU * 0.045 * i) / SR));
+  for (let i = 0; i < N; i++) {
+    dry.L[i] += pads.L[i];
+    dry.R[i] += pads.R[i];
+    send.L[i] += pads.L[i] * 0.3;
+    send.R[i] += pads.R[i] * 0.3;
+  }
+
+  // Pedal: the section's low tonic with its octave, breathing, crossfading between sections.
+  sheet.pedals.forEach((p, pi) => {
+    const s = p.t;
+    const e = pi + 1 < sheet.pedals.length ? sheet.pedals[pi + 1].t : END;
+    const f = hz(p.note);
+    const r = R(0xd2d2, pi);
+    const ph = [r() * TAU, r() * TAU, r() * TAU];
+    const i0 = Math.max(0, Math.floor((s - 1) * SR));
+    const i1 = Math.min(N, Math.ceil((e + 2) * SR));
+    for (let i = i0; i < i1; i++) {
       const t = i / SR;
-      const env = Math.min(1, t / 0.004) * Math.exp(-d * t);
-      out[i] += amp * env * Math.sin(w * i);
+      const g = 0.02 * smooth(clamp((t - s + 1) / 4)) * (1 - smooth(clamp((t - e) / 2))) * (1 - smooth(clamp((t - END + 3) / 3))) * (1 + 0.12 * Math.sin(TAU * 0.09 * t + ph[2]));
+      const v = g * (Math.sin(TAU * f * t + ph[0]) + 0.22 * Math.sin(TAU * 2 * f * t + ph[1]) + 0.05 * Math.sin(TAU * 3 * f * t));
+      dry.L[i] += v;
+      dry.R[i] += v;
     }
-  }
-  return tail(out);
-}
+  });
 
-const blep = (t, dt) => {
-  if (t < dt) {
-    t /= dt;
-    return t + t - t * t - 1;
-  }
-  if (t > 1 - dt) {
-    t = (t - 1) / dt;
-    return t * t + t + t + 1;
-  }
-  return 0;
-};
-
-/**
- * Bowed / blown voice: detuned band-limited saws through a resonant
- * low-pass, with attack, release and delayed vibrato. Strings, horn, cello.
- */
-function bowed(m, seconds, { voices = 3, detune = 7, cutoff = 2000, attack = 0.3, release = 0.5, vib = 0.004, q = 0.6, vel = 1, trem = 0, rand }) {
-  const f = hz(m);
-  const len = Math.round((seconds + release) * SR);
-  const out = new Float32Array(len);
-  const phases = Array.from({ length: voices }, () => rand());
-  const ratios = Array.from({ length: voices }, (_, v) => 2 ** (((v - (voices - 1) / 2) * detune) / 1200));
-  let low = 0;
-  let band = 0;
-  const fc = 2 * Math.sin((Math.PI * Math.min(cutoff * (0.55 + 0.6 * vel), SR / 6)) / SR);
-  for (let i = 0; i < len; i++) {
-    const t = i / SR;
-    const vibAmt = vib * Math.min(1, Math.max(0, (t - 0.25) / 0.6));
-    const fm = f * (1 + vibAmt * Math.sin(2 * Math.PI * 5.1 * t));
-    let s = 0;
-    for (let v = 0; v < voices; v++) {
-      const dt = (fm * ratios[v]) / SR;
-      let p = phases[v] + dt;
-      if (p >= 1) p -= 1;
-      phases[v] = p;
-      s += 2 * p - 1 - blep(p, dt);
-    }
-    s /= voices;
-    // state-variable low-pass
-    low += fc * band;
-    const high = s - low - q * band;
-    band += fc * high;
-    const env = t < seconds ? Math.min(1, t / attack) : Math.max(0, 1 - (t - seconds) / release);
-    out[i] = low * env * (trem ? 0.6 + 0.4 * Math.abs(Math.sin(Math.PI * trem * t)) : 1);
-  }
-  return out;
-}
-
-/** Flute: near-sine with a little breath and vibrato. */
-function flute(m, seconds, rand) {
-  const f = hz(m);
-  const rel = 0.15;
-  const len = Math.round((seconds + rel) * SR);
-  const out = new Float32Array(len);
-  let ph = 0;
-  let nz = 0;
-  for (let i = 0; i < len; i++) {
-    const t = i / SR;
-    const vib = 0.005 * Math.min(1, Math.max(0, (t - 0.2) / 0.4)) * Math.sin(2 * Math.PI * 5.3 * t);
-    ph += (2 * Math.PI * f * (1 + vib)) / SR;
-    nz += 0.08 * (rand() * 2 - 1 - nz);
-    const env = t < seconds ? Math.min(1, t / 0.07) : Math.max(0, 1 - (t - seconds) / rel);
-    out[i] = env * (Math.sin(ph) + 0.22 * Math.sin(2 * ph) + 0.06 * Math.sin(3 * ph) + 0.35 * nz);
-  }
-  return out;
-}
-
-/** Timpani: pitched thump with a short noise skin. */
-function timpani(m, seconds, rand) {
-  const f = hz(m);
-  const out = new Float32Array(Math.round(seconds * SR));
-  let ph = 0;
-  let nz = 0;
-  for (let i = 0; i < out.length; i++) {
-    const t = i / SR;
-    ph += (2 * Math.PI * f * (1 + 0.08 * Math.exp(-t * 30))) / SR;
-    nz += 0.2 * (rand() * 2 - 1 - nz);
-    out[i] = Math.exp(-t * 2.6) * (Math.sin(ph) + 0.4 * Math.sin(1.5 * ph)) + Math.exp(-t * 40) * nz;
-  }
-  return out;
-}
-
-/** Freeverb-style hall on the send buses. */
-function reverb(mix, room = 0.86, damp = 0.35) {
-  const combs = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617];
-  const alls = [556, 441, 341, 225];
-  const fb = room * 0.28 + 0.7;
-  const run = (input, spread) => {
-    const out = new Float32Array(input.length);
-    for (const c of combs) {
-      const buf = new Float32Array(c + spread);
-      let idx = 0;
-      let store = 0;
-      for (let i = 0; i < input.length; i++) {
-        const y = buf[idx];
-        store = y * (1 - damp) + store * damp;
-        buf[idx] = input[i] * 0.015 + store * fb;
-        idx = (idx + 1) % buf.length;
-        out[i] += y;
+  // Bells, harp plucks and the distant horns.
+  sheet.notes.forEach((n, i) => {
+    const r = R(0xbe11, i);
+    const vel = clamp(n.vel * r.range(0.95, 1.05));
+    const p = clamp(n.pan + r.range(-0.05, 0.05), -1, 1);
+    if (n.kind === "bell") strike(dry, send, n.t, n.m, BELL, 0.24 * vel ** 1.3, p, 0.004, vel, r);
+    else if (n.kind === "pluck") strike(dry, send, n.t, n.m, HARP, 0.6 * vel ** 1.3, p, 0.003, vel, r);
+    else if (n.kind === "horn") {
+      // a horn chord far away: root, fifth and octave of the chord, low, slow in and out
+      const notes = [n.m[0], n.m[1], n.m[0] + 12].map((m) => (m < 45 ? m + 12 : m));
+      const i0 = Math.floor(n.t * SR);
+      const i1 = Math.min(N, Math.ceil((n.t + n.dur + 2) * SR));
+      const env = (t) => smooth(clamp((t - n.t) / 1.4)) * (1 - smooth(clamp((t - n.t - n.dur) / 2)));
+      const horns = new Bus(i1 - i0);
+      notes.forEach((m, k) => voice(horns, m, 0, i1 - i0, (t) => env(t + i0 / SR), 0.05 * vel, -0.3 + k * 0.3, R(0x40e1, i, k)));
+      lowpass(horns, () => 700);
+      for (let j = 0; j < i1 - i0; j++) {
+        dry.L[i0 + j] += horns.L[j] * 0.6;
+        dry.R[i0 + j] += horns.R[j] * 0.6;
+        send.L[i0 + j] += horns.L[j];
+        send.R[i0 + j] += horns.R[j];
       }
     }
-    for (const a of alls) {
-      const buf = new Float32Array(a + spread);
-      let idx = 0;
-      for (let i = 0; i < out.length; i++) {
-        const b = buf[idx];
-        const x = out[i];
-        buf[idx] = x + b * 0.5;
-        out[i] = b - x;
-        idx = (idx + 1) % buf.length;
-      }
+  });
+
+  // Swells: low noise through a low-pass that opens with the swell, and the pedal's octave and fifth.
+  {
+    const nl = R(0x5e11, 1);
+    const nr = R(0x5e11, 2);
+    const SWB = pads; // reuse the pad bus: the pads are already mixed in
+    SWB.L.fill(0);
+    SWB.R.fill(0);
+    for (let i = 0; i < N; i++) {
+      const a = nl() + nl() - 1;
+      const b = nr() + nr() - 1;
+      const g = 1.6 * swellAt(i) ** 1.4;
+      SWB.L[i] = (a * 0.8 + b * 0.2) * g;
+      SWB.R[i] = (b * 0.8 + a * 0.2) * g;
     }
-    return out;
-  };
-  return [run(mix.wetL, 0), run(mix.wetR, 23)];
-}
-
-// ------------------------------------------------------------ theory
-
-const SCALES = {
-  major: [0, 2, 4, 5, 7, 9, 11],
-  minor: [0, 2, 3, 5, 7, 8, 11], // harmonic minor, so V is major
-  dorian: [0, 2, 3, 5, 7, 9, 10],
-  lydian: [0, 2, 4, 6, 7, 9, 11],
-};
-const ROMAN = { I: 0, II: 2, III: 4, IV: 5, V: 7, VI: 9, VII: 11 };
-const pc = (m) => ((m % 12) + 12) % 12;
-
-/** A chord symbol in a key: its pitch classes, root and bass. */
-function parseChord(sym, tonic) {
-  const [base, target] = sym.split(">");
-  const ref = target ? tonic + parseChord(target, tonic).offset : tonic;
-  const m = /^(b|#)?(VII|VI|IV|V|III|II|I|vii|vi|iv|v|iii|ii|i)(°|\+)?((?:maj7|7|9|sus|add9)*)(?:_(3|5|7))?$/.exec(base);
-  if (!m) throw new Error(`Unknown chord "${sym}"`);
-  const [, acc, rn, mod, ext, inv] = m;
-  const offset = ROMAN[rn.toUpperCase()] + (acc === "b" ? -1 : acc === "#" ? 1 : 0) + (ref - tonic);
-  const upper = rn === rn.toUpperCase();
-  let iv = mod === "°" ? [0, 3, 6] : mod === "+" ? [0, 4, 8] : upper ? [0, 4, 7] : [0, 3, 7];
-  if (ext.includes("sus")) iv = [0, 5, 7];
-  if (ext.includes("maj7")) iv.push(11);
-  else if (ext.includes("7")) iv.push(mod === "°" ? 9 : 10);
-  if (ext.includes("add9")) iv.push(14);
-  else if (ext.includes("9")) iv.push(...(iv.length < 4 ? [10, 14] : [14]));
-  const root = tonic + offset;
-  const bassIv = inv === "3" ? iv[1] : inv === "5" ? iv[2] : inv === "7" ? iv[3] ?? 0 : 0;
-  return { offset, pcs: iv.map((x) => pc(root + x)), root: pc(root), bass: pc(root + bassIv), seventh: iv.length > 3 };
-}
-
-/** Nearest MIDI note at or around `near` whose pitch class is in `pcs`. */
-function nearestIn(pcs, near, lo = 0, hi = 127) {
-  let best = null;
-  for (let d = 0; d < 12; d++) {
-    for (const m of [near - d, near + d]) {
-      if (m >= lo && m <= hi && pcs.includes(pc(m))) {
-        best = m;
-        break;
-      }
-    }
-    if (best !== null) break;
-  }
-  return best ?? near;
-}
-
-// ------------------------------------------------------------ realizing a variation
-
-const LEAD_OCTAVE = { flute: 12, oboe: 0, clarinet: 0, bassoon: -12, violins: 0, horn: -12, cello: -12, piano: 0, celesta: 12 };
-
-/** Applies a cell's transformations to a motif. */
-function cellNotes(cell, motifs, meter) {
-  const rest = /^r(\d+)$/.exec(cell);
-  if (rest) return [[null, Number(rest[1]) * meter]];
-  const name = /^[A-Za-z0-9]+/.exec(cell)[0];
-  const mods = cell.slice(name.length);
-  let notes = (motifs[name] ?? []).map(([d, b]) => [d, b]);
-  if (!notes.length) throw new Error(`Unknown motif "${name}"`);
-  const first = notes.find(([d]) => d !== null)?.[0] ?? 0;
-  for (const tok of mods.match(/[+-]\d+|~|\*|'/g) ?? []) {
-    if (tok === "~") notes = notes.map(([d, b]) => [d === null ? null : first - (d - first), b]);
-    else if (tok === "*") notes = notes.map(([d, b]) => [d, b * 2]);
-    else if (tok === "'")
-      notes = notes.flatMap(([d, b], i) =>
-        d !== null && b >= 1 && i < notes.length - 1 ? [[d, b - 0.5], [d + 1, 0.25], [d, 0.25]] : [[d, b]],
-      );
-    else notes = notes.map(([d, b]) => [d === null ? null : d + Number(tok), b]);
-  }
-  return notes;
-}
-
-/** A variation's chord tokens, with named progressions expanded. */
-function chordTokens(cue, v) {
-  return v.chords
-    .trim()
-    .split(/\s+/)
-    .flatMap((tok) => (tok.includes(":") ? [tok] : (cue.progressions?.[tok] ?? `?${tok}:0`).trim().split(/\s+/)));
-}
-const beatsOf = (tokens) => tokens.reduce((s, tok) => s + Number(tok.split(":")[1]), 0);
-
-/**
- * Turns a variation into timed parts (in beats): chords, melody, countermelody,
- * bass and the voice-led inner chord, ready for the instruments.
- */
-function realize(cue, v) {
-  const meter = v.meter ?? cue.meter;
-  const motifs = { ...cue.motifs, ...v.motifs };
-  const keyAt = (beat) => [...v.keys].reverse().find((k) => k.bar * meter <= beat) ?? v.keys[0];
-  const leads = Array.isArray(v.lead) ? v.lead : [v.lead];
-
-  // Chords.
-  const chords = [];
-  let beat = 0;
-  for (const tok of chordTokens(cue, v)) {
-    const [sym, len] = tok.split(":");
-    if (sym.startsWith("?")) throw new Error(`Unknown progression "${sym.slice(1)}"`);
-    const key = keyAt(beat);
-    chords.push({ start: beat, dur: Number(len), sym, key, ...parseChord(sym, key.tonic) });
-    beat += Number(len);
-  }
-  const total = beat;
-  const chordAt = (b) => chords.findLast((c) => c.start <= b + 1e-6) ?? chords[0];
-
-  // Melody: motifs in scale degrees, strong beats on chord tones; the cells
-  // take turns between the lead instruments (call and response).
-  const melody = [];
-  let at = 0;
-  for (const [ci, cell] of v.cells.entries()) {
-    const inst = leads[ci % leads.length];
-    for (const [d, b] of cellNotes(cell, motifs, meter)) {
-      if (d !== null && at < total) {
-        const key = keyAt(at);
-        const sc = SCALES[key.mode];
-        let m = key.tonic + sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7) + (LEAD_OCTAVE[inst] ?? 0) + 12 * (v.leadOctave ?? 0);
-        const strong = Math.abs(at % meter) < 1e-6 || (meter === 4 && Math.abs((at % 4) - 2) < 1e-6);
-        if (strong) m = nearestIn(chordAt(at).pcs, m);
-        melody.push({ start: at, dur: Math.min(b, total - at), m, inst, strong });
-      }
-      at += b;
+    const fc = (i) => 70 + 600 * swellAt(i) ** 1.6;
+    lowpass(SWB, fc);
+    lowpass(SWB, fc);
+    for (let i = 0; i < N; i++) {
+      const t = i / SR;
+      const p = sheet.pedals.findLast((x) => x.t <= t) ?? sheet.pedals[0];
+      const d = hz(p.note);
+      const g = 0.045 * swellAt(i) ** 1.6;
+      const tone = g ? g * (0.7 * Math.sin(TAU * d * t) + 0.6 * Math.sin(TAU * 1.5 * d * t) + 0.5 * Math.sin(TAU * 2 * d * t)) : 0;
+      dry.L[i] += SWB.L[i] + tone;
+      dry.R[i] += SWB.R[i] + tone;
+      send.L[i] += (SWB.L[i] + tone) * 0.25;
+      send.R[i] += (SWB.R[i] + tone) * 0.25;
     }
   }
 
-  // Inner chord, voice-led: each voice moves to the nearest chord tone.
-  let voices = null;
-  for (const c of chords) {
-    const need = c.seventh ? c.pcs.slice(0, 4) : c.pcs.slice(0, 3);
-    if (!voices) voices = [55, 60, 64, 69].map((m) => nearestIn(c.pcs, m, 52, 76));
-    else voices = voices.map((m) => nearestIn(c.pcs, m, 52, 76));
-    for (const p of need) {
-      if (voices.some((m) => pc(m) === p)) continue;
-      const counts = voices.map((m) => voices.filter((x) => pc(x) === pc(m)).length);
-      const i = counts.indexOf(Math.max(...counts));
-      voices[i] = nearestIn([p], voices[i], 52, 76);
-    }
-    voices.sort((a, b) => a - b);
-    // no two voices on the same note: spread a doubled one to the next chord tone up
-    for (let i = 1; i < voices.length; i++) {
-      if (voices[i] <= voices[i - 1]) voices[i] = nearestIn(c.pcs, voices[i - 1] + 1, voices[i - 1] + 1, 80);
-    }
-    c.voicing = [...voices];
+  reverb(send, dry);
+
+  // Master: DC block, fade at the very end, loudness to the target under a peak ceiling.
+  const a = Math.exp((-TAU * 18) / SR);
+  const fade0 = N - Math.round(4 * SR);
+  let zl = 0, zr = 0, peak = 0;
+  for (let i = 0; i < N; i++) {
+    zl = dry.L[i] + a * (zl - dry.L[i]);
+    zr = dry.R[i] + a * (zr - dry.R[i]);
+    const g = i < fade0 ? 1 : Math.cos(((i - fade0) / (N - fade0)) * (Math.PI / 2)) ** 2;
+    dry.L[i] = (dry.L[i] - zl) * g;
+    dry.R[i] = (dry.R[i] - zr) * g;
+    peak = Math.max(peak, Math.abs(dry.L[i]), Math.abs(dry.R[i]));
   }
-
-  // Bass: the chord's bass note near the previous one, a passing note
-  // between roots a third apart, or a tonic pedal.
-  let prev = 45;
-  for (const [i, c] of chords.entries()) {
-    const key = c.key;
-    c.bassNote = v.pedal ? 38 + pc(key.tonic - 38) : nearestIn([c.bass], prev, 36, 52);
-    prev = c.bassNote;
-    const next = chords[i + 1];
-    if (!v.pedal && next && c.dur >= meter) {
-      const target = nearestIn([next.bass], c.bassNote, 36, 52);
-      const gap = target - c.bassNote;
-      if (Math.abs(gap) >= 3 && Math.abs(gap) <= 4) {
-        const step = SCALES[key.mode].includes(pc(c.bassNote + Math.sign(gap) * 2 - key.tonic)) ? 2 : 1;
-        c.passing = c.bassNote + Math.sign(gap) * step;
-      }
-    }
+  const loud = gatedLoudness(dry.L, dry.R);
+  const gainDb = Math.min(target - loud, ceiling - 20 * Math.log10(peak || 1));
+  const k = 10 ** (gainDb / 20);
+  const pcm = Buffer.alloc(N * 4);
+  for (let i = 0; i < N; i++) {
+    pcm.writeInt16LE(Math.round(clamp(dry.L[i] * k, -1, 1) * 32767), i * 4);
+    pcm.writeInt16LE(Math.round(clamp(dry.R[i] * k, -1, 1) * 32767), i * 4 + 2);
   }
-
-  // Countermelody, the melody's partner: on each new chord it takes a chord
-  // tone close by (never the same note again); while the melody holds or
-  // rests it moves by scale steps, in eighths when there is room, against
-  // the melody's direction; while the melody moves it holds still.
-  const counter = [];
-  if (v.counter && melody.length) {
-    // below or above the melody's own register, never crossing it
-    const mels = melody.map((n) => n.m);
-    const floor = v.counter === "horn" ? 46 : 40; // horns get muddy below B♭2
-    const lo = v.counterAbove ? Math.max(...mels) + 1 : Math.max(floor, Math.min(...mels) - 17);
-    const hi = v.counterAbove ? Math.max(...mels) + 14 : Math.min(...mels) - 2;
-    let cur = nearestIn(chords[0].pcs, Math.round((lo + hi) / 2), lo, hi);
-    let lastMel = melody[0]?.m ?? cur;
-    let dir = -1;
-    const step = (m, d, key) => {
-      let n = m + d;
-      while (!SCALES[key.mode].includes(pc(n - key.tonic))) n += d;
-      return n;
-    };
-    const add = (start, m) => {
-      if (counter.length) counter.at(-1).dur = start - counter.at(-1).start;
-      counter.push({ start, dur: 1, m });
-      cur = m;
-    };
-    for (let b = 0; b < total; b++) {
-      const c = chordAt(b);
-      const mel = melody.findLast((n) => n.start <= b + 1e-6);
-      const attack = melody.some((n) => Math.abs(n.start - b) < 1e-6);
-      const change = Math.abs(c.start - b) < 1e-6;
-      const sounding = mel && b < mel.start + mel.dur - 1e-6;
-      if (mel && mel.m !== lastMel) {
-        dir = mel.m > lastMel ? -1 : 1; // contrary motion
-        lastMel = mel.m;
-      }
-      if (change) {
-        const options = [];
-        for (let m = lo; m <= hi; m++) if (c.pcs.includes(pc(m))) options.push(m);
-        const score = (m) =>
-          Math.abs(m - cur) + (m === cur ? 4 : 0) + (Math.sign(m - cur) === dir ? 0 : 1.5) + (mel && Math.abs(m - mel.m) < 3 ? 8 : 0);
-        options.sort((a, b2) => score(a) - score(b2));
-        add(b, options[0] ?? cur);
-      } else if (!attack) {
-        // the melody holds (or rests): move, by step
-        let n = step(cur, dir, c.key);
-        if (n < lo || n > hi) {
-          dir = -dir;
-          n = step(cur, dir, c.key);
-        }
-        if (sounding && Math.abs(n - mel.m) < 2) continue;
-        add(b, n);
-        const roomy = !melody.some((x) => x.start > b && x.start < b + 1 - 1e-6) && !chords.some((x) => x.start > b && x.start < b + 1 - 1e-6);
-        if (roomy && (b + Math.floor(b / meter)) % 3 === 1) {
-          const n2 = step(n, dir, c.key);
-          if (n2 >= lo && n2 <= hi) add(b + 0.5, n2);
-        }
-      }
-    }
-    if (counter.length) counter.at(-1).dur = total - counter.at(-1).start;
-  }
-
-  return { meter, total, chords, melody, counter, keyAt };
+  const notes = sheet.notes;
+  console.log(
+    `music: ${sheet.chords.length} chords, ${notes.filter((n) => n.kind === "bell").length} bells, ${notes.filter((n) => n.kind === "pluck").length} plucks, ` +
+      `${notes.filter((n) => n.kind === "horn").length} horn chords, ${sheet.swells.length} swells; loudness ${(loud + gainDb).toFixed(1)} dB, peak ${(20 * Math.log10(peak * k)).toFixed(1)} dBFS`,
+  );
+  return pcm;
 }
 
-/** Beat times for a variation, with rubato and ritardando. */
-function tempoMap(cue, v, total, meter, k) {
-  const bpm = (v.bpm ?? cue.bpm) * (v.tempo ?? 1) * k;
-  const phrase = 4 * meter;
-  const ritBeats = (v.rit ?? 0) * meter;
-  const times = [0];
-  for (let i = 0; i < total; i++) {
-    const pos = (i % phrase) / phrase;
-    let f = 1 + (v.rubato ?? 0) * Math.sin(Math.PI * pos) - (v.rubato ?? 0) * 0.5;
-    if (ritBeats && i >= total - ritBeats) f *= 1 - 0.3 * ((i - (total - ritBeats) + 1) / ritBeats);
-    times.push(times[i] + 60 / (bpm * f));
-  }
-  return (b) => {
-    const i = Math.max(0, Math.min(total - 1, Math.floor(b)));
-    return times[i] + (b - i) * (times[i + 1] - times[i]);
-  };
-}
-
-function variationSeconds(cue, v, k) {
-  const total = beatsOf(chordTokens(cue, v));
-  return tempoMap(cue, v, total, v.meter ?? cue.meter, k)(total);
-}
-
-/**
- * Picks which variations play and the tempo so a cue fills `target`
- * seconds. Tempo may only move a little (0.96 to 1.12), so the music keeps
- * its drive: time is filled by optional variations and repeats (played with
- * their `alt` changes), not by slowing down.
- */
-function planCue(cue, target) {
-  const base = cue.variations;
-  const optional = base.map((v, i) => (v.optional ? i : -1)).filter((i) => i >= 0);
-  const repeatable = base.map((v, i) => (v.repeat ? i : -1)).filter((i) => i >= 0);
-  let best = null;
-  for (let om = 0; om < 1 << optional.length; om++) {
-    for (let rm = 0; rm < 1 << repeatable.length; rm++) {
-      const list = [];
-      base.forEach((v, i) => {
-        const oi = optional.indexOf(i);
-        if (oi >= 0 && !(om & (1 << oi))) return;
-        list.push(v);
-        const ri = repeatable.indexOf(i);
-        if (ri >= 0 && rm & (1 << ri)) list.push({ ...v, ...v.alt });
-      });
-      const len = list.reduce((s, v) => s + variationSeconds(cue, v, 1), 0);
-      const k = len / target; // >1: play faster to fit
-      const fits = k >= 0.96 && k <= 1.12;
-      const cost = (fits ? 0 : 10) + Math.abs(Math.log(k));
-      if (!best || cost < best.cost) best = { list, k: Math.max(0.96, Math.min(1.12, k)), cost, len };
-    }
-  }
-  const length = best.list.reduce((s, v) => s + variationSeconds(cue, v, best.k), 0);
-  return { list: best.list, k: best.k, slack: Math.max(0, target - length) };
-}
-
-/** Oboe, clarinet or bassoon: additive reed tone, brighter when louder. */
-const REEDS = {
-  oboe: { h: [1, 0.95, 0.9, 0.75, 0.55, 0.4, 0.3, 0.2, 0.12, 0.08], vib: 0.004, attack: 0.05 },
-  clarinet: { h: [1, 0.06, 0.6, 0.05, 0.35, 0.05, 0.2, 0.04, 0.1], vib: 0, attack: 0.06 },
-  bassoon: { h: [1, 0.85, 0.7, 0.55, 0.42, 0.3, 0.2, 0.12], vib: 0.002, attack: 0.03 },
-};
-function reed(kind, m, seconds, vel, rand) {
-  const { h, vib, attack } = REEDS[kind];
-  const f = hz(m);
-  const rel = 0.09;
-  const len = Math.round((seconds + rel) * SR);
-  const out = new Float32Array(len);
-  const amps = h.map((a, k) => (f * (k + 1) < 9000 ? a * (0.55 + 0.45 * vel) ** k : 0));
-  let ph = rand() * 6.28;
-  let nz = 0;
-  for (let i = 0; i < len; i++) {
-    const t = i / SR;
-    const v = vib * Math.min(1, Math.max(0, (t - 0.25) / 0.4)) * Math.sin(2 * Math.PI * 5.4 * t);
-    ph += (2 * Math.PI * f * (1 + v)) / SR;
-    let s = 0;
-    for (let k = 0; k < amps.length; k++) if (amps[k]) s += amps[k] * Math.sin((k + 1) * ph);
-    nz += 0.1 * (rand() * 2 - 1 - nz);
-    const env = t < seconds ? Math.min(1, t / attack) : Math.max(0, 1 - (t - seconds) / rel);
-    out[i] = env * (s * 0.35 + nz * 0.05);
-  }
-  return out;
-}
-
-/** Band-pass biquad (0 dB peak), applied in place. */
-function bandpass(sig, f0, q) {
-  const w = (2 * Math.PI * f0) / SR;
-  const alpha = Math.sin(w) / (2 * q);
-  const a0 = 1 + alpha;
-  const b0 = alpha / a0;
-  const b2 = -alpha / a0;
-  const a1 = (-2 * Math.cos(w)) / a0;
-  const a2 = (1 - alpha) / a0;
-  const out = new Float32Array(sig.length);
-  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
-  for (let i = 0; i < sig.length; i++) {
-    const x = sig[i];
-    const y = b0 * x + b2 * x2 - a1 * y1 - a2 * y2;
-    x2 = x1; x1 = x; y2 = y1; y1 = y;
-    out[i] = y;
-  }
-  return out;
-}
-
-/** Choir "ah": detuned saws through three vowel formants. */
-function choir(m, seconds, rand) {
-  const src = bowed(m, seconds, { voices: 4, detune: 12, cutoff: 5000, attack: 0.6, release: 0.9, vib: 0.004, q: 0.3, rand });
-  const a = bandpass(src, 730, 730 / 90);
-  const b = bandpass(src, 1090, 1090 / 110);
-  const c = bandpass(src, 2440, 2440 / 170);
-  for (let i = 0; i < src.length; i++) src[i] = a[i] + 0.55 * b[i] + 0.3 * c[i];
-  return src;
-}
-
-/** Celesta / music box: a bell with a quick inharmonic shimmer. */
-function celesta(m, seconds) {
-  const f = hz(m);
-  const out = new Float32Array(Math.round(seconds * SR));
-  for (let i = 0; i < out.length; i++) {
-    const t = i / SR;
-    const w = 2 * Math.PI * f * t;
-    out[i] = Math.min(1, t / 0.002) * (Math.exp(-t * 2.2) * Math.sin(w) + 0.25 * Math.exp(-t * 6) * Math.sin(4 * w) + 0.15 * Math.exp(-t * 9) * Math.sin(2.76 * w));
-  }
-  return tail(out);
-}
-
-/** Percussion: noise and tone, shaped. */
-function noiseHit(seconds, rand, decay, f0, q) {
-  const n = new Float32Array(Math.round(seconds * SR));
-  for (let i = 0; i < n.length; i++) n[i] = (rand() * 2 - 1) * Math.exp((-decay * i) / SR);
-  return bandpass(n, f0, q);
-}
-function snare(rand) {
-  const out = noiseHit(0.3, rand, 22, 2200, 0.7);
-  for (let i = 0; i < out.length; i++) out[i] = out[i] * 2.2 + 0.5 * Math.exp((-38 * i) / SR) * Math.sin((2 * Math.PI * 190 * i) / SR);
-  return out;
-}
-function bassDrum() {
-  const out = new Float32Array(Math.round(0.5 * SR));
-  let ph = 0;
-  for (let i = 0; i < out.length; i++) {
-    const t = i / SR;
-    ph += (2 * Math.PI * (52 + 40 * Math.exp(-t * 25))) / SR;
-    out[i] = Math.exp(-t * 7) * Math.sin(ph);
-  }
-  return out;
-}
-function triangleHit() {
-  const out = new Float32Array(Math.round(1.4 * SR));
-  for (let i = 0; i < out.length; i++) {
-    const t = i / SR;
-    out[i] = Math.exp(-t * 3) * (Math.sin(2 * Math.PI * 4200 * t) + 0.5 * Math.sin(2 * Math.PI * 6150 * t));
-  }
-  return out;
-}
-const tambourine = (rand) => noiseHit(0.22, rand, 16, 7500, 1.4).map((x) => x * 2.5);
-const cymbal = (rand) => noiseHit(1.8, rand, 2.2, 6000, 0.5).map((x) => x * 1.6);
-
-/** Checks the score: every chord and motif parses, and each variation's
- * melody fills exactly its chords. Returns the problems found. */
+/** Checks the score: notes parse, sections are in order, rules play known sounds. */
 export function checkScore() {
   const problems = [];
-  for (const cue of CUES) {
-    for (const [i, v] of cue.variations.entries()) {
-      for (const variant of [v, v.alt ? { ...v, ...v.alt } : null].filter(Boolean)) {
-        const where = `${cue.name} #${i + 1}${variant === v ? "" : " (alt)"}`;
-        try {
-          const meter = variant.meter ?? cue.meter;
-          const motifs = { ...cue.motifs, ...variant.motifs };
-          const total = beatsOf(chordTokens(cue, variant));
-          const melody = variant.cells.reduce((n, c) => n + cellNotes(c, motifs, meter).reduce((m, [, b]) => m + b, 0), 0);
-          if (total % meter) problems.push(`${where}: chords end mid-bar (${total} beats)`);
-          if (Math.abs(melody - total) > 1e-6) problems.push(`${where}: melody ${melody} beats, chords ${total}`);
-          realize(cue, variant);
-        } catch (e) {
-          problems.push(`${where}: ${e.message}`);
-        }
+  SECTIONS.forEach((s, i) => {
+    if (i && s.from <= SECTIONS[i - 1].from) problems.push(`${s.name}: sections out of order`);
+    if (!SCALES[s.key.mode]) problems.push(`${s.name}: unknown mode ${s.key.mode}`);
+    for (const c of [s.pedal, ...s.chords.flatMap((c) => c.split(" "))]) {
+      try {
+        midi(c);
+      } catch (e) {
+        problems.push(`${s.name}: ${e.message}`);
       }
     }
-  }
+  });
+  const known = new Set(["motif", "bell", "pluck", "roll", "run", "swell", "chime"]);
+  for (const [type, rules] of Object.entries(RULES)) for (const r of rules) if (type !== "section" && !known.has(r.play)) problems.push(`${type}: unknown sound ${r.play}`);
   return problems;
-}
-
-// ------------------------------------------------------------ rendering
-
-const LEAD_GAIN = { flute: 0.08, oboe: 0.085, clarinet: 0.09, bassoon: 0.1, violins: 0.075, horn: 0.1, cello: 0.1, piano: 0.12, celesta: 0.1 };
-
-/** One note on an instrument; `vel` 0..1. */
-function play(mix, inst, at, m, dur, vel, rand, pan = 0) {
-  const g = LEAD_GAIN[inst] * (0.5 + 0.5 * vel);
-  switch (inst) {
-    case "flute":
-      return mix.put(at, flute(m, dur, rand), pan + 0.15, g, 0.3);
-    case "oboe":
-    case "clarinet":
-    case "bassoon":
-      return mix.put(at, reed(inst, m, dur, vel, rand), pan + (inst === "bassoon" ? 0.2 : -0.15), g, 0.28);
-    case "violins":
-      return mix.put(at, bowed(m, dur, { voices: 4, detune: 9, cutoff: 2800, attack: Math.min(0.1, dur / 3), release: 0.3, vib: 0.005, vel, rand }), pan - 0.25, g, 0.35);
-    case "horn":
-      return mix.put(at, bowed(m, dur, { voices: 2, detune: 4, cutoff: 1300, attack: Math.min(0.07, dur / 3), release: 0.25, vib: 0.0025, q: 0.8, vel, rand }), pan - 0.1, g, 0.35);
-    case "cello":
-      return mix.put(at, bowed(m, dur, { voices: 1, detune: 0, cutoff: 1600, attack: Math.min(0.08, dur / 3), release: 0.3, vib: 0.006, vel, rand }), pan + 0.25, g, 0.3);
-    case "piano":
-      return mix.put(at, piano(m, Math.max(2, dur + 1.2), 0.6 + 0.4 * vel), pan, g, 0.3);
-    case "celesta":
-      return mix.put(at, celesta(m, Math.max(1.5, dur + 1)), pan + 0.3, g, 0.4);
-  }
-}
-
-/** Renders one variation starting at `t0` seconds; returns its length. */
-function renderVariation(mix, cue, v, t0, k, holdExtra, rand) {
-  const { meter, total, chords, melody, counter, keyAt } = realize(cue, v);
-  const beatTime = tempoMap(cue, v, total, meter, k);
-  const T = (b) => t0 + beatTime(b) + (b >= total - 1e-6 ? holdExtra : 0);
-  const human = () => (rand() - 0.5) * 0.01;
-  const tex = new Set(v.tex ?? []);
-  const lastChord = chords.at(-1);
-  const dynAt = (b) => {
-    const base = v.dyn[0] + (v.dyn[1] - v.dyn[0]) * (b / total);
-    const pos = (b % (4 * meter)) / (4 * meter);
-    // steeper than linear, so quiet passages are really quiet
-    return (base * (0.85 + 0.15 * Math.sin(Math.PI * pos))) ** 1.5;
-  };
-  const span = (c) => T(c.start + c.dur) - T(c.start) + (c === lastChord ? holdExtra : 0);
-  const articulate = (n, len) => {
-    if (v.artic !== "staccato") return len * 0.96;
-    return n.dur <= 0.5 ? len * 0.45 : n.dur <= 1 ? len * 0.7 : len * 0.9;
-  };
-
-  for (const c of chords) {
-    const t = T(c.start);
-    const len = span(c);
-    const dyn = dynAt(c.start);
-    const bars = Math.max(1, Math.round(c.dur / meter));
-    const barIndex = Math.floor(c.start / meter);
-    const cadence = barIndex % 4 === 3 || c === lastChord;
-    const rhythmic = tex.has("pizz") || tex.has("quavers") || tex.has("gallop");
-
-    // Bass: sustained under the lyrical textures (the rhythmic ones play their own).
-    if (!rhythmic) {
-      const passAt = c.passing ? T(c.start + c.dur - 1) : null;
-      mix.put(t, bowed(c.bassNote, (passAt ? passAt - t : len) * 0.98, { voices: 2, detune: 5, cutoff: 650, attack: 0.1, release: 0.4, vib: 0.002, vel: dyn, rand }), 0.1, 0.08 * dyn, 0.2);
-      if (passAt) mix.put(passAt, bowed(c.passing, T(c.start + c.dur) - passAt, { voices: 2, detune: 5, cutoff: 650, attack: 0.06, release: 0.25, vib: 0.002, vel: dyn, rand }), 0.1, 0.07 * dyn, 0.2);
-    }
-    if (tex.has("pad") || tex.has("tremolo")) {
-      const trem = tex.has("tremolo") ? 7 : 0;
-      c.voicing.forEach((m, i) =>
-        mix.put(t, bowed(m, len, { voices: 3, detune: 8, cutoff: 1500, attack: trem ? 0.2 : 0.35, release: 0.6, vib: 0.003, vel: dyn, trem, rand }), -0.5 + i * 0.33, 0.022 * dyn, 0.35),
-      );
-    }
-    if (tex.has("choir")) c.voicing.slice(1).forEach((m, i) => mix.put(t, choir(m + 12 > 76 ? m : m + 12, len, rand), -0.4 + i * 0.4, 0.05 * dyn, 0.45));
-    if (tex.has("rolled") && (c.start % meter === 0 || c.dur >= meter)) {
-      [c.bassNote + 12, ...c.voicing].forEach((m, i) => mix.put(t + i * 0.035 + human(), pluck(m, 2.5, rand, 0.45), -0.4 + i * 0.16, 0.12 * dyn, 0.3));
-    }
-    if (tex.has("planing")) c.voicing.forEach((m, i) => mix.put(t + i * 0.02, piano(m + 12, Math.max(2.5, len + 1), 0.45 + 0.3 * dyn), 0.1, 0.06 * dyn, 0.4));
-    if (tex.has("cymbal") && barIndex % 8 === 0) mix.put(t, cymbal(rand), 0.2, 0.05 * dyn, 0.3);
-
-    // Per-bar figures.
-    for (let bar = 0; bar < bars; bar++) {
-      const b0 = c.start + bar * meter;
-      if (b0 >= c.start + c.dur - 1e-6) break;
-      const beats = Math.min(meter, c.start + c.dur - b0);
-      const bi = Math.floor(b0 / meter);
-      const lastBarOfPhrase = bi % 4 === 3;
-      const vv = c.voicing;
-      const at = (b) => T(b0 + b) + human();
-
-      if (tex.has("arp")) {
-        const figures = meter === 3
-          ? [[0, 2, 3, 1, 3, 2], [0, 1, 2, 3, 2, 1], [0, 3, 2, 3, 1, 3], [0, 2, 1, 2, 3, 2]]
-          : [[0, 2, 3, 1, 3, 2, 1, 2], [0, 1, 3, 2, 3, 1, 2, 3]];
-        figures[bi % figures.length].forEach((k2, i) => {
-          if (i * 0.5 < beats) mix.put(at(i * 0.5), pluck(vv[k2] + (i > 3 ? 12 : 0), 2, rand, 0.5), -0.35 + k2 * 0.18, 0.11 * dyn, 0.3);
-        });
-      }
-      if (tex.has("alberti")) {
-        const fig = meter === 3 ? [0, 3, 1, 3, 2, 3] : [0, 3, 1, 3, 0, 3, 1, 3];
-        fig.forEach((k2, i) => i * 0.5 < beats && mix.put(at(i * 0.5), piano(vv[k2], 1.2, 0.4 + 0.2 * dyn), -0.05, 0.06 * dyn, 0.25));
-      }
-      if (tex.has("pizz")) {
-        for (let b = 0; b < beats; b++) {
-          if (b === 0) mix.put(at(b), pluck(c.bassNote, 0.8, rand, 0.85), 0.1, 0.2 * dyn, 0.15);
-          else if (meter === 4 && b === 2) mix.put(at(b), pluck(c.bassNote + 7, 0.8, rand, 0.85), 0.1, 0.15 * dyn, 0.15);
-          else vv.slice(1, 3).forEach((m) => mix.put(at(b), pluck(m, 0.6, rand, 0.85), -0.2, 0.08 * dyn, 0.15));
-        }
-      }
-      if (tex.has("quavers")) {
-        for (let e = 0; e < beats * 2; e++) {
-          const len8 = T(b0 + (e + 1) / 2) - T(b0 + e / 2);
-          const acc = e % 2 === 0 ? 1 : 0.7;
-          vv.slice(1, 3).forEach((m) => mix.put(at(e / 2), bowed(m, len8 * 0.8, { voices: 2, detune: 6, cutoff: 2400, attack: 0.012, release: 0.05, vib: 0, vel: dyn, rand }), -0.3, 0.03 * dyn * acc, 0.2));
-          if (e % 2 === 0) mix.put(at(e / 2), bowed(c.bassNote, len8 * 1.6, { voices: 2, detune: 5, cutoff: 900, attack: 0.012, release: 0.08, vib: 0, vel: dyn, rand }), 0.1, 0.09 * dyn, 0.2);
-        }
-      }
-      if (tex.has("gallop")) {
-        // long-short triplet on every beat, the "riding" rhythm
-        for (let b = 0; b < beats; b++) {
-          for (const [o, d] of [[0, 2 / 3], [2 / 3, 1 / 3]]) {
-            const len3 = T(b0 + b + o + d) - T(b0 + b + o);
-            vv.slice(1, 3).forEach((m) => mix.put(at(b + o), bowed(m, len3 * 0.8, { voices: 2, detune: 6, cutoff: 2400, attack: 0.01, release: 0.04, vib: 0, vel: dyn, rand }), -0.3, 0.03 * dyn * (o ? 0.7 : 1), 0.2));
-          }
-          if (b % 2 === 0) mix.put(at(b), bowed(c.bassNote, (T(b0 + b + 1) - T(b0 + b)) * 0.9, { voices: 2, detune: 5, cutoff: 900, attack: 0.01, release: 0.06, vib: 0, vel: dyn, rand }), 0.1, 0.1 * dyn, 0.2);
-        }
-      }
-      if (tex.has("fanfare")) {
-        const fig = lastBarOfPhrase ? [[0, meter]] : meter === 3 ? [[0, 1], [1.5, 0.5], [2, 1]] : [[0, 0.75], [0.75, 0.25], [1, 1], [2.5, 0.5], [3, 1]];
-        for (const [o, d] of fig) {
-          if (o >= beats) continue;
-          const dur = T(b0 + o + d) - T(b0 + o);
-          vv.slice(1).forEach((m, i) => mix.put(at(o), bowed(m - 12 < 48 ? m : m - 12, dur * 0.85, { voices: 2, detune: 4, cutoff: 1400, attack: 0.03, release: 0.12, vib: 0, q: 0.8, vel: dyn, rand }), -0.3 + i * 0.3, 0.05 * dyn, 0.3));
-        }
-      }
-      if (tex.has("runs") && lastBarOfPhrase && beats >= meter - 1e-6) {
-        // a harp run up into the next phrase
-        const key = c.key;
-        const sc = SCALES[key.mode];
-        const top = vv.at(-1) + 12;
-        const notes = [];
-        for (let d = 0, m = key.tonic + 12; notes.length < 6 && d < 30; d++) {
-          m = key.tonic + 12 + sc[d % 7] + 12 * Math.floor(d / 7);
-          if (m > top - 7) notes.push(m);
-        }
-        notes.slice(0, 6).forEach((m, i) => mix.put(T(b0 + meter - 1) + i * ((T(b0 + meter) - T(b0 + meter - 1)) / 6), pluck(m, 1.2, rand, 0.6), -0.3 + i * 0.12, 0.08 * dyn, 0.3));
-      }
-      if (tex.has("celesta")) {
-        const pattern = meter === 3 ? [1, 2.5] : [1.5, 3];
-        pattern.forEach((p, i) => p < beats && mix.put(at(p), celesta(vv[(i + bi) % vv.length] + 24, 1.4), 0.4, 0.05 * dyn, 0.4));
-      }
-      if (tex.has("timpani")) {
-        const tp = c.bassNote + 12 > 52 ? c.bassNote : c.bassNote + 12;
-        if (bi % 4 === 0) mix.put(at(0), timpani(tp, 2, rand), 0, 0.2 * dyn, 0.3);
-        if (bi % 4 === 2 && meter === 4) mix.put(at(2), timpani(tp + 7 > 55 ? tp - 5 : tp + 7, 1.2, rand), 0, 0.12 * dyn, 0.3);
-        if (b0 + meter >= total - meter - 1e-6 && b0 < total - meter) {
-          for (let r = 0; r < 12; r++) mix.put(T(b0 + meter - 1) + (r * (T(b0 + meter) - T(b0 + meter - 1))) / 12, timpani(tp, 0.5, rand), 0, (0.04 + r * 0.008) * dyn, 0.3);
-        }
-      }
-      if (tex.has("snare")) {
-        for (let b = 0; b < beats; b++) {
-          const accent = b === 0 ? 1 : meter === 4 && b === 2 ? 0.8 : 0.55;
-          mix.put(at(b), snare(rand), -0.1, 0.06 * dyn * accent, 0.15);
-          if (lastBarOfPhrase && b === beats - 1) [0.25, 0.5, 0.75].forEach((o) => mix.put(at(b + o), snare(rand), -0.1, 0.04 * dyn, 0.15));
-          else if (meter === 4 && b === 3) mix.put(at(b + 0.5), snare(rand), -0.1, 0.035 * dyn, 0.15);
-        }
-      }
-      if (tex.has("drum")) {
-        mix.put(at(0), bassDrum(), 0, 0.22 * dyn, 0.1);
-        if (meter === 4) mix.put(at(2), bassDrum(), 0, 0.15 * dyn, 0.1);
-      }
-      if (tex.has("tambourine")) {
-        const hits = meter === 3 ? [1, 2, 2.5] : [1, 3, 3.5];
-        hits.forEach((h) => h < beats && mix.put(at(h), tambourine(rand), 0.35, 0.05 * dyn, 0.15));
-      }
-      if (tex.has("triangle") && bi % 2 === 0) mix.put(at(0), triangleHit(), 0.4, 0.012 * dyn, 0.3);
-    }
-  }
-
-  // Melody (with its octave double) and countermelody.
-  for (const n of melody) {
-    const isLast = n.start + n.dur >= total - 1e-6;
-    const len = articulate(n, T(n.start + n.dur) - T(n.start)) + (isLast ? holdExtra : 0);
-    const vel = Math.min(1, dynAt(n.start) ** (1 / 1.5) * (n.strong ? 1.05 : 0.88));
-    const at = T(n.start) + human();
-    play(mix, n.inst, at, n.m, len, vel, rand);
-    if (v.double) play(mix, v.double, at, n.m + (LEAD_OCTAVE[v.double] - LEAD_OCTAVE[n.inst]), len, vel * 0.8, rand, 0.2);
-  }
-  for (const n of counter) play(mix, v.counter, T(n.start) + human(), n.m, (T(n.start + n.dur) - T(n.start)) * 0.95, dynAt(n.start) ** (1 / 1.5) * 0.75, rand, 0.1);
-
-  return T(total) - t0;
-}
-
-/**
- * Renders `seconds` of music as interleaved 16-bit stereo PCM. With the
- * recording's chapters, each piece starts where its group of steps starts.
- */
-export function renderMusic(seconds, chapters = [], seed = 3) {
-  const rand = rng(seed);
-  const mix = new Mix(seconds);
-  const startOf = (i) => {
-    if (i === 0) return 1.0;
-    const ch = chapters.find((c) => c.num === CUE_CHAPTERS[i]);
-    return ch ? ch.start : seconds * [0, 0.2, 0.39, 0.56, 0.8][i];
-  };
-  for (const [i, cue] of CUES.entries()) {
-    const start = startOf(i);
-    const end = i + 1 < CUES.length ? startOf(i + 1) - 0.5 : seconds - 1.5;
-    if (start >= seconds || end <= start + 5) continue;
-    const { list, k, slack } = planCue(cue, end - start);
-    console.log(`music: ${cue.name} at ${start.toFixed(1)} s, ${list.length} variations, tempo x${k.toFixed(2)}`);
-    let t = start;
-    for (const [j, v] of list.entries()) {
-      const hold = j === list.length - 1 ? Math.min(slack, 4) : 0;
-      t += renderVariation(mix, cue, v, t, k, hold, rand);
-    }
-  }
-
-  // Reverb (a drier hall than before, so the rhythm stays clear), level,
-  // fades, soft limit.
-  const [rl, rr] = reverb(mix, 0.8, 0.4);
-  let sum = 0;
-  for (let i = 0; i < mix.n; i++) {
-    mix.L[i] += rl[i] * 0.55;
-    mix.R[i] += rr[i] * 0.55;
-    sum += mix.L[i] ** 2 + mix.R[i] ** 2;
-  }
-  const rms = Math.sqrt(sum / (2 * mix.n)) || 1;
-  const gain = 10 ** (-20 / 20) / rms; // about -20 dBFS RMS: background level
-  const fadeIn = 2 * SR;
-  const fadeOut = 5 * SR;
-  const pcm = Buffer.alloc(mix.n * 4);
-  for (let i = 0; i < mix.n; i++) {
-    const f = Math.min(1, i / fadeIn, (mix.n - i) / fadeOut);
-    const l = Math.tanh(mix.L[i] * gain * f * 1.1) / 1.1;
-    const r = Math.tanh(mix.R[i] * gain * f * 1.1) / 1.1;
-    pcm.writeInt16LE(Math.round(l * 32767), i * 4);
-    pcm.writeInt16LE(Math.round(r * 32767), i * 4 + 2);
-  }
-  return pcm;
 }
 
 export function writeWav(file, pcm) {
@@ -896,16 +583,16 @@ function run(cmd, argv) {
 }
 
 /**
- * Renders the music for the recording in `out` (using its timeline.json) and
- * mixes it under the full video and each clip, in place. Also keeps the
- * soundtrack on its own as tutorial-music.m4a.
+ * Renders the music for the recording in `out` (its timeline.json) and mixes
+ * it under the full video and each clip, in place. Also keeps the soundtrack
+ * on its own as tutorial-music.m4a.
  */
 export async function addMusic(out, ffmpeg) {
   const timeline = JSON.parse(fs.readFileSync(path.join(out, "timeline.json"), "utf8"));
   const video = path.join(out, "HoMM3-Scenario-Creator-tutorial.mp4");
   const wav = path.join(out, "_music.wav");
-  console.log(`music: rendering ${timeline.total.toFixed(1)} s`);
-  writeWav(wav, renderMusic(timeline.total, timeline.chapters));
+  console.log(`music: scoring ${timeline.total.toFixed(1)} s, ${timeline.events?.length ?? 0} events`);
+  writeWav(wav, renderMusic(timeline));
 
   const tmp = path.join(out, "_with-music.mp4");
   await run(ffmpeg, ["-y", "-loglevel", "error", "-i", video, "-i", wav, "-map", "0:v", "-map", "0:s?", "-map", "1:a",
@@ -945,16 +632,22 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const out = path.resolve(get("out", path.join(home, "Videos", "HoMM3-Scenario-Creator-tutorial")));
   const tools = path.resolve(get("tools", path.join(home, "tools", "tutorial-capture")));
   const ffmpeg = get("ffmpeg", process.env.FFMPEG ?? path.join(tools, "node_modules", "@ffmpeg-installer", "win32-x64", "ffmpeg.exe"));
-  const wavOnly = get("wav", "");
+  const timelineFile = get("timeline", path.join(out, "timeline.json"));
   if (a.includes("--check")) {
     const problems = checkScore();
     console.log(problems.length ? problems.join("\n") : "score OK");
     process.exitCode = problems.length ? 1 : 0;
-  } else if (wavOnly) {
-    // Just the soundtrack: --wav out.wav [--seconds 688] [--timeline timeline.json]
-    const tl = get("timeline", "");
-    const chapters = tl ? JSON.parse(fs.readFileSync(tl, "utf8")).chapters : [];
-    writeWav(wavOnly, renderMusic(Number(get("seconds", "120")), chapters));
+  } else if (a.includes("--cues")) {
+    const sheet = cueSheet(JSON.parse(fs.readFileSync(timelineFile, "utf8")));
+    const rows = [
+      ...sheet.pedals.map((p) => [p.t, `pedal  ${p.section.name}`]),
+      ...sheet.chords.map((c) => [c.t, `pad    ${c.notes.join(" ")}  (${c.why})`]),
+      ...sheet.notes.map((n) => [n.t, `${n.kind.padEnd(6)} ${Array.isArray(n.m) ? "chord" : n.m}  vel ${n.vel.toFixed(2)}  ${n.why}`]),
+      ...sheet.swells.map((s) => [s.t, `swell  ${s.dur.toFixed(1)} s x${s.w}  ${s.why}`]),
+    ].sort((x, y) => x[0] - y[0]);
+    for (const [t, s] of rows) console.log(`${t.toFixed(2).padStart(8)} s  ${s}`);
+  } else if (get("wav", "")) {
+    writeWav(get("wav", ""), renderMusic(JSON.parse(fs.readFileSync(timelineFile, "utf8"))));
   } else {
     addMusic(out, ffmpeg).catch((e) => {
       console.error(e);

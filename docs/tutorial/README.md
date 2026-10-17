@@ -12,8 +12,8 @@ art in it has its own licenses, see [NOTICE.md](../../NOTICE.md)).
 | [`scenes.mjs`](scenes.mjs) | The 16 steps: what is clicked and typed, and every annotation |
 | [`overlay.js`](overlay.js) | The annotation layer injected into the page: step chip, lower third, highlight boxes, callouts, arrows, cursor, title and closing cards |
 | [`demo.mjs`](demo.mjs) | The made-up demo scenario typed in the video |
-| [`score.mjs`](score.mjs) | The background music's score: five original pieces, written as themes and variations |
-| [`music.mjs`](music.mjs) | Turns the score into sound (harmony, counterpoint, instruments, hall) and mixes it into the video and clips |
+| [`score.mjs`](score.mjs) | The background music's score: keys, chords, the call, and what each on-screen event plays |
+| [`music.mjs`](music.mjs) | Scores the recording's events to sound (pad, pedal, bells, harp, swells, hall) and mixes it into the video and clips |
 
 ## What the video covers
 
@@ -86,44 +86,36 @@ for a dry run that only checks the script.
 
 ## Music
 
-The background music is original: five short pieces composed for this video, written down in
-[`score.mjs`](score.mjs) and synthesized by [`music.mjs`](music.mjs) (no samples or audio files). None
-of the game's music is used or quoted. They borrow the principles that make the Heroes III soundtrack
-work, not its notes:
+The background music is scored to the picture, the way the Ski Resort film's soundtrack is: no running
+beat and no loops. The capture writes every on-screen event with its time to `timeline.json`: steps,
+captions, clicks, highlights, scrolls, key presses, typing, drags, downloads and the cards.
+[`music.mjs`](music.mjs) turns those events into sound, using the rules in [`score.mjs`](score.mjs):
 
-- **Bright and moving.** Every piece is in a major key at 109 to 144 bpm, with strong I-IV-V harmony,
-  folk-dance tonic-dominant swings, and heroic flat-VII and vi-IV-I-V turns.
-- **One motif, developed.** Each piece is a set of variations: its motifs sequenced, inverted,
-  ornamented, slowed, and moved to new keys (the dominant, the subdominant, a step up for the climax).
-- **Rhythm.** Melodies start on upbeats and use dotted figures, eighth and triplet runs and staccato
-  articulation. Underneath: pizzicato, driving string eighths, a gallop, brass fanfares, snare, bass
-  drum, tambourine, triangle and timpani, plus a harp run into each new phrase.
-- **Call and response.** The melody passes between instruments every two bars (flute and oboe, clarinet
-  and bassoon); big moments double it an octave up. A countermelody answers it, moving while the melody
-  holds and never crossing it.
-- **A journey in about two minutes.** Each piece starts light, builds through changing textures to a
-  climax (fanfares, choir, cymbal, a timpani roll) and closes.
+- a warm string pad (three slightly detuned voices per note) holds one chord and changes, with a slow
+  crossfade, when a new step or caption appears;
+- a quiet low pedal note gives each part of the tutorial its key, like five towns: D major, F Lydian,
+  G major, A major, and D major again for the finale. A distant horn chord marks each new part;
+- glass bells answer the captions and highlights, with a line that moves through the chord;
+- harp plucks walk up the scale with the clicks, roll through the chord while typing, and run up with
+  drags; key presses get a low pluck;
+- soft swells of filtered noise and low strings breathe with scrolls and drags, and each step opens with
+  the hero's call (D A F♯ G A on bells or harp);
+- the title and closing cards play the call slowly, ending on a low bell; downloads get a two-bell chime.
 
-| Piece | Steps it plays under | Character |
-| --- | --- | --- |
-| Morning in Brindlemere | 1 to 3 | D major 3/4 at 126: flute and oboe trading a pickup tune over pizzicato and harp |
-| The mapmaker's workshop | 4 and 5 | F major 4/4 at 116: clockwork staccato woodwinds and celesta, a broad string tune, a choir climax |
-| Riders at the ford | 6 and 7 | G major at 124: horn calls over galloping strings, fanfares, a lift to A major |
-| Market day | 8 to 13 | A major 3/4 at 144: a bassoon-and-flute folk dance with tambourine, a lyrical oboe trio in D |
-| Banners over the ford | 14 to 16 | D major march at 108: horns and strings, a turn to F, the first piece's motif returns |
+Bells and plucks are snapped to a 96 bpm grid (eighths and sixteenths) so they sound placed, not random,
+and close events share the space: the busier a moment, the softer each note. Everything plays in an
+eight-line feedback-delay hall (about 3.6 s), normalised to about -21 dB gated loudness with a -3 dBFS
+peak ceiling. The colours are the Heroes III palette (harp, glass bells, warm strings, distant horns);
+the call and every chord are original, and none of the game's music is used or quoted.
 
-Each piece starts when its first step starts. To fill the time until the next one, the planner chooses
-optional variations and repeats (with their `alt` changes) and only nudges the tempo (0.96 to 1.12).
-Everything plays in a light hall, mixed at about -20 dBFS RMS with fades. `node docs/tutorial/music.mjs
---check` checks that every chord parses and every melody fills its bars.
-
-To redo only the music on an existing recording (needs its `timeline.json`):
+To redo only the music on an existing recording (it needs that recording's `timeline.json`):
 
 ```powershell
-node docs/tutorial/music.mjs --out "$env:USERPROFILE\Videos\HoMM3-Scenario-Creator-tutorial"
+node docs/tutorial/music.mjs --out "$env:USERPROFILEVideosHoMM3-Scenario-Creator-tutorial"
 ```
 
-To listen to it on its own: `node docs/tutorial/music.mjs --wav music.wav --seconds 688 --timeline <recording>/timeline.json`.
+`--cues --timeline <timeline.json>` prints the cue sheet (time, sound, reason); `--wav music.wav
+--timeline <timeline.json>` writes the soundtrack on its own; `--check` checks the score.
 
 ## How it works
 
