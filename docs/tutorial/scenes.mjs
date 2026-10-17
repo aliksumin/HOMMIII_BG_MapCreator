@@ -163,7 +163,7 @@ export const SCENES = [
          <div class="sub">A step-by-step tutorial: write a Scenario, build its map, export it for the Mission Book</div>
          <div class="rule"></div>
          <ol>${CHAPTERS.map((c) => `<li>${c.replace(/&/g, "&amp;")}</li>`).join("")}</ol>
-         <div class="note">Demo scenario &ldquo;${d.demo.name}&rdquo; is made up for this video.</div>`,
+         <div class="note">Use it online at aliksumin.github.io/HOMMIII_BG_MapCreator &middot; the demo scenario &ldquo;${d.demo.name}&rdquo; is made up for this video.</div>`,
         9000,
       );
       d.cue("HoMM3 Board Game Scenario Creator", "A step-by-step tutorial: write a Scenario, build its map, export it for the Mission Book.", start, d.time());
@@ -176,14 +176,16 @@ export const SCENES = [
     title: CHAPTERS[0],
     async run(d) {
       const p = d.page;
-      await d.chapter(1, CHAPTERS[0], "Start screen", "The start screen: the four Scenario types, the Continue list and the Open button.");
-      await d.say("Welcome", "The Scenario Creator runs in your browser. Everything you make is kept in this browser until you export it.");
-      await d.hl(p.locator(".welcome-card").first(), "Pick the kind of Scenario");
-      await d.say("Four Scenario types", "Clash (player against player), Cooperative, Alliance and Campaign. The type sets the heading and where the file goes in the Mission Book.");
+      await d.chapter(1, CHAPTERS[0], "Start screen", "The start screen: the five Scenario types, the template button, the Continue list and the Open button.");
+      await d.say("Welcome", "The Scenario Creator runs in your browser, online at `aliksumin.github.io/HOMMIII_BG_MapCreator`. Everything you make stays in this browser until you export it.");
+      await d.hl(p.locator(".welcome .category-cards").first(), "Pick the kind of Scenario");
+      await d.say("Five Scenario types", "Clash (player against player), Cooperative, Alliance, Campaign and Solo (one player and a story book). The type sets the heading and where the file goes in the Mission Book.");
+      await d.hl(p.locator(".welcome-card button", { hasText: "Open the template" }), "A finished example");
+      await d.say("The template", "New here? Open the template: a finished Campaign Scenario that uses nearly every feature, to explore step by step.");
       await d.hl(p.locator(".welcome-card").nth(1), "Reopen saved work");
       await d.say("Continue or open a file", "Projects you worked on are listed under Continue. You can also open a saved `.scenario.json` project, or a `.map` file from the community map editor.");
       await d.clear();
-      await d.say("Start a Clash", "For this demo we start a two-player Clash Scenario.", 2600);
+      await d.say("Start a Clash", "For this demo we start a Clash for two or three players.", 2600);
       await d.click(p.locator(".welcome .category-card").filter({ hasText: "Clash" }), { hold: 1200 });
       await d.say(
         "The editor",
@@ -211,8 +213,8 @@ export const SCENES = [
       await d.sleep(1800);
       await d.clear();
       await d.smoothScroll(p.locator(".category-cards").first());
-      await d.hl(p.locator(".category-cards").first(), "Type: Clash, Cooperative, Alliance, Campaign");
-      await d.say("Type and heading", "You can still change the type here. Campaigns add a campaign name, scenario number and faction.");
+      await d.hl(p.locator(".category-cards").first(), "Type: Clash, Cooperative, Alliance, Campaign, Solo");
+      await d.say("Type and heading", "You can still change the type here. Campaigns add a campaign name, scenario number and faction; Solo sets one player.");
       await d.clear();
       await d.smoothScroll(field(p, "Heading line"));
       await d.hl([field(p, "Heading line"), field(p, "Title lines")], "Optional heading tweaks");
@@ -222,10 +224,11 @@ export const SCENES = [
       await d.hl(field(p, "Difficulty rating"), "Difficulty badge");
       await d.say("Difficulty rating", "An optional badge in the corner of the heading.", 2800);
       await d.clear();
+      await d.say("Author", "Your name, and optionally where the Scenario first appeared, with a link.", 400);
       await d.type(field(p, "Author").locator("input"), d.demo.author);
       await d.type(field(p, "Source label").locator("input"), d.demo.sourceLabel);
       await d.hl(panel(p, "Author"), "Author and source");
-      await d.say("Author", "Your name, and optionally where the Scenario first appeared, with a link.", 3200);
+      await d.finishCue();
       await d.clear();
       await d.smoothScroll(panel(p, "Title icon"), "start");
       await d.say("Title icon", "Pick the round icon left of the heading from the Mission Book's library, or upload your own PNG.", 2500);
@@ -243,15 +246,26 @@ export const SCENES = [
     title: CHAPTERS[2],
     async run(d) {
       const p = d.page;
-      await d.chapter(3, CHAPTERS[2], "Step II · Story", "Step II: the flavor text box and the optional long Story.");
+      await d.chapter(3, CHAPTERS[2], "Step II · Story", "Step II: flavor text, the long Story and the story book (Story Locations, Special Tiles, numbered Paragraphs).");
       await goStep(d, "Story");
       await d.say("Flavor text", "One or two paragraphs that set the scene. They print in italics under the Author line.", 2500);
       await d.type(field(p, "One or two paragraphs that set the story").locator("textarea"), d.demo.lore, { delay: 12 });
       await d.hl(p.locator("aside.preview"), "Printed in italics");
       await d.sleep(2500);
-      await d.hl(panel(p, "The Story"), "Optional: a long story page");
-      await d.say("The Story", "Campaigns often tell a longer story on its own page after the map. Separate paragraphs with a blank line.");
+      await d.smoothScroll(panel(p, "The Story"), "start");
+      await d.hl(panel(p, "The Story"), "A page after the map");
+      await d.say("The story page", "Everything below prints on its own page after the map, and all of it is optional: the long story, Story Locations, Special Tiles and numbered Paragraphs.");
+      await d.smoothScroll(panel(p, "Story Locations"), "start");
+      await d.hl([panel(p, "Story Locations"), panel(p, "Special Tiles")], "They send the reader to a paragraph");
+      await d.say(
+        "A story book",
+        "Campaign and Solo Scenarios can tell their story like a story book: a location or a special Field sends the reader to a numbered paragraph, written `§12` or picked from the § Read menu.",
+      );
+      await d.smoothScroll(panel(p, "Paragraphs"), "start");
+      await d.hl(panel(p, "Paragraphs"), "Numbered paragraphs");
+      await d.say("Paragraphs", "Paragraphs end with choices that point on. Moving or removing one renumbers every reference. Our Clash leaves the story book empty, so it prints nothing.");
       await d.clear();
+      await d.scrollTop();
     },
   },
 
@@ -263,20 +277,17 @@ export const SCENES = [
       await d.chapter(4, CHAPTERS[3], "Step III · Player Setup", "Step III: Rounds, player counts, resources and income, Units, Town Buildings, tile pool, Bonus.");
       await goStep(d, "Player Setup");
       const rounds = field(p, "Rounds");
+      await d.say("Length and players", "10 Rounds, for 2 or 3 players. The page prints it as “2 or 3”.", 400);
       await d.click(rounds.locator(".stepper button").first());
       await d.click(rounds.locator(".stepper button").first());
       await d.type(field(p, "Note after the Round count").locator("input"), d.demo.roundsNote, { delay: 18 });
       await d.click(field(p, "Player Count").locator(".count-picker button", { hasText: exact("3") }));
       await d.hl([rounds, field(p, "Player Count")], "Length and player counts");
-      await d.say("Length and players", "10 Rounds, for 2 or 3 players. The page prints it as “2 or 3”.");
+      await d.finishCue();
       await d.clear();
       await d.smoothScroll(panel(p, "Resources"));
-      const gold = p.locator(".resource-row").first();
-      await d.click(gold.locator(".stepper button").nth(1));
-      await d.click(gold.locator(".stepper button").nth(1));
-      await d.select(gold.locator("select"), { index: 3 });
       await d.hl(p.locator(".resource-table"), "Starting Resources and Income");
-      await d.say("Resources", "Starting Resources per resource, and Starting Income as a position on the income track.");
+      await d.say("Resources", "Starting Resources per resource, and Starting Income as a position on the income track. They start at the values of the Mission Book's templates.");
       await d.clear();
       await d.smoothScroll(panel(p, "Starting Units"));
       await d.click(panel(p, "Starting Units").locator(".chip").first());
@@ -284,9 +295,8 @@ export const SCENES = [
       await d.say("Starting Units", "Add lines yourself or click a suggestion. Lines take the text markup, so icons like Bronze print as game icons.");
       await d.clear();
       await d.smoothScroll(panel(p, "Town Buildings"));
-      await d.click(panel(p, "Town Buildings").locator(".toggle").nth(1));
       await d.hl(panel(p, "Town Buildings"), "Buildings players start with");
-      await d.say("Town Buildings", "Tick the buildings every player starts with.", 2800);
+      await d.say("Town Buildings", "Tick the buildings every player starts with; a Bronze Dwelling is the usual start.", 3000);
       await d.clear();
       await d.smoothScroll(panel(p, "Bonus"));
       await d.hl([panel(p, "Map Tile Pool"), panel(p, "Bonus")], "");
@@ -340,14 +350,29 @@ export const SCENES = [
 
       // A printed tile, found by search.
       await d.say("Printed tiles", "Search the box by tile number or terrain, or filter by expansion, and place a printed tile where the Scenario needs a specific one.", 1500);
-      await d.type(p.locator(".palette-filters input[type=search]"), "C3", { delay: 80 });
+      await d.type(p.locator(".palette-filters input[type=search]"), d.demo.centerTile, { delay: 80 });
       await d.sleep(500);
-      await d.click(paletteTile(p, "C3"));
+      await d.click(paletteTile(p, d.demo.centerTile));
       const c0 = await cellScreen(p, ...plan.center);
-      await d.clickAt(c0.x, c0.y, 600);
-      await d.key("Escape", "Esc");
+      await d.clickAt(c0.x, c0.y, 900);
+
+      // The same printed tile twice: the game has only one of each.
+      const dup = await freeSpotNear(p, 0, 180, 2 * Math.sqrt(7) * 86 * 0.87); // west of the ring, where the board has room
+      const dupAt = await cellScreen(p, dup.row, dup.col);
+      await d.clickAt(dupAt.x, dupAt.y, 700);
+      await d.click(p.locator(".armed-note button.link"), { hold: 500 }); // put the tile down, keep the selection
+      await d.hl([p.locator(".map-status .warn", { hasText: "Placed more than once" }), p.locator(".inspector-warn")], "Placed more than once");
+      await d.say("One of each printed tile", "Place a printed tile twice and the editor warns, in the panel and in the status bar: the game has only one of each.");
+      await d.clear();
+      await d.key("Escape", "Esc"); // with nothing selected, both copies show their red outline
+      await d.hl([p.locator(".dupes path").nth(0), p.locator(".dupes path").nth(1)], "Both copies");
+      await d.say("Both copies in red", "With nothing selected, both copies are outlined in red. Select the extra one and press Del to remove it.");
+      await d.clear();
+      await d.clickAt(dupAt.x, dupAt.y, 600);
+      await d.key("Delete", "Del");
       await d.type(p.locator(".palette-filters input[type=search]"), "", { clear: true });
-      await d.sleep(1500);
+      await d.hideText();
+      await d.sleep(1200);
 
       // The second Starting tile, first in the wrong place.
       await d.click(paletteTile(p, "S0"));
@@ -387,43 +412,38 @@ export const SCENES = [
     async run(d) {
       const p = d.page;
       const { plan } = map;
-      await d.chapter(6, CHAPTERS[5], "Step IV · Map", "Map editor inspector: faction border, Fields, cube, Hero, location token, Creature Bank, blocked Field.");
+      await d.chapter(6, CHAPTERS[5], "Step IV · Map", "Map editor inspector: Fields, player cubes, faction border and Hero, Monoliths, a Creature Bank, a blocked Field.");
       const insp = p.locator(".inspector");
       await mapView(d);
 
-      // Faction borders on the face-down Starting tiles.
+      // The inspector, on the western Starting Tile.
       const w = await fieldScreen(p, 0, ...plan.ring[3], 3);
       await d.clickAt(w.x, w.y, 700);
       await d.hl(insp, "The selected tile");
-      await d.say("The inspector", "Select a tile to edit it: rotation, faction border, and what stands on each of its seven Fields.");
-      await d.select(field(insp, "Faction border").locator("select"), "CASTLE");
-      await d.hl(field(insp, "Faction border"), "Faction border");
-      await d.say("Faction borders", "A face-down Starting tile can get a faction border, so each player knows where they start.", 3000);
-      const e = await fieldScreen(p, 0, ...plan.ring[0], 3);
-      await d.clickAt(e.x, e.y, 700);
-      await d.select(field(insp, "Faction border").locator("select"), "NECROPOLIS");
+      await d.say("The inspector", "Select a tile to edit it: rotate it, and say what stands on each of its seven Fields.");
       await d.clear();
 
-      // Fields: cube and Hero.
+      // Cubes: one in each player's colour on their face-down Starting Tile.
       await d.say("Fields", "Click a Field on the map, or pick it in the little flower, then put things on it.", 1200);
-      const wf = await fieldScreen(p, 0, ...plan.ring[3], 3);
-      await d.clickAt(wf.x, wf.y, 600);
       await d.hl(insp.locator(".mini-flower"), "Field picker");
       await d.sleep(1800);
-      await d.select(field(insp, "Hero").locator("select"), "CATHERINE");
-      await d.hl(field(insp, "Hero"), "Hero portrait");
-      await d.say("Heroes", "Place a Hero portrait on a Field, for example where each player's Main Hero starts.", 2600);
-      const wf2 = await fieldScreen(p, 0, ...plan.ring[3], 0);
-      await d.clickAt(wf2.x, wf2.y, 600);
       await d.click(field(insp, "Cube").locator('button[title="Castle"]'));
-      await d.hl(field(insp, "Cube"), "Faction cubes");
-      await d.say("Cubes", "Cubes in faction colors, or black, mark Fields such as flagged Mines.", 2600);
-      const ef = await fieldScreen(p, 0, ...plan.ring[0], 3);
-      await d.clickAt(ef.x, ef.y, 600);
-      await d.select(field(insp, "Hero").locator("select"), "SANDRO");
+      const e = await fieldScreen(p, 0, ...plan.ring[0], 3);
+      await d.clickAt(e.x, e.y, 700);
+      await d.click(field(insp, "Cube").locator('button[title="Inferno"]'));
+      await d.hl(field(insp, "Cube"), "Player colours, or Black");
+      await d.say("Cubes", "A cube in a player's colour on a face-down Starting Tile marks whose start it is, as published Mission Book maps do. A Black Cube marks a location as already visited.");
+      await d.clear();
+
+      // Faction borders and Heroes: shown, but this Clash leaves them to the players.
+      await d.hl(field(insp, "Faction border"), "Optional faction border");
+      await d.say("Faction borders", "A face-down Starting Tile can also get a faction border. Our players choose their own Factions, so the tiles stay plain.", 3600);
+      await d.hl(field(insp, "Hero"), "For a set Hero");
+      await d.say("Heroes", "A Hero portrait marks where a set Hero stands, such as a Campaign's AI Hero. In a Clash the players bring their own.", 3600);
       await d.clear();
 
       // Location tokens: a pair of two-way Monoliths.
+      await d.say("Location tokens", "Monoliths, Whirlpools and Subterranean Gates go on Fields as tokens, always with their partner: here a two-way Monolith pair joins the two flanks.", 400);
       const a = await fieldScreen(p, 0, ...plan.ring[4], 3);
       await d.clickAt(a.x, a.y, 600);
       await d.select(field(insp, "Location token").locator("select"), "monolith-2w-01a");
@@ -431,23 +451,25 @@ export const SCENES = [
       await d.clickAt(b.x, b.y, 600);
       await d.select(field(insp, "Location token").locator("select"), "monolith-2w-01b");
       await d.hl(field(insp, "Location token"), "Monoliths, Whirlpools, Gates");
-      await d.say("Location tokens", "Monoliths, Whirlpools and Subterranean Gates go on Fields as tokens; here a two-way Monolith pair. Rotate token turns one.");
+      await d.finishCue();
       await d.clear();
 
-      // Creature Bank.
+      // Creature Bank: a random Far one, on a face-down Far Tile.
+      await d.say("Creature Banks", "With the optional Creature Banks rule, Far and Near Tiles can hold a bank. This Random (Far) token says: when the tile is revealed, draw a Far bank for its Blocked Field.", 400);
       const cb = await fieldScreen(p, 0, ...plan.ring[5], 3);
       await d.clickAt(cb.x, cb.y, 600);
-      await d.select(field(insp, "Creature Bank").locator("select"), "CB2");
-      await d.hl(field(insp, "Creature Bank"), "Creature Banks");
-      await d.say("Creature Banks", "Creature Banks such as the Pyramid sit on a Field the same way.", 2800);
+      await d.select(field(insp, "Creature Bank").locator("select"), "R1");
+      await d.hl(field(insp, "Creature Bank"), "All 12 banks, and Random Far / Near");
+      await d.finishCue();
       await d.clear();
 
-      // Blocked Field.
-      const bl = await fieldScreen(p, 0, ...plan.ring[2], 2);
+      // Blocked Field: the flooded Mystical Garden of the Center Tile.
+      await d.say("Blocked Fields", "Mark a Field the Scenario closes off: here the flood covers the Mystical Garden of C4 until a Timed Event opens it. Suggested placement draws a tile faded, as a hint.", 400);
+      const bl = await fieldScreen(p, 0, ...plan.center, 5);
       await d.clickAt(bl.x, bl.y, 600);
       await d.click(insp.locator(".toggle", { hasText: "Blocked Field" }));
       await d.hl(insp.locator(".toggle", { hasText: "Blocked Field" }), "Blocked Field");
-      await d.say("Blocked Fields", "Mark a Field as blocked when the Scenario closes it off. Suggested placement draws a tile faded, as a hint.", 3600);
+      await d.finishCue();
       await d.clear();
       await d.key("Escape", "Esc");
       await d.hl(p.locator(".board"), "");
@@ -464,10 +486,11 @@ export const SCENES = [
       await d.chapter(7, CHAPTERS[6], "Step IV · Map", "Map editor toolbar: layout name, player counts, caption; Export .map and PNG; a second layout via Import .map.");
       const settings = p.locator(".layout-settings");
       await mapView(d);
+      await d.say("Layouts", "A Scenario can have several map layouts, for example one per player count. Each has a name, the player counts it is for, and a caption under the image.", 400);
       await d.type(settings.locator("input").first(), d.demo.layout2, { clear: true });
       await d.click(settings.locator(".layout-counts button", { hasText: exact("2") }));
       await d.hl(settings, "Name, player counts, caption");
-      await d.say("Layouts", "A Scenario can have several map layouts, for example one per player count. Each has a name, the player counts it is for, and a caption under the image.");
+      await d.finishCue();
       await d.clear();
 
       // Export .map and PNG.
@@ -498,6 +521,7 @@ export const SCENES = [
       await d.clear();
 
       // A third Starting tile for the third player.
+      await d.say("The third player", "The three-player layout gets a third face-down Starting Tile, with a cube in the third player's colour.", 400);
       const spot = await freeSpotNear(p, 1, -90, 2 * Math.sqrt(7) * 86 * 0.87);
       await d.click(paletteTile(p, "S0"));
       const s3 = await cellScreen(p, spot.row, spot.col);
@@ -506,7 +530,10 @@ export const SCENES = [
       await d.click(p.locator('.board-zoom button[title="Fit the map"]'), { hold: 900 });
       const sf = await fieldScreen(p, 1, spot.row, spot.col, 3);
       await d.clickAt(sf.x, sf.y, 600);
-      await d.select(field(p.locator(".inspector"), "Faction border").locator("select"), "RAMPART");
+      await d.click(field(p.locator(".inspector"), "Cube").locator('button[title="Rampart"]')); // the third player's colour
+      await d.hl(field(p.locator(".inspector"), "Cube"), "A third player colour");
+      await d.finishCue();
+      await d.clear();
       await d.key("Escape", "Esc");
       await mapView(d);
       await d.hl(p.locator(".layout-tabs"), "One tab per layout");
@@ -529,13 +556,15 @@ export const SCENES = [
       await d.say("Your own counts", "Turn counting off to type the counts, or mark a count as per player, which prints as “2P”.");
       await d.click(p.locator(".toggle", { hasText: "Count the tiles from the map" }), { hold: 600 });
       await d.clear();
+      await d.say("Notes", "Add a note to any tile line.", 400);
       await d.type(p.locator(".tile-count-row").nth(3).locator("input[type=text]"), d.demo.centerNote, { delay: 18 });
       await d.hl(p.locator(".tile-count-row").nth(3), "A note on a tile line");
-      await d.say("Notes", "Add a note to any tile line.", 2200);
+      await d.finishCue(2200);
       await d.clear();
+      await d.say("Heroes Placement", "Say where the Heroes start. Campaigns use this for the AI Heroes too.", 400);
       await d.type(panel(p, "Heroes Placement").locator("textarea"), d.demo.heroesPlacement, { delay: 14 });
       await d.hl(panel(p, "Heroes Placement"), "Where Heroes start");
-      await d.say("Heroes Placement", "Say where the Heroes start. Campaigns use this for the AI Heroes too.", 2800);
+      await d.finishCue(2400);
       await d.clear();
       await d.scrollTop();
     },
@@ -566,15 +595,17 @@ export const SCENES = [
       await d.chapter(10, CHAPTERS[9], "Step VII · Victory & Defeat", "Step VII: Victory and Defeat text boxes with suggestion chips.");
       await goStep(d, "Victory & Defeat");
       const win = panel(p, "Victory Conditions");
+      await d.say("Victory", "Write how the Scenario is won. Suggestions add a common condition as a new paragraph.", 400);
       await d.type(win.locator("textarea"), d.demo.victoryText, { delay: 18 });
-      await d.click(win.locator(".chip", { hasText: "Defeat all enemy Main Heroes" }), { hold: 700 });
+      await d.click(win.locator(".chip", { hasText: "Capture all enemy Towns" }), { hold: 700 });
       await d.hl(win, "Type, or click a suggestion");
-      await d.say("Victory", "Write how the Scenario is won. Suggestions add a common condition as a new paragraph.");
+      await d.finishCue();
       await d.clear();
       const lose = panel(p, "Defeat Conditions");
+      await d.say("Defeat", "And how it is lost, or say there is no defeat other than the end of the last Round.", 400);
       await d.click(lose.locator(".chip", { hasText: "Your Town is captured" }), { hold: 700 });
       await d.hl(lose, "How it is lost");
-      await d.say("Defeat", "And how it is lost, or say there is no defeat other than the end of the last Round.", 3000);
+      await d.finishCue();
       await d.clear();
     },
   },
@@ -587,23 +618,24 @@ export const SCENES = [
       await d.chapter(11, CHAPTERS[10], "Step VIII · Timed Events", "Step VIII: events by Round, Round pickers, repeats, suggestion chips.");
       await goStep(d, "Timed Events");
       const add = p.locator(".panel-head button", { hasText: "+ Add event" });
+      await d.say("Events by Round", "Add an event and pick its Rounds: several Rounds make it repeat, listed in Round order. Then type the events or click a suggestion.", 400);
       await d.click(add, { hold: 800 });
       let ev = p.locator("section.panel").nth(1);
       await d.click(ev.locator(".round-picker button", { hasText: exact("2") }));
-      await d.click(ev.locator(".round-picker button", { hasText: exact("3") }));
-      await d.click(ev.locator(".chip", { hasText: "Resource Die" }), { hold: 700 });
-      await d.hl(ev, "Pick the Round, add the events");
-      await d.say("Events by Round", "Add an event, pick the Round it happens in, then type the events or click a suggestion.");
+      for (const r of ["3", "6", "9"]) await d.click(ev.locator(".round-picker button", { hasText: exact(r) }));
+      await d.click(ev.locator(".chip", { hasText: "Remove all Black Cubes" }), { hold: 700 });
+      await d.hl(ev, "Pick the Rounds, add the events");
+      await d.finishCue();
       await d.clear();
+      await d.say("The flood recedes", "A second event in the 6th Round opens the flooded Mystical Garden, the Blocked Field we marked on the map.", 400);
       await d.click(add, { hold: 800 });
       ev = p.locator("section.panel").nth(2);
       await d.smoothScroll(ev);
       await d.click(ev.locator(".round-picker button", { hasText: exact("2") }));
       await d.click(ev.locator(".round-picker button", { hasText: exact("6") }));
-      await d.click(ev.locator(".round-picker button", { hasText: exact("9") }));
-      await d.click(ev.locator(".chip", { hasText: "Repeat the Timed Events of Round 3" }), { hold: 700 });
-      await d.hl(ev.locator(".round-picker"), "Several Rounds = a repeating event");
-      await d.say("Repeats", "Pick several Rounds for an event that repeats; the book prints them in order (“6th and 9th Rounds”). A suggestion repeats another event.");
+      await d.type(ev.locator(".list-row input[type=text]").first(), d.demo.floodEvent, { delay: 14 });
+      await d.hl(ev, "Two events can share a Round");
+      await d.finishCue();
       await d.clear();
       await d.scrollTop();
     },
@@ -617,11 +649,13 @@ export const SCENES = [
       await d.chapter(12, CHAPTERS[11], "Step IX · Rules", "Step IX: Additional Rules with suggestions, and an own section with title, text and bullets.");
       await goStep(d, "Rules");
       const rules = panel(p, "Additional Rules");
+      await d.say("Additional Rules", "Rules that change the game for this Scenario: an optional introduction and one bullet per rule.", 400);
       await d.type(field(rules, "Introduction (optional)").locator("textarea"), d.demo.rulesIntro, { delay: 16 });
       await d.click(rules.locator(".chip", { hasText: "Astrologers Proclaim Cards are not used" }), { hold: 700 });
       await d.hl(rules, "Additional Rules");
-      await d.say("Additional Rules", "Rules that change the game for this Scenario: an optional introduction and one bullet per rule.");
+      await d.finishCue();
       await d.clear();
+      await d.say("Own sections", "Sections of your own, such as “Enemy Spawning and Movement”, follow the Additional Rules, each with a title, text and bullets.", 400);
       await d.click(p.locator(".panel-head button", { hasText: "+ Add section" }), { hold: 700 });
       const sec = p.locator("section.panel").last();
       await d.smoothScroll(sec);
@@ -630,7 +664,7 @@ export const SCENES = [
       await d.click(sec.locator(".list-actions button"), { hold: 400 });
       await d.type(sec.locator(".list-row textarea").last(), d.demo.section.bullet, { delay: 16 });
       await d.hl(sec, "Your own section");
-      await d.say("Own sections", "Sections of your own, such as “Enemy Spawning and Movement”, follow the Additional Rules, each with a title, text and bullets.");
+      await d.finishCue();
       await d.clear();
     },
   },
@@ -651,18 +685,19 @@ export const SCENES = [
       await d.click(rules.locator(".list-actions button", { hasText: "Add a rule" }), { hold: 400 });
       const row = rules.locator(".list-row").last();
       const box = row.locator("textarea");
-      await d.type(box, "Lanterns are ", { delay: 30 });
+      const mr = d.demo.markupRule;
+      await d.type(box, mr.before, { delay: 30 });
       await d.hl(row.locator(".markup-tools"), "B, I and Icon buttons");
       await d.click(row.locator('.markup-tools button[title^="Bold"]'), { hold: 300 });
-      await box.pressSequentially("never", { delay: 40 });
+      await box.pressSequentially(mr.bold, { delay: 40 });
       await d.page.keyboard.press("End");
-      await box.pressSequentially(' lost -- a "Hero" who flees keeps them and gains 2', { delay: 30 });
+      await box.pressSequentially(mr.after, { delay: 26 });
       await d.click(row.locator(".glyph-picker > button"), { hold: 700 });
       await d.hl(row.locator(".glyph-pop"), "Pick a game icon");
       await d.say("The Icon button", "The Icon button opens the game icons; “Show all” lists every one. A click inserts its `:name:`.", 2600);
       await d.click(row.locator('.glyph-pop button[title="gold"]'), { hold: 700 });
       await d.clear();
-      const li = p.locator("aside.preview li").filter({ hasText: "never" }).first();
+      const li = p.locator("aside.preview li").filter({ hasText: mr.bold }).first();
       await d.smoothScroll(li);
       await d.hl([row, li], "");
       await d.say("Rendered on the page", "The page shows bold text, the dash, curly quotes and the gold icon, exactly as the Mission Book prints them.");
@@ -721,11 +756,11 @@ export const SCENES = [
       await goStep(d, "Rules");
       const sec = p.locator("section.panel").last();
       await d.smoothScroll(sec);
-      await d.type(sec.locator(".list-row textarea").last(), d.demo.section.bullet.replace("A hero", "A Hero"), { clear: true, delay: 10 });
+      await d.type(sec.locator(".list-row textarea").last(), d.demo.section.fixed, { clear: true, delay: 10 });
       await d.sleep(600);
       await goStep(d, "Review & Export");
       await d.hl(check.locator(".panel-head"), "Ready");
-      await d.say("Fixed", "With “Hero” capitalised the checklist is clear.", 2600);
+      await d.say("Fixed", "With “Round”, “Hero” and “Field” capitalised, the checklist is clear.", 2800);
       await d.clear();
 
       const prev = panel(p, "Preview");
