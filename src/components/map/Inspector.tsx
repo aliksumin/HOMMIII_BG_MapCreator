@@ -1,7 +1,7 @@
 import { assetUrl, CREATURE_BANKS, EXPANSIONS, isRandomTile, MAP_LOCATIONS, PORTRAITS, TILES, tileName } from "../../data/catalog.ts";
 import { CUBE_COLORS, FACTION_BORDER } from "../../data/game.ts";
 import { hexPoints } from "../../lib/mapdraw.ts";
-import type { MapTile } from "../../model/types.ts";
+import type { BoardToken, MapTile } from "../../model/types.ts";
 import { Toggle } from "../ui/Form.tsx";
 
 const MINI: readonly [number, number][] = [
@@ -163,6 +163,55 @@ export function Inspector({ tile, copies, field, onField, onChange, onDelete, on
         </button>
       )}
       <Toggle checked={tile.blockedHex[f]} onChange={(on) => onChange((t) => void (t.blockedHex[f] = on))} label="Blocked Field" />
+    </aside>
+  );
+}
+
+/** Edits a Location token that sits on an empty Field beside the tiles. */
+export function TokenInspector({
+  token,
+  onChange,
+  onDelete,
+}: {
+  token: BoardToken;
+  onChange: (recipe: (token: BoardToken) => void) => void;
+  onDelete: () => void;
+}) {
+  const info = MAP_LOCATIONS[token.location];
+  return (
+    <aside className="inspector">
+      <div className="inspector-head">
+        {info && <img src={assetUrl(info.img)} alt="" style={{ transform: `rotate(${token.rotation * 60}deg)` }} />}
+        <div>
+          <b>{info?.desc ?? token.location}</b>
+          <span className="hint">Location token beside the tiles</span>
+        </div>
+      </div>
+      <div className="inspector-actions">
+        <button type="button" className="btn small" title="Rotate left (Shift+R)" onClick={() => onChange((t) => void (t.rotation = (t.rotation + 5) % 6))}>
+          &#x21BA; Rotate
+        </button>
+        <button type="button" className="btn small" title="Rotate right (R)" onClick={() => onChange((t) => void (t.rotation = (t.rotation + 1) % 6))}>
+          Rotate &#x21BB;
+        </button>
+        <button type="button" className="btn small danger" title="Delete (Del)" onClick={onDelete}>
+          Delete
+        </button>
+      </div>
+      <label className="field">
+        <span className="field-label">Location token</span>
+        <select value={token.location} onChange={(e) => onChange((t) => void (t.location = e.target.value))}>
+          {Object.entries(MAP_LOCATIONS).map(([k, l]) => (
+            <option key={k} value={k}>
+              {l.desc}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="hint">
+        It sits on an empty Field, so it shows in the editor, the map PNG and the PDF, but the .map file (the community map editor&rsquo;s
+        format) has no place for it.
+      </p>
     </aside>
   );
 }
