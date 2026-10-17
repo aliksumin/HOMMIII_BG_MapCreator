@@ -16,6 +16,8 @@ const MINI: readonly [number, number][] = [
 
 interface Props {
   tile: MapTile;
+  /** how many tiles of this kind the layout holds, this one included */
+  copies: number;
   field: number | null;
   onField: (field: number) => void;
   onChange: (recipe: (tile: MapTile) => void) => void;
@@ -24,7 +26,7 @@ interface Props {
 }
 
 /** Edits the selected tile and one of its seven Fields. */
-export function Inspector({ tile, field, onField, onChange, onDelete, onDuplicate }: Props) {
+export function Inspector({ tile, copies, field, onField, onChange, onDelete, onDuplicate }: Props) {
   const info = TILES[tile.tileId];
   const f = field ?? 3;
   return (
@@ -39,6 +41,11 @@ export function Inspector({ tile, field, onField, onChange, onDelete, onDuplicat
           </span>
         </div>
       </div>
+      {copies > 1 && !isRandomTile(tile.tileId) && (
+        <p className="inspector-warn">
+          {tileName(tile.tileId)} is placed {copies} times on this layout, but the game has only one. Use a face-down tile or another printed one.
+        </p>
+      )}
       <div className="inspector-actions">
         <button type="button" className="btn small" title="Rotate left (Shift+R)" onClick={() => onChange((t) => void (t.rotation = (t.rotation + 5) % 6))}>
           &#x21BA; Rotate

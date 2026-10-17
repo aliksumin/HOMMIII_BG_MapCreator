@@ -4,7 +4,7 @@
 // wording.
 
 import { CATEGORIES, categoryInfo, RESOURCES, BUILDINGS, TILE_GROUPS, INCOME_TRACK } from "../data/game.ts";
-import { tileGroup } from "../data/catalog.ts";
+import { isRandomTile, tileGroup } from "../data/catalog.ts";
 import type { MapLayout, MapTile, ResourceValues, Scenario, TileCount, TileGroupKey, TitleImage, Rating } from "../model/types.ts";
 import { type Inline, lines, paragraphs, parseInline } from "./markup.ts";
 
@@ -96,6 +96,18 @@ export function countTiles(tiles: MapTile[]): Record<TileGroupKey, number> {
     if (group) counts[group]++;
   }
   return counts;
+}
+
+/**
+ * Printed tiles placed more than once on a layout, with how many times. The
+ * box holds one of each printed tile; face-down tiles repeat by design.
+ */
+export function duplicateTiles(tiles: MapTile[]): Map<string, number> {
+  const seen = new Map<string, number>();
+  for (const tile of tiles) {
+    if (!isRandomTile(tile.tileId)) seen.set(tile.tileId, (seen.get(tile.tileId) ?? 0) + 1);
+  }
+  return new Map([...seen].filter(([, n]) => n > 1));
 }
 
 function md(text: string): Inline[] {
