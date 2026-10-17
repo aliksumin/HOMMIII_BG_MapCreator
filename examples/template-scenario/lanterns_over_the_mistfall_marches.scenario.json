@@ -178,6 +178,12 @@
     }
   ],
   "story": "**The Last Rider**\n\nThe Keepers never asked for thanks, only for oil and a little quiet. When the Valley Council cut their pay of 3 :gold: a season, they kept the lamps lit anyway.\n\nThen the fog came. It did not roll like weather; it walked. By the third night the farms along the Lantern Road were silent, and by the fifth the last lamp on the road went dark. The old Keeper of Greywatch sent out one rider with a single message: \"Light the Lanterns of the road, then the **Beacon** on Mistfall Hill. And do not go down into the Barrow before you are ready.\"\n\n**A Lantern Rekindled**\n\nThe wick takes the flame on the third try. Light spills across the marsh, and the fog draws back like a hand from a hot stove. Far to the east, under the hill, something screams.\n\n**The Beacon Burns**\n\nThe Beacon roars into life, and the fog tears apart like wet paper. If the Mist Witch still lives, the hill shudders under your feet: the Barrow gate grinds open, and she climbs into the light with her dead around her, to put out the flame -- and you with it.\n\n**Dawn over the Marches**\n\nThe Witch falls, and the last of the fog sinks into the fens like water into sand. One by one, the Lanterns of the old road answer the Beacon.\n\nBefore she fell, the Witch spoke a name. It was not her own. Keep your Units and Resources for the next Scenario of the Campaign.",
+  "storyBook": {
+    "locations": [],
+    "locationsNote": "",
+    "specialTiles": [],
+    "paragraphs": []
+  },
   "maps": [
     {
       "id": "p6gsa77pj8rz",
@@ -1586,5 +1592,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-10-17T19:39:26.729Z"
+  "updatedAt": "2026-10-17T20:05:28.711Z"
 }

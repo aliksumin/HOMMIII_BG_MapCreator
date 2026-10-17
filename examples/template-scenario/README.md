@@ -76,4 +76,6 @@ Text markup used: `**bold**`, `*italic*`, `:gold:` style icons, `"quotes"` and `
   Whirlpool or Monolith leads nowhere.
 - Map Setup counts typed by hand (`2P` x Far Tiles): the template counts tiles from the map instead, and the two options
   exclude each other.
+- The Story Book (Story Locations, Special Tiles and numbered Paragraphs), which belongs to Solo Scenarios; this Campaign
+  tells its story in The Story sections instead.
 - Alliance and Clash specifics (the Campaign type was picked because it shows the most).
