@@ -4,7 +4,7 @@ import { CATEGORIES } from "../data/game.ts";
 import { parseProject } from "../lib/bundle.ts";
 import { decodeMap } from "../lib/mapfile.ts";
 import { normalise } from "../lib/hex.ts";
-import { newScenario } from "../model/defaults.ts";
+import { copyScenario, newScenario } from "../model/defaults.ts";
 import { deleteProject, listProjects, loadProject, useStore } from "../model/store.ts";
 
 export function Welcome() {
@@ -18,7 +18,7 @@ export function Welcome() {
     setError("");
     try {
       const { default: text } = await import("../../examples/template-scenario/lanterns_over_the_mistfall_marches.scenario.json?raw");
-      open(parseProject(text));
+      open(copyScenario(parseProject(text)));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }

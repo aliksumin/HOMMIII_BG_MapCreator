@@ -8,6 +8,7 @@ import { scenarioToLatex } from "../src/lib/latex.ts";
 import { lintScenario } from "../src/lib/lint.ts";
 import { decodeMap, encodeMap } from "../src/lib/mapfile.ts";
 import { setKnownGlyphs } from "../src/lib/markup.ts";
+import { copyScenario } from "../src/model/defaults.ts";
 
 // The template scenario under examples/ was built and exported with the app.
 // These tests keep it openable, clean and consistent with its exported files.
@@ -65,4 +66,14 @@ test("the exported files match what the app writes from the project file", () =>
     assert.equal(`${encodeMap(map.layout.tiles)}\n`, text);
     assert.equal(decodeMap(text).length, map.layout.tiles.length);
   }
+});
+
+test("opening the template makes an independent project, so edits are never overwritten by a second opening", () => {
+  const original = template();
+  const copy = copyScenario(original);
+  assert.notEqual(copy.id, original.id);
+  assert.notEqual(copy.id, copyScenario(original).id);
+  assert.deepEqual({ ...copy, id: "", updatedAt: "" }, { ...original, id: "", updatedAt: "" });
+  copy.maps[0].tiles.length = 0;
+  assert.ok(original.maps[0].tiles.length > 0);
 });
