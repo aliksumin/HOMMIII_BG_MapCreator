@@ -57,6 +57,7 @@ export function submitGuide(s: Scenario): string {
     "",
     "## 2. Register the scenario",
     "",
+    ...(s.category === "solo" ? soloSectionSteps() : []),
     `Add these lines at the end of \`draft-scenarios/${s.category}/main.tex\`:`,
     "",
     "```latex",
@@ -82,6 +83,24 @@ export function submitGuide(s: Scenario): string {
     "",
   ];
   return lines.join("\n");
+}
+
+/** The book has no solo section yet: what the first Solo Scenario adds before it registers. */
+function soloSectionSteps(): string[] {
+  return [
+    "The Mission Book has no Solo section yet. If `draft-scenarios/solo/` does not exist, add it first:",
+    "",
+    "1. In `draft-scenarios/drafts.tex`, next to the other paths: `\\def\\solopath{solo}`",
+    "2. In `draft-scenarios/structure.tex`, after the campaigns line: `\\include{\\solopath/main.tex}`",
+    "3. Create `draft-scenarios/solo/main.tex` with:",
+    "",
+    "```latex",
+    "\\addscenariogroup{Solo}{\\layout/rampart_background.png}",
+    "",
+    "\\clearpage",
+    "```",
+    "",
+  ];
 }
 
 /** Builds the ZIP. */

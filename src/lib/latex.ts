@@ -21,6 +21,7 @@ const ESCAPES: Record<string, string> = {
   "\u201d": "''",
   "\u2013": "--",
   "\u2014": "---",
+  "\u00a7": "\\S{}",
   "\t": " ",
 };
 

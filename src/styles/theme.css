@@ -767,7 +767,7 @@ textarea {
 }
 .category-cards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
   margin: 6px 0 16px;
 }
@@ -775,9 +775,10 @@ textarea {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
   min-height: 150px;
-  padding: 12px;
+  /* the name sits at the same height on every card, however long the blurb */
+  padding: 78px 12px 12px;
   text-align: left;
   color: var(--antique);
   background-color: #222;
@@ -1744,4 +1745,57 @@ textarea {
 }
 .content .category-cards {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+/* Story Book step */
+.story-entries,
+.story-paragraphs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.story-entry,
+.story-paragraph {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--border-mid);
+  border-radius: 3px;
+}
+.story-entry-fields {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(0, 3fr);
+  gap: 10px;
+}
+.story-paragraph {
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+}
+.story-number {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 700;
+  font-size: 20px;
+}
+.story-number small {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.story-number small.unlinked {
+  color: #8b2a1c;
+}
+.markup-tools .ref-picker {
+  width: auto;
+  max-width: 120px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .story-entry-fields {
+    grid-template-columns: 1fr;
+  }
 }
