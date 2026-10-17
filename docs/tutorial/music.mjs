@@ -654,7 +654,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     return i >= 0 ? a[i + 1] : fallback;
   };
   const home = process.env.USERPROFILE ?? process.env.HOME ?? ".";
-  const out = path.resolve(get("out", path.join(home, "Videos", "HoMM3-Scenario-Creator-tutorial")));
+  // the repository root's HoMM3-Scenario-Creator-tutorial/ (in .gitignore)
+  const out = path.resolve(get("out", path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "HoMM3-Scenario-Creator-tutorial")));
   const tools = path.resolve(get("tools", path.join(home, "tools", "tutorial-capture")));
   const ffmpeg = get("ffmpeg", process.env.FFMPEG ?? path.join(tools, "node_modules", "@ffmpeg-installer", "win32-x64", "ffmpeg.exe"));
   const timelineFile = get("timeline", path.join(out, "timeline.json"));

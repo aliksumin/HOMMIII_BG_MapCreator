@@ -27,7 +27,8 @@ function args() {
   return {
     repo: path.resolve(get("repo", path.join(HERE, "..", ".."))),
     tools: path.resolve(get("tools", path.join(home, "tools", "tutorial-capture"))),
-    out: path.resolve(get("out", path.join(home, "Videos", "HoMM3-Scenario-Creator-tutorial"))),
+    // the repository root's HoMM3-Scenario-Creator-tutorial/ (in .gitignore)
+    out: path.resolve(get("out", path.join(HERE, "..", "..", "HoMM3-Scenario-Creator-tutorial"))),
     port: Number(get("port", "5191")),
     ffmpeg: get("ffmpeg", process.env.FFMPEG ?? ""),
     only: get("only", ""),
@@ -175,7 +176,8 @@ function director(page, rec, outDir, repoRequire) {
       chapter = { num, title, sub, screen, start: rec.time(), end: null, beats: [], labels: [] };
       chapters.push(chapter);
       ev("chapter", { num });
-      await page.evaluate(([n, t, s]) => window.__tut.caption(n, t, s), [String(num), title, sub]);
+      // A new step starts without the last step's lower third, as its caption cue ends here.
+      await page.evaluate(([n, t, s]) => (window.__tut.lower("", ""), window.__tut.caption(n, t, s)), [String(num), title, sub]);
     },
     /** Lower-third description; also one caption cue. Holds long enough to read. */
     async say(title, text, hold) {
@@ -186,6 +188,14 @@ function director(page, rec, outDir, repoRequire) {
       ev("caption");
       await page.evaluate(([t, x]) => window.__tut.lower(t, x), [title, text]);
       await sleep(hold ?? readTime(`${title} ${text}`));
+    },
+    /**
+     * For a say() with a short hold, so the actions it describes play under it: waits out the
+     * rest of its reading time, and at least `min` ms for the highlight that ends them.
+     */
+    async finishCue(min = 1600) {
+      const left = cue ? readTime(`${cue.title} ${cue.text}`) - (rec.time() - cue.start) * 1000 : 0;
+      await sleep(Math.max(min, left));
     },
     async hideText() {
       closeCue();
