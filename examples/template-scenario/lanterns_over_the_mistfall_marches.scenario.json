@@ -137,7 +137,7 @@
   ],
   "rulesIntro": "During this Scenario, the following rules apply:",
   "rules": [
-    "Neutral Units do not respawn.",
+    "Astrologers Proclaim Cards are not used.",
     "Players cannot attack the Heroes of other players."
   ],
   "customSections": [
