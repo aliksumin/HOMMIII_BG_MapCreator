@@ -58,6 +58,11 @@ export function newScenario(category: Category = "clash"): Scenario {
   };
 }
 
+/** An independent project made from a scenario: a new id (so autosave never overwrites the original) and time. */
+export function copyScenario(s: Scenario): Scenario {
+  return { ...structuredClone(s), id: uid(), updatedAt: new Date().toISOString() };
+}
+
 /** Fills fields a project file from an older version lacks. */
 export function upgradeScenario(input: Partial<Scenario>): Scenario {
   const base = newScenario(input.category ?? "clash");

@@ -37,6 +37,9 @@ also from the Icon button), `"quotes"` and `--` for a dash.
 
 Work is saved automatically in the browser; use **Save file** to keep a project file.
 
+`examples/template-scenario/` holds a finished sample Scenario that uses every feature (open it with **Open the template**
+on the start screen); see its README.
+
 ## Run it
 
 Needs Node 24.
