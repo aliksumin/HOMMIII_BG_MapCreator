@@ -81,9 +81,13 @@ const portraits = await convertSet(portraitsJson.PORTRAITS, "assets/map-editor/p
 
 // All twelve banks of the Naval Battles Mission Book: the editor keeps the ones
 // it has no art for yet under UNFINISHED, with the two face-down tokens (R1, R2).
+// Real art is used only once every bank has a picture, so the set looks alike;
+// until then all of them are plain name tokens (issue #14).
 const allBanks = { ...banksJson.CREATURE_BANKS, ...banksJson.UNFINISHED };
 for (const bank of Object.values(allBanks)) bank.desc = bank.desc.replace(/^Random - ([A-Za-z]+)$/, "Random ($1)");
-const bankArt = await convertSet(allBanks, "assets/map-editor/creature-banks/", "creature-banks", 200);
+const missingArt = Object.keys(allBanks).filter((key) => !existsSync(path.join(zPublic, allBanks[key].img ?? allBanks[key].image)));
+if (missingArt.length) console.log(`creature banks: no art for ${missingArt.join(", ")}, drawing name tokens for all`);
+const bankArt = missingArt.length ? {} : await convertSet(allBanks, "assets/map-editor/creature-banks/", "creature-banks", 200);
 const bankOrder = (key) => (key.startsWith("CB") ? Number(key.slice(2)) : 100 + Number(key.slice(1)));
 const banks = {};
 for (const key of Object.keys(allBanks).sort((a, b) => bankOrder(a) - bankOrder(b))) {
