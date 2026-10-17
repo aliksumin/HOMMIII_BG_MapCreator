@@ -300,7 +300,12 @@ export function MapEditor() {
                 Placed more than once: {[...dupes].map(([id, n]) => `${id} ×${n}`).join(", ")}
               </span>
             )}
-            {tokens.length > 0 && <span className="note">{plural(tokens.length, "token")} beside the tiles: in the PNG and PDF, not in the .map file</span>}
+            {tokens.length > 0 && (
+              <span className={tiles.length ? "note" : "warn"}>
+                {plural(tokens.length, "token")} beside the tiles:{" "}
+                {tiles.length ? "in the PNG and PDF, not in the .map file" : "place tiles too, a layout without tiles is left out of the book and the PDF"}
+              </span>
+            )}
             <span className="keys">
               Click: place/select &middot; Shift+click: add to selection &middot; Ctrl+drag: select with a frame &middot; Drag: move or pan &middot;
               Wheel: zoom &middot; R: rotate &middot; Del: remove &middot; Esc: unselect

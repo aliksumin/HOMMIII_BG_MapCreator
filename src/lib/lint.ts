@@ -73,11 +73,12 @@ export function tokenFindings(layout: MapLayout): string[] {
     });
   }
   for (const t of besides) board.set(cellKey(t.row, t.col), { tile: null, token: t.location });
-  const nextTo = (tile: MapTile, field: number, half: string, subterranean: boolean) =>
-    neighbours(...fieldCell(tile, field)).some(([r, c]) => {
+  const nextToCell = (cell: [number, number], half: string, subterranean: boolean) =>
+    neighbours(...cell).some(([r, c]) => {
       const next = board.get(cellKey(r, c));
       return next?.token === half && (next.tile === null || isSubterranean(next.tile.tileId) === subterranean);
     });
+  const nextTo = (tile: MapTile, field: number, half: string, subterranean: boolean) => nextToCell(fieldCell(tile, field), half, subterranean);
 
   let surface = 0;
   let underground = 0;
@@ -120,10 +121,18 @@ export function tokenFindings(layout: MapLayout): string[] {
     }
   }
 
-  for (const { location: token } of besides) {
-    if (token === GATE_SURFACE) surface++;
-    else if (token === GATE_UNDERGROUND) underground++;
-    else if (token.startsWith("whirlpool-")) whirlpools.push("beside the tiles");
+  for (const { location: token, row, col } of besides) {
+    if (token === GATE_SURFACE) {
+      surface++;
+      if (!nextToCell([row, col], GATE_UNDERGROUND, true)) {
+        out.push(`${map} has a Subterranean Gate beside the tiles with no underground half next to it.`);
+      }
+    } else if (token === GATE_UNDERGROUND) {
+      underground++;
+      if (!nextToCell([row, col], GATE_SURFACE, false)) {
+        out.push(`${map} has the underground half of a Subterranean Gate beside the tiles with no surface half next to it.`);
+      }
+    } else if (token.startsWith("whirlpool-")) whirlpools.push("beside the tiles");
     else if (monolithPartner(token)) monoliths.set(token, "beside the tiles");
   }
 

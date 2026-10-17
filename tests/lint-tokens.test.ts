@@ -123,5 +123,13 @@ test("tokens beside the tiles count toward Whirlpool, Monolith and Gate pairs", 
   const surface = tile("N7", ...LEFT, { 4: "subterranean-gate-surface" });
   const [r, c] = freeNeighbour(surface, 4);
   assert.deepEqual(tokenFindings({ ...layout(surface), tokens: [beside("subterranean-gate-underground", r, c)] }), []);
-  assert.equal(tokenFindings({ ...layout(tile("N7", ...LEFT)), tokens: [beside("subterranean-gate-surface", 8, 8)] }).length, 1);
+  assert.equal(tokenFindings({ ...layout(tile("N7", ...LEFT)), tokens: [beside("subterranean-gate-surface", 8, 8)] }).length, 2);
+});
+
+test("a Gate made of two tokens beside the tiles needs its halves on neighbouring Fields", () => {
+  const base = layout(tile("N7", ...LEFT));
+  const apart = tokenFindings({ ...base, tokens: [beside("subterranean-gate-surface", 8, 8), beside("subterranean-gate-underground", 8, 12)] });
+  assert.equal(apart.length, 2);
+  const [r, c] = neighbours(8, 8)[1];
+  assert.deepEqual(tokenFindings({ ...base, tokens: [beside("subterranean-gate-surface", 8, 8), beside("subterranean-gate-underground", r, c)] }), []);
 });
