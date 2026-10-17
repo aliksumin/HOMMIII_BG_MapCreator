@@ -618,7 +618,7 @@ export const SCENES = [
       await goStep(d, "Rules");
       const rules = panel(p, "Additional Rules");
       await d.type(field(rules, "Introduction (optional)").locator("textarea"), d.demo.rulesIntro, { delay: 16 });
-      await d.click(rules.locator(".chip", { hasText: "Neutral Units do not respawn" }), { hold: 700 });
+      await d.click(rules.locator(".chip", { hasText: "Astrologers Proclaim Cards are not used" }), { hold: 700 });
       await d.hl(rules, "Additional Rules");
       await d.say("Additional Rules", "Rules that change the game for this Scenario: an optional introduction and one bullet per rule.");
       await d.clear();
