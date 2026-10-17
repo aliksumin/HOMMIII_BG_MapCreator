@@ -2057,6 +2057,76 @@
       "img": "assets/creature-banks/CB2.webp",
       "desc": "Pyramid",
       "amount": 2
+    },
+    "CB3": {
+      "id": "CB3",
+      "desc": "Shipwreck",
+      "amount": 2,
+      "img": "assets/creature-banks/CB3.svg"
+    },
+    "CB4": {
+      "id": "CB4",
+      "desc": "Dragon Fly Hive",
+      "amount": 2,
+      "img": "assets/creature-banks/CB4.svg"
+    },
+    "CB5": {
+      "id": "CB5",
+      "desc": "Medusa Stores",
+      "amount": 2,
+      "img": "assets/creature-banks/CB5.svg"
+    },
+    "CB6": {
+      "id": "CB6",
+      "desc": "Dwarven Treasury",
+      "amount": 2,
+      "img": "assets/creature-banks/CB6.svg"
+    },
+    "CB7": {
+      "id": "CB7",
+      "desc": "Griffin Conservatory",
+      "amount": 2,
+      "img": "assets/creature-banks/CB7.svg"
+    },
+    "CB8": {
+      "id": "CB8",
+      "desc": "Naga Bank",
+      "amount": 2,
+      "img": "assets/creature-banks/CB8.svg"
+    },
+    "CB9": {
+      "id": "CB9",
+      "desc": "Crypt",
+      "amount": 2,
+      "img": "assets/creature-banks/CB9.svg"
+    },
+    "CB10": {
+      "id": "CB10",
+      "desc": "Imp Cache",
+      "amount": 2,
+      "img": "assets/creature-banks/CB10.svg"
+    },
+    "CB11": {
+      "id": "CB11",
+      "desc": "Cyclops Stockpile",
+      "amount": 2,
+      "img": "assets/creature-banks/CB11.svg"
+    },
+    "CB12": {
+      "id": "CB12",
+      "desc": "Dragon Utopia",
+      "amount": 2,
+      "img": "assets/creature-banks/CB12.svg"
+    },
+    "R1": {
+      "id": "R1",
+      "desc": "Random (Far)",
+      "img": "assets/creature-banks/R1.svg"
+    },
+    "R2": {
+      "id": "R2",
+      "desc": "Random (Near)",
+      "img": "assets/creature-banks/R2.svg"
     }
   },
   "mapLocations": {

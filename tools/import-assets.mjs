@@ -14,6 +14,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
+import { bankTokenSvg } from "./bank-tokens.mjs";
 
 const [zederoDir, missionDir] = process.argv.slice(2);
 if (!zederoDir || !missionDir) {
@@ -78,7 +79,22 @@ const tiles = await convertSet(allTiles, "assets/map-editor/tiles/", "tiles", 40
 console.log(`portraits: ${Object.keys(portraitsJson.PORTRAITS).length}`);
 const portraits = await convertSet(portraitsJson.PORTRAITS, "assets/map-editor/portraits/", "portraits", 96);
 
-const banks = await convertSet(banksJson.CREATURE_BANKS, "assets/map-editor/creature-banks/", "creature-banks", 200);
+// All twelve banks of the Naval Battles Mission Book: the editor keeps the ones
+// it has no art for yet under UNFINISHED, with the two face-down tokens (R1, R2).
+const allBanks = { ...banksJson.CREATURE_BANKS, ...banksJson.UNFINISHED };
+for (const bank of Object.values(allBanks)) bank.desc = bank.desc.replace(/^Random - ([A-Za-z]+)$/, "Random ($1)");
+const bankArt = await convertSet(allBanks, "assets/map-editor/creature-banks/", "creature-banks", 200);
+const bankOrder = (key) => (key.startsWith("CB") ? Number(key.slice(2)) : 100 + Number(key.slice(1)));
+const banks = {};
+for (const key of Object.keys(allBanks).sort((a, b) => bankOrder(a) - bankOrder(b))) {
+  if (bankArt[key]) {
+    banks[key] = bankArt[key];
+    continue;
+  }
+  await writeFile(path.join(out, "creature-banks", `${key}.svg`), bankTokenSvg(allBanks[key].desc));
+  const { image: _image, ...rest } = allBanks[key];
+  banks[key] = { ...rest, img: `assets/creature-banks/${key}.svg` };
+}
 const locations = await convertSet(locationsJson.MAP_LOCATIONS, "assets/map-editor/map-locations/", "map-locations", 200);
 
 const strip = (value) => (typeof value === "string" && value.includes(".") ? value.split(".")[1] : value);

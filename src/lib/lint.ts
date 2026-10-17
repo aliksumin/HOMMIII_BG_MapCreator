@@ -1,10 +1,11 @@
 // Checks a scenario before export: what the mission book CI would reject,
 // and what a reviewer would ask for.
 
+import { tileName } from "../data/catalog.ts";
 import { BOOK_TERMS } from "../data/game.ts";
 import type { Scenario } from "../model/types.ts";
 import { connectedGroups } from "./hex.ts";
-import { countTiles } from "./document.ts";
+import { countTiles, duplicateTiles } from "./document.ts";
 import { scenarioToLatex } from "./latex.ts";
 import { brokenRefs, paragraphRefs } from "./storybook.ts";
 
@@ -53,6 +54,9 @@ export function lintScenario(s: Scenario): Finding[] {
   for (const layout of maps) {
     const groups = connectedGroups(layout.tiles);
     if (groups.length > 1) warn("map", `Map "${layout.name}" falls apart into ${groups.length} unconnected parts.`);
+    for (const [id, n] of duplicateTiles(layout.tiles)) {
+      warn("map", `Map "${layout.name}" uses ${tileName(id)} ${n} times, but the game has only one of each printed tile.`);
+    }
     const counts = countTiles(layout.tiles);
     if (s.category !== "campaigns" && s.playerCounts.length === 1 && counts.starting && counts.starting < s.playerCounts[0]) {
       warn("map", `Map "${layout.name}" has ${counts.starting} Starting Tiles for ${s.playerCounts[0]} players.`);

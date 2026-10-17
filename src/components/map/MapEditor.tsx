@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { countTiles, mapFiles } from "../../lib/document.ts";
+import { countTiles, duplicateTiles, mapFiles } from "../../lib/document.ts";
 import { connectedGroups, normalise } from "../../lib/hex.ts";
 import { guid, uid } from "../../lib/id.ts";
 import { download } from "../../lib/images.ts";
@@ -30,6 +30,7 @@ export function MapEditor() {
   const tiles = layout.tiles;
   const tile = tiles.find((t) => t.id === selected) ?? null;
   const counts = countTiles(tiles);
+  const dupes = duplicateTiles(tiles);
   const parts = tiles.length ? connectedGroups(tiles).length : 0;
   const file = mapFiles(s).find((m) => m.layout.id === layout.id)?.file ?? "map";
 
@@ -251,12 +252,18 @@ export function MapEditor() {
                 </span>
               ))}
             {parts > 1 && <span className="warn">Map falls apart into {parts} parts</span>}
+            {dupes.size > 0 && (
+              <span className="warn" title="The game has only one of each printed tile.">
+                Placed more than once: {[...dupes].map(([id, n]) => `${id} ×${n}`).join(", ")}
+              </span>
+            )}
             <span className="keys">Click: place/select &middot; Drag: move or pan &middot; Wheel: zoom &middot; R: rotate &middot; Del: remove</span>
           </div>
         </div>
         {tile ? (
           <Inspector
             tile={tile}
+            copies={tiles.filter((t) => t.tileId === tile.tileId).length}
             field={field}
             onField={setField}
             onChange={changeTile}
