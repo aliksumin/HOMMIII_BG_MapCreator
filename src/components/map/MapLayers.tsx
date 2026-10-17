@@ -1,5 +1,5 @@
 import { boardBounds, cellCenter, TILE_H, TILE_W } from "../../lib/hex.ts";
-import { borderColor, cubeFaces, flowerPath, hexPoints, shade, tileImageUrl, tileOverlays } from "../../lib/mapdraw.ts";
+import { borderColor, cubeFaces, flowerPath, hexPoints, shade, TOKEN_SIZE, tileImageUrl, tileOverlays } from "../../lib/mapdraw.ts";
 import type { MapTile } from "../../model/types.ts";
 
 /** Tile art, faction borders and Field overlays, in board coordinates. */
@@ -39,7 +39,7 @@ export function MapLayers({ tiles, fadedId, clipId }: { tiles: MapTile[]; fadedI
             const key = `${t.id}-${i}`;
             if (o.kind === "token")
               return (
-                <image key={key} href={o.url} x={o.x - 43} y={o.y - 50} width={86} height={100} transform={`rotate(${o.rotation} ${o.x} ${o.y})`}>
+                <image key={key} href={o.url} x={o.x - TOKEN_SIZE / 2} y={o.y - TOKEN_SIZE / 2} width={TOKEN_SIZE} height={TOKEN_SIZE} transform={`rotate(${o.rotation} ${o.x} ${o.y})`}>
                   <title>{o.label}</title>
                 </image>
               );
