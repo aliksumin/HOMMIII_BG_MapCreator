@@ -67,7 +67,8 @@ function Entries({
   );
 }
 
-export function StepStoryBook() {
+/** Story Locations, Special Tiles and numbered Paragraphs: the story book part of the Story step. */
+export function StoryBookPanels() {
   const [s, update] = useScenario();
   const book = s.storyBook;
   const count = book.paragraphs.length;
@@ -75,15 +76,6 @@ export function StepStoryBook() {
 
   return (
     <>
-      <Panel title="How the story book works">
-        <p className="hint">
-          Solo Scenarios tell their story through numbered paragraphs, as in the Naval Battles mission book. A Story Location or Special
-          Tile sends the reader to a paragraph, and a paragraph ends with choices that send them on. Write <code>§12</code>, or pick from
-          the <b>§ Read</b> menu, to point to paragraph 12. Moving or removing a paragraph renumbers every reference. All of this prints on
-          its own page after the map; leave it empty if the Scenario does not need it.
-        </p>
-      </Panel>
-
       <Panel
         title="Story Locations"
         aside={
