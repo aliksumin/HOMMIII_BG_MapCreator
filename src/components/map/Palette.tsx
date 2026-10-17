@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { assetUrl, EXPANSIONS, TILES, type TileInfo, tileGroup, tileName } from "../../data/catalog.ts";
+import { assetUrl, EXPANSIONS, MAP_LOCATIONS, TILES, type TileInfo, tileGroup, tileName } from "../../data/catalog.ts";
 import { TILE_GROUPS } from "../../data/game.ts";
+import type { Armed } from "./Board.tsx";
 
 const RANDOM_ORDER = ["S0", "F0", "N0", "C0", "NW0", "CW0", "NU0", "CU0"];
 
@@ -8,8 +9,8 @@ function tileNumber(id: string): number {
   return Number(id.replace(/\D+/g, "")) || 0;
 }
 
-/** The tile box: face-down random tiles first, then every tile by kind. */
-export function Palette({ armed, onArm }: { armed: string | null; onArm: (tileId: string | null) => void }) {
+/** The tile box: face-down random tiles first, then every tile by kind, then Location tokens for empty Fields. */
+export function Palette({ armed, onArm }: { armed: Armed | null; onArm: (armed: Armed | null) => void }) {
   const [expansion, setExpansion] = useState("ALL");
   const [query, setQuery] = useState("");
 
@@ -34,6 +35,17 @@ export function Palette({ armed, onArm }: { armed: string | null; onArm: (tileId
     ].filter((g) => g.tiles.length);
   }, [expansion, query]);
 
+  const locations = useMemo(
+    () =>
+      Object.entries(MAP_LOCATIONS).filter(
+        ([k, l]) => !query.trim() || `${k} ${l.desc}`.toLowerCase().includes(query.trim().toLowerCase()),
+      ),
+    [query],
+  );
+
+  const isArmed = (kind: Armed["kind"], id: string) => armed?.kind === kind && armed.id === id;
+  const armedName = !armed ? "" : armed.kind === "tile" ? tileName(armed.id) : (MAP_LOCATIONS[armed.id]?.desc ?? armed.id);
+
   return (
     <aside className="palette">
       <div className="palette-filters">
@@ -51,7 +63,7 @@ export function Palette({ armed, onArm }: { armed: string | null; onArm: (tileId
       </div>
       {armed && (
         <div className="armed-note">
-          Placing <b>{tileName(armed)}</b>. Click the board.{" "}
+          Placing <b>{armedName}</b>. Click {armed.kind === "token" ? "an empty Field" : "the board"}.{" "}
           <button type="button" className="link" onClick={() => onArm(null)}>
             Stop (Esc)
           </button>
@@ -66,14 +78,14 @@ export function Palette({ armed, onArm }: { armed: string | null; onArm: (tileId
                 <button
                   type="button"
                   key={t.id}
-                  className={`palette-tile ${armed === t.id ? "on" : ""}`}
+                  className={`palette-tile ${isArmed("tile", t.id) ? "on" : ""}`}
                   title={`${tileName(t.id)} (${EXPANSIONS[t.expansion] ?? t.expansion})`}
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.setData("text/x-tile", t.id);
                     e.dataTransfer.effectAllowed = "copy";
                   }}
-                  onClick={() => onArm(armed === t.id ? null : t.id)}
+                  onClick={() => onArm(isArmed("tile", t.id) ? null : { kind: "tile", id: t.id })}
                 >
                   <img src={assetUrl(t.img)} alt={t.desc} loading="lazy" draggable={false} />
                   <span>{t.id}</span>
@@ -82,6 +94,30 @@ export function Palette({ armed, onArm }: { armed: string | null; onArm: (tileId
             </div>
           </div>
         ))}
+        {locations.length > 0 && (
+          <div className="palette-group">
+            <h3>Location tokens (beside the tiles)</h3>
+            <div className="palette-grid">
+              {locations.map(([k, l]) => (
+                <button
+                  type="button"
+                  key={k}
+                  className={`palette-tile token ${isArmed("token", k) ? "on" : ""}`}
+                  title={`${l.desc}: place it on an empty Field next to the tiles. To put it on a tile, pick the tile's Field instead.`}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/x-token", k);
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
+                  onClick={() => onArm(isArmed("token", k) ? null : { kind: "token", id: k })}
+                >
+                  <img src={assetUrl(l.img)} alt={l.desc} loading="lazy" draggable={false} />
+                  <span>{l.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

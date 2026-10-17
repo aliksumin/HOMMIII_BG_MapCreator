@@ -53,31 +53,38 @@ function monolithPartner(id: string): string | null {
 /**
  * Map tokens placed against the rules: Subterranean Gate halves without their
  * other half, a lone Whirlpool, unpaired Monoliths, and Creature Banks off the
- * Blocked Field of a Water or Subterranean Tile.
+ * Blocked Field of a Water or Subterranean Tile. Tokens beside the tiles
+ * count toward the pairs; they stand on no terrain, so either side of a Gate
+ * may pair with one.
  */
 export function tokenFindings(layout: MapLayout): string[] {
   const out: string[] = [];
   const map = `Map "${layout.name}"`;
   const tokenName = (id: string) => MAP_LOCATIONS[id]?.desc ?? id;
 
-  // The tile and token on each board Field.
-  const board = new Map<string, { tile: MapTile; token: string }>();
+  const besides = layout.tokens ?? [];
+
+  // The tile (null beside the tiles) and token on each board Field.
+  const board = new Map<string, { tile: MapTile | null; token: string }>();
   for (const tile of layout.tiles) {
     tile.mapLocations.forEach((token, field) => {
       const [r, c] = fieldCell(tile, field);
       board.set(cellKey(r, c), { tile, token });
     });
   }
-  const nextTo = (tile: MapTile, field: number, half: string, subterranean: boolean) =>
-    neighbours(...fieldCell(tile, field)).some(([r, c]) => {
+  for (const t of besides) board.set(cellKey(t.row, t.col), { tile: null, token: t.location });
+  const nextToCell = (cell: [number, number], half: string, subterranean: boolean) =>
+    neighbours(...cell).some(([r, c]) => {
       const next = board.get(cellKey(r, c));
-      return next?.token === half && isSubterranean(next.tile.tileId) === subterranean;
+      return next?.token === half && (next.tile === null || isSubterranean(next.tile.tileId) === subterranean);
     });
+  const nextTo = (tile: MapTile, field: number, half: string, subterranean: boolean) => nextToCell(fieldCell(tile, field), half, subterranean);
 
   let surface = 0;
   let underground = 0;
-  const whirlpools: MapTile[] = [];
-  const monoliths = new Map<string, MapTile>();
+  /** where each Whirlpool and Monolith is, for the messages */
+  const whirlpools: string[] = [];
+  const monoliths = new Map<string, string>();
   for (const tile of layout.tiles) {
     const name = tileName(tile.tileId);
     tile.mapLocations.forEach((token, field) => {
@@ -96,9 +103,9 @@ export function tokenFindings(layout: MapLayout): string[] {
           out.push(`${map} has a Subterranean Gate on ${name} with no surface half next to it.`);
         }
       } else if (token.startsWith("whirlpool-")) {
-        whirlpools.push(tile);
+        whirlpools.push(`on ${name}`);
       } else if (monolithPartner(token)) {
-        monoliths.set(token, tile);
+        monoliths.set(token, `on ${name}`);
       }
     });
 
@@ -114,16 +121,31 @@ export function tokenFindings(layout: MapLayout): string[] {
     }
   }
 
+  for (const { location: token, row, col } of besides) {
+    if (token === GATE_SURFACE) {
+      surface++;
+      if (!nextToCell([row, col], GATE_UNDERGROUND, true)) {
+        out.push(`${map} has a Subterranean Gate beside the tiles with no underground half next to it.`);
+      }
+    } else if (token === GATE_UNDERGROUND) {
+      underground++;
+      if (!nextToCell([row, col], GATE_SURFACE, false)) {
+        out.push(`${map} has the underground half of a Subterranean Gate beside the tiles with no surface half next to it.`);
+      }
+    } else if (token.startsWith("whirlpool-")) whirlpools.push("beside the tiles");
+    else if (monolithPartner(token)) monoliths.set(token, "beside the tiles");
+  }
+
   if (surface !== underground) {
     out.push(`${map} has ${surface} surface and ${underground} underground halves of Subterranean Gates; each Gate needs one of each.`);
   }
   if (whirlpools.length === 1) {
-    out.push(`${map} has a single Whirlpool (on ${tileName(whirlpools[0].tileId)}), which leads nowhere: place at least two.`);
+    out.push(`${map} has a single Whirlpool (${whirlpools[0]}), which leads nowhere: place at least two.`);
   }
-  for (const [token, tile] of monoliths) {
+  for (const [token, place] of monoliths) {
     const partner = monolithPartner(token);
     if (partner && !monoliths.has(partner)) {
-      out.push(`${map} has ${tokenName(token)} on ${tileName(tile.tileId)} without its partner ${tokenName(partner)}.`);
+      out.push(`${map} has ${tokenName(token)} ${place} without its partner ${tokenName(partner)}.`);
     }
   }
   return out;

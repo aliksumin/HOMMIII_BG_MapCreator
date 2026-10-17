@@ -1,9 +1,19 @@
 import { boardBounds, cellCenter, TILE_H, TILE_W } from "../../lib/hex.ts";
-import { borderColor, cubeFaces, flowerPath, hexPoints, shade, TOKEN_SIZE, tileImageUrl, tileOverlays } from "../../lib/mapdraw.ts";
-import type { MapTile } from "../../model/types.ts";
+import { boardTokenOverlays, borderColor, cubeFaces, flowerPath, hexPoints, shade, TOKEN_SIZE, tileImageUrl, tileOverlays } from "../../lib/mapdraw.ts";
+import type { BoardToken, MapTile } from "../../model/types.ts";
 
-/** Tile art, faction borders and Field overlays, in board coordinates. */
-export function MapLayers({ tiles, fadedId, clipId }: { tiles: MapTile[]; fadedId?: string; clipId: string }) {
+/** Tile art, faction borders, Field overlays and the tokens beside the tiles, in board coordinates. */
+export function MapLayers({
+  tiles,
+  tokens = [],
+  fadedIds,
+  clipId,
+}: {
+  tiles: MapTile[];
+  tokens?: BoardToken[];
+  fadedIds?: string[];
+  clipId: string;
+}) {
   return (
     <>
       <defs>
@@ -16,7 +26,7 @@ export function MapLayers({ tiles, fadedId, clipId }: { tiles: MapTile[]; fadedI
         const url = tileImageUrl(t.tileId);
         const border = borderColor(t);
         return (
-          <g key={t.id} data-tile={t.id} className="tile" opacity={t.suggestedPlacement ? 0.5 : t.id === fadedId ? 0.75 : 1}>
+          <g key={t.id} data-tile={t.id} className="tile" opacity={t.suggestedPlacement ? 0.5 : fadedIds?.includes(t.id) ? 0.75 : 1}>
             {url ? (
               <image
                 href={url}
@@ -71,13 +81,34 @@ export function MapLayers({ tiles, fadedId, clipId }: { tiles: MapTile[]; fadedI
           }),
         )}
       </g>
+      <g className="board-tokens">
+        {tokens.map((t) => {
+          const o = boardTokenOverlays([t])[0];
+          if (o?.kind !== "token") return null;
+          return (
+            <image
+              key={t.id}
+              data-token={t.id}
+              href={o.url}
+              x={o.x - TOKEN_SIZE / 2}
+              y={o.y - TOKEN_SIZE / 2}
+              width={TOKEN_SIZE}
+              height={TOKEN_SIZE}
+              opacity={fadedIds?.includes(t.id) ? 0.75 : 1}
+              transform={`rotate(${o.rotation} ${o.x} ${o.y})`}
+            >
+              <title>{o.label}</title>
+            </image>
+          );
+        })}
+      </g>
     </>
   );
 }
 
-/** A static picture of a layout, cropped to its tiles. */
-export function MapView({ tiles, className }: { tiles: MapTile[]; className?: string }) {
-  const box = boardBounds(tiles);
+/** A static picture of a layout, cropped to its tiles and the tokens beside them. */
+export function MapView({ tiles, tokens = [], className }: { tiles: MapTile[]; tokens?: BoardToken[]; className?: string }) {
+  const box = boardBounds(tiles, tokens);
   if (!box) return null;
   const pad = 6;
   return (
@@ -88,7 +119,7 @@ export function MapView({ tiles, className }: { tiles: MapTile[]; className?: st
       aria-label="Scenario map"
     >
       <title>Scenario map</title>
-      <MapLayers tiles={tiles} clipId={`clip-${tiles[0]?.id ?? "x"}`} />
+      <MapLayers tiles={tiles} tokens={tokens} clipId={`clip-${tiles[0]?.id ?? "x"}`} />
     </svg>
   );
 }

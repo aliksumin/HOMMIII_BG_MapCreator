@@ -93,7 +93,7 @@ export function StepReview() {
                 type="button"
                 className="btn small"
                 disabled={!!busy}
-                onClick={() => run("Rendering...", async () => download(`${m.file}.png`, await renderMapPng(m.layout.tiles)))}
+                onClick={() => run("Rendering...", async () => download(`${m.file}.png`, await renderMapPng(m.layout.tiles, 2, m.layout.tokens)))}
               >
                 {m.file}.png
               </button>

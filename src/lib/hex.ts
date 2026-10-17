@@ -125,11 +125,63 @@ export function occupancy(tiles: MapTile[], except?: string): Map<string, string
   return taken;
 }
 
-/** Whether a tile can sit at (row, col) without overlapping another one. */
-export function canPlace(tiles: MapTile[], row: number, col: number, except?: string): boolean {
+/** A tile or token on a board Field. */
+export interface Piece {
+  id: string;
+  row: number;
+  col: number;
+}
+
+/** Whether a tile can sit at (row, col) without covering another tile or a token beside the tiles. */
+export function canPlace(tiles: MapTile[], row: number, col: number, except?: string, tokens: readonly Piece[] = []): boolean {
   if (row < 1 || col < 1) return false;
   const taken = occupancy(tiles, except);
+  for (const t of tokens) taken.set(cellKey(t.row, t.col), t.id);
   return footprint(row, col).every(([r, c]) => !taken.has(cellKey(r, c)));
+}
+
+/** Axial coordinates [q, r] of a Field, so a shift by whole hexes is plain addition. */
+function toAxial(row: number, col: number): [number, number] {
+  return [col - (row - (row & 1)) / 2, row];
+}
+
+function fromAxial(q: number, r: number): [number, number] {
+  return [r, q + (r - (r & 1)) / 2];
+}
+
+/**
+ * Where the Field at (row, col) lands when the board shifts so that Field
+ * `from` lands on Field `to`. Tiles moved together this way keep their shape,
+ * whichever row parity the shift starts and ends on.
+ */
+export function shiftCell(row: number, col: number, from: [number, number], to: [number, number]): [number, number] {
+  const [q, r] = toAxial(row, col);
+  const [fq, fr] = toAxial(from[0], from[1]);
+  const [tq, tr] = toAxial(to[0], to[1]);
+  return fromAxial(q + tq - fq, r + tr - fr);
+}
+
+/** Whether a Location token can sit on the Field (row, col): one no tile covers and no other token holds. */
+export function canPlaceToken(tiles: MapTile[], tokens: readonly Piece[], row: number, col: number, except?: string): boolean {
+  if (row < 0 || col < 0 || occupancy(tiles).has(cellKey(row, col))) return false;
+  return !tokens.some((t) => t.id !== except && t.row === row && t.col === col);
+}
+
+/**
+ * Whether several tiles and tokens can move together without leaving the
+ * board or landing on a tile or token that stays put.
+ */
+export function canPlaceGroup(tiles: MapTile[], moves: Piece[], tokens: readonly Piece[] = []): boolean {
+  const moving = new Set(moves.map((m) => m.id));
+  const tileIds = new Set(tiles.map((t) => t.id));
+  const taken = occupancy(tiles.filter((t) => !moving.has(t.id)));
+  for (const t of tokens) if (!moving.has(t.id)) taken.set(cellKey(t.row, t.col), t.id);
+  return moves.every((m) => {
+    const isTile = tileIds.has(m.id);
+    const cells: [number, number][] = isTile ? footprint(m.row, m.col) : [[m.row, m.col]];
+    const min = isTile ? 1 : 0;
+    return m.row >= min && m.col >= min && cells.every(([r, c]) => !taken.has(cellKey(r, c)));
+  });
 }
 
 /** Whether two tiles share at least one edge (some pair of their Fields are neighbours). */
@@ -168,9 +220,15 @@ export interface Box {
   maxY: number;
 }
 
-/** The pixel box around every tile image; a seven-Field flower looks the same after any rotation. */
-export function boardBounds(tiles: MapTile[]): Box | null {
-  if (!tiles.length) return null;
+/**
+ * How far a token picture reaches from its Field centre at any rotation: the
+ * corner of its TOKEN_SIZE (102 px, see mapdraw) square, 51 * sqrt(2).
+ */
+const TOKEN_REACH = Math.ceil(51 * Math.SQRT2);
+
+/** The pixel box around every tile image and token; a seven-Field flower looks the same after any rotation. */
+export function boardBounds(tiles: MapTile[], tokens: readonly Piece[] = []): Box | null {
+  if (!tiles.length && !tokens.length) return null;
   const box: Box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   for (const tile of tiles) {
     const c = cellCenter(tile.row, tile.col);
@@ -178,6 +236,13 @@ export function boardBounds(tiles: MapTile[]): Box | null {
     box.maxX = Math.max(box.maxX, c.x + TILE_W / 2);
     box.minY = Math.min(box.minY, c.y - TILE_H / 2);
     box.maxY = Math.max(box.maxY, c.y + TILE_H / 2);
+  }
+  for (const token of tokens) {
+    const c = cellCenter(token.row, token.col);
+    box.minX = Math.min(box.minX, c.x - TOKEN_REACH);
+    box.maxX = Math.max(box.maxX, c.x + TOKEN_REACH);
+    box.minY = Math.min(box.minY, c.y - TOKEN_REACH);
+    box.maxY = Math.max(box.maxY, c.y + TOKEN_REACH);
   }
   return box;
 }

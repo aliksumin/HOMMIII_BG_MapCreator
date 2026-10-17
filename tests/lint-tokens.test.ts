@@ -1,12 +1,23 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { TILES } from "../src/data/catalog.ts";
-import { cellKey, fieldCell, neighbours } from "../src/lib/hex.ts";
+import { cellKey, fieldCell, footprint, neighbours } from "../src/lib/hex.ts";
 import { tokenFindings } from "../src/lib/lint.ts";
 import { newTile } from "../src/lib/mapfile.ts";
-import type { MapLayout, MapTile } from "../src/model/types.ts";
+import type { BoardToken, MapLayout, MapTile } from "../src/model/types.ts";
 
-const layout = (...tiles: MapTile[]): MapLayout => ({ id: "m", name: "Test", playerCounts: [], caption: "", tiles });
+const layout = (...tiles: MapTile[]): MapLayout => ({ id: "m", name: "Test", playerCounts: [], caption: "", tiles, tokens: [] });
+
+/** A Location token on an empty Field beside the tiles. */
+const beside = (location: string, row: number, col: number): BoardToken => ({ id: `b-${row}-${col}`, location, row, col, rotation: 0 });
+
+/** An empty Field next to Field `field` of a tile, for a token beside the tiles. */
+function freeNeighbour(t: MapTile, field: number): [number, number] {
+  const taken = new Set(footprint(t.row, t.col).map(([r, c]) => cellKey(r, c)));
+  const free = neighbours(...fieldCell(t, field)).find(([r, c]) => !taken.has(cellKey(r, c)));
+  if (!free) throw new Error("no free neighbour");
+  return free;
+}
 
 /** A tile with Map Location tokens on the given Fields. */
 function tile(tileId: string, row: number, col: number, tokens: Record<number, string> = {}): MapTile {
@@ -100,4 +111,25 @@ test("Creature Banks are not checked on land Tiles or Tiles without a known Bloc
   assert.deepEqual(tokenFindings(layout(bank("N7", 0))), []);
   assert.deepEqual(tokenFindings(layout(bank("W2", 0))), []);
   assert.deepEqual(tokenFindings(layout(bank("NU0", 0))), []);
+});
+
+test("tokens beside the tiles count toward Whirlpool, Monolith and Gate pairs", () => {
+  const monolith = tile("N7", ...LEFT, { 0: "monolith-2w-01a" });
+  assert.deepEqual(tokenFindings({ ...layout(monolith), tokens: [beside("monolith-2w-01b", 8, 8)] }), []);
+
+  const lone = tokenFindings({ ...layout(tile("N7", ...LEFT)), tokens: [beside("whirlpool-plus1", 8, 8)] });
+  assert.deepEqual(lone, ['Map "Test" has a single Whirlpool (beside the tiles), which leads nowhere: place at least two.']);
+
+  const surface = tile("N7", ...LEFT, { 4: "subterranean-gate-surface" });
+  const [r, c] = freeNeighbour(surface, 4);
+  assert.deepEqual(tokenFindings({ ...layout(surface), tokens: [beside("subterranean-gate-underground", r, c)] }), []);
+  assert.equal(tokenFindings({ ...layout(tile("N7", ...LEFT)), tokens: [beside("subterranean-gate-surface", 8, 8)] }).length, 2);
+});
+
+test("a Gate made of two tokens beside the tiles needs its halves on neighbouring Fields", () => {
+  const base = layout(tile("N7", ...LEFT));
+  const apart = tokenFindings({ ...base, tokens: [beside("subterranean-gate-surface", 8, 8), beside("subterranean-gate-underground", 8, 12)] });
+  assert.equal(apart.length, 2);
+  const [r, c] = neighbours(8, 8)[1];
+  assert.deepEqual(tokenFindings({ ...base, tokens: [beside("subterranean-gate-surface", 8, 8), beside("subterranean-gate-underground", r, c)] }), []);
 });

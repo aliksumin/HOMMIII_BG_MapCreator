@@ -4,7 +4,7 @@
 
 import { assetUrl, CREATURE_BANKS, isRandomTile, MAP_LOCATIONS, PORTRAITS, TILES } from "../data/catalog.ts";
 import { CUBE_COLORS, FACTION_BORDER } from "../data/game.ts";
-import type { MapTile } from "../model/types.ts";
+import type { BoardToken, MapTile } from "../model/types.ts";
 import { boardBounds, CELL_W, cellCenter, fieldCenter, type Point, ROW_PITCH, TILE_H, TILE_W } from "./hex.ts";
 import { loadImage } from "./images.ts";
 
@@ -108,6 +108,16 @@ export function tileOverlays(tile: MapTile): Overlay[] {
   return out;
 }
 
+/** Location tokens on empty board Fields beside the tiles. */
+export function boardTokenOverlays(tokens: readonly BoardToken[]): Overlay[] {
+  return tokens.flatMap((t): Overlay[] => {
+    const location = MAP_LOCATIONS[t.location];
+    if (!location) return [];
+    const c = cellCenter(t.row, t.col);
+    return [{ kind: "token", x: c.x, y: c.y, url: assetUrl(location.img), rotation: t.rotation * 60 + baseRotation(t.location), label: location.desc }];
+  });
+}
+
 /** The faction border colour of a random tile, or null. */
 export function borderColor(tile: MapTile): string | null {
   return tile.faction && isRandomTile(tile.tileId) ? (FACTION_BORDER[tile.faction] ?? null) : null;
@@ -140,12 +150,12 @@ function polygon(ctx: CanvasRenderingContext2D, points: string): void {
 
 /**
  * Renders a layout to a PNG with a transparent background, cropped to the
- * tiles, like the images under the mission book's assets/maps/.
+ * tiles and the tokens beside them, like the images under the mission book's assets/maps/.
  *
  * @param scale output pixels per board pixel
  */
-export async function renderMapPng(tiles: MapTile[], scale = 2): Promise<Blob> {
-  const box = boardBounds(tiles);
+export async function renderMapPng(tiles: MapTile[], scale = 2, tokens: readonly BoardToken[] = []): Promise<Blob> {
+  const box = boardBounds(tiles, tokens);
   if (!box) throw new Error("The map is empty.");
   const pad = 6;
   const canvas = document.createElement("canvas");
@@ -182,52 +192,50 @@ export async function renderMapPng(tiles: MapTile[], scale = 2): Promise<Blob> {
     }
   }
 
-  for (const tile of tiles) {
-    for (const o of tileOverlays(tile)) {
-      ctx.save();
-      if (o.kind === "token") {
-        ctx.translate(o.x, o.y);
-        ctx.rotate((o.rotation * Math.PI) / 180);
-        const img = await loadImage(o.url);
-        const { w, h } = fitContain(img.naturalWidth, img.naturalHeight, TOKEN_SIZE);
-        ctx.drawImage(img, -w / 2, -h / 2, w, h);
-      } else if (o.kind === "blocked") {
-        polygon(ctx, hexPoints(o.x, o.y, 0.92));
-        ctx.fillStyle = "rgba(120, 0, 0, 0.35)";
+  for (const o of [...tiles.flatMap(tileOverlays), ...boardTokenOverlays(tokens)]) {
+    ctx.save();
+    if (o.kind === "token") {
+      ctx.translate(o.x, o.y);
+      ctx.rotate((o.rotation * Math.PI) / 180);
+      const img = await loadImage(o.url);
+      const { w, h } = fitContain(img.naturalWidth, img.naturalHeight, TOKEN_SIZE);
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    } else if (o.kind === "blocked") {
+      polygon(ctx, hexPoints(o.x, o.y, 0.92));
+      ctx.fillStyle = "rgba(120, 0, 0, 0.35)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(200, 30, 30, 0.9)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(o.x - 18, o.y - 18);
+      ctx.lineTo(o.x + 18, o.y + 18);
+      ctx.moveTo(o.x + 18, o.y - 18);
+      ctx.lineTo(o.x - 18, o.y + 18);
+      ctx.stroke();
+    } else if (o.kind === "cube") {
+      const [top, left, right] = cubeFaces(o.x, o.y);
+      const fills = [shade(o.color, 0.18), o.color, shade(o.color, -0.18)];
+      [top, left, right].forEach((face, i) => {
+        polygon(ctx, face);
+        ctx.fillStyle = fills[i];
         ctx.fill();
-        ctx.strokeStyle = "rgba(200, 30, 30, 0.9)";
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(o.x - 18, o.y - 18);
-        ctx.lineTo(o.x + 18, o.y + 18);
-        ctx.moveTo(o.x + 18, o.y - 18);
-        ctx.lineTo(o.x - 18, o.y + 18);
+        ctx.strokeStyle = "rgba(0,0,0,0.6)";
+        ctx.lineWidth = 0.8;
         ctx.stroke();
-      } else if (o.kind === "cube") {
-        const [top, left, right] = cubeFaces(o.x, o.y);
-        const fills = [shade(o.color, 0.18), o.color, shade(o.color, -0.18)];
-        [top, left, right].forEach((face, i) => {
-          polygon(ctx, face);
-          ctx.fillStyle = fills[i];
-          ctx.fill();
-          ctx.strokeStyle = "rgba(0,0,0,0.6)";
-          ctx.lineWidth = 0.8;
-          ctx.stroke();
-        });
-      } else if (o.kind === "hero") {
-        ctx.beginPath();
-        ctx.arc(o.x, o.y, 26, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.save();
-        ctx.clip();
-        ctx.drawImage(await loadImage(o.url), o.x - 26, o.y - 26, 52, 52);
-        ctx.restore();
-        ctx.strokeStyle = "#d8b45a";
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      }
+      });
+    } else if (o.kind === "hero") {
+      ctx.beginPath();
+      ctx.arc(o.x, o.y, 26, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.save();
+      ctx.clip();
+      ctx.drawImage(await loadImage(o.url), o.x - 26, o.y - 26, 52, 52);
       ctx.restore();
+      ctx.strokeStyle = "#d8b45a";
+      ctx.lineWidth = 3;
+      ctx.stroke();
     }
+    ctx.restore();
   }
 
   return new Promise((resolve, reject) =>

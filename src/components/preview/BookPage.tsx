@@ -112,7 +112,7 @@ export function BookPage({ doc, showMaps = true }: { doc: ScenarioDoc; showMaps?
         {showMaps &&
           doc.maps.map((m) => (
             <figure key={m.layout.id} className="bk-figure">
-              <MapView tiles={m.layout.tiles} />
+              <MapView tiles={m.layout.tiles} tokens={m.layout.tokens} />
               <figcaption>{m.caption}</figcaption>
             </figure>
           ))}
