@@ -17,7 +17,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BPM, MOTIF, RULES, SECTIONS } from "./score.mjs";
+import { BPM, MIX, MOTIF, RULES, SECTIONS } from "./score.mjs";
 
 const SR = 48000;
 const TAU = 2 * Math.PI;
@@ -379,13 +379,29 @@ function gatedLoudness(L, Rt) {
   return 10 * Math.log10(rel.reduce((a, b) => a + b, 0) / (rel.length || 1) + 1e-20);
 }
 
-/** Renders the score for a timeline: stereo 48 kHz, as 16-bit PCM. */
-export function renderMusic(timeline, { target = -21, ceiling = -3 } = {}) {
+/**
+ * Renders the score for a timeline: stereo 48 kHz, as 16-bit PCM. The
+ * accents (bells, harp) are rendered first and set the master level, so
+ * the background (pad, pedal, swells, horns) can be turned up or down in
+ * score.mjs (MIX) without moving the accents. With accents: null the whole
+ * mix is normalised to `target` instead and the accent level is printed.
+ */
+export function renderMusic(timeline, { target = -21, ceiling = -3, accents = MIX.accents, mix = MIX } = {}) {
   const sheet = cueSheet(timeline);
   const N = Math.ceil(sheet.total * SR);
   const END = N / SR;
   const dry = new Bus(N);
   const send = new Bus(N);
+
+  // Accents first: bells and harp plucks, measured on their own.
+  sheet.notes.forEach((n, i) => {
+    const r = R(0xbe11, i);
+    const vel = clamp(n.vel * r.range(0.95, 1.05));
+    const p = clamp(n.pan + r.range(-0.05, 0.05), -1, 1);
+    if (n.kind === "bell") strike(dry, send, n.t, n.m, BELL, 0.24 * vel ** 1.3, p, 0.004, vel, r);
+    else if (n.kind === "pluck") strike(dry, send, n.t, n.m, HARP, 0.6 * vel ** 1.3, p, 0.003, vel, r);
+  });
+  const accentLoud = gatedLoudness(dry.L, dry.R);
 
   // Pads: one chord at a time, three slightly detuned voices per note,
   // crossfading on each change, through a low-pass that opens with the swells
@@ -402,10 +418,12 @@ export function renderMusic(timeline, { target = -21, ceiling = -3 } = {}) {
     const env = (t) => smooth(clamp((t - on) / rise)) * (1 - smooth(clamp((t - off) / fall)));
     const i0 = Math.max(0, Math.floor(on * SR));
     const i1 = Math.min(N, Math.ceil((off + fall) * SR));
-    const lvl = 0.1 / Math.sqrt(c.notes.length * 3);
-    c.notes.forEach((m, ni) =>
-      [[-7, -0.6], [0, 0], [6, 0.6]].forEach(([cents, p], vi) => voice(pads, m, i0, i1, env, lvl, p * 0.8, R(0xa0d1, ci, ni, vi), cents)),
-    );
+    const spread = mix.padVoices === 2 ? [[-6, -0.6], [6, 0.6]] : [[-7, -0.6], [0, 0], [6, 0.6]];
+    const lvl = (mix.pad * 0.1) / Math.sqrt(c.notes.length * spread.length);
+    c.notes.forEach((m0, ni) => {
+      const m = m0 < mix.padFloor ? m0 + 12 : m0; // the pedal holds the bass
+      spread.forEach(([cents, p], vi) => voice(pads, m, i0, i1, env, lvl, p * 0.8, R(0xa0d1, ci, ni, vi), cents));
+    });
   });
 
   // Swell envelope: each swell a smooth bump, then gently smoothed.
@@ -426,12 +444,21 @@ export function renderMusic(timeline, { target = -21, ceiling = -3 } = {}) {
     const p = sheet.pedals.findLast((x) => x.t <= t) ?? sheet.pedals[0];
     return p.section.bright;
   };
-  lowpass(pads, (i) => 900 + 700 * swellAt(i) + 700 * brightAt(i) + 200 * Math.sin((TAU * 0.045 * i) / SR));
-  for (let i = 0; i < N; i++) {
-    dry.L[i] += pads.L[i];
-    dry.R[i] += pads.R[i];
-    send.L[i] += pads.L[i] * 0.3;
-    send.R[i] += pads.R[i] * 0.3;
+  lowpass(pads, (i) => mix.padCutoff + 700 * swellAt(i) + 700 * brightAt(i) + 200 * Math.sin((TAU * 0.045 * i) / SR));
+  // a gentle low cut, so the pad sits above the pedal
+  {
+    const hp = Math.exp((-TAU * mix.padLowCut) / SR);
+    let zl = 0, zr = 0;
+    for (let i = 0; i < N; i++) {
+      zl = pads.L[i] + hp * (zl - pads.L[i]);
+      zr = pads.R[i] + hp * (zr - pads.R[i]);
+      const l = mix.padLowCut ? pads.L[i] - zl : pads.L[i];
+      const r = mix.padLowCut ? pads.R[i] - zr : pads.R[i];
+      dry.L[i] += l * (1 - mix.padSend);
+      dry.R[i] += r * (1 - mix.padSend);
+      send.L[i] += l * mix.padSend;
+      send.R[i] += r * mix.padSend;
+    }
   }
 
   // Pedal: the section's low tonic with its octave, breathing, crossfading between sections.
@@ -445,21 +472,17 @@ export function renderMusic(timeline, { target = -21, ceiling = -3 } = {}) {
     const i1 = Math.min(N, Math.ceil((e + 2) * SR));
     for (let i = i0; i < i1; i++) {
       const t = i / SR;
-      const g = 0.02 * smooth(clamp((t - s + 1) / 4)) * (1 - smooth(clamp((t - e) / 2))) * (1 - smooth(clamp((t - END + 3) / 3))) * (1 + 0.12 * Math.sin(TAU * 0.09 * t + ph[2]));
+      const g = mix.pedal * 0.02 * smooth(clamp((t - s + 1) / 4)) * (1 - smooth(clamp((t - e) / 2))) * (1 - smooth(clamp((t - END + 3) / 3))) * (1 + 0.12 * Math.sin(TAU * 0.09 * t + ph[2]));
       const v = g * (Math.sin(TAU * f * t + ph[0]) + 0.22 * Math.sin(TAU * 2 * f * t + ph[1]) + 0.05 * Math.sin(TAU * 3 * f * t));
       dry.L[i] += v;
       dry.R[i] += v;
     }
   });
 
-  // Bells, harp plucks and the distant horns.
+  // The distant horns.
   sheet.notes.forEach((n, i) => {
-    const r = R(0xbe11, i);
-    const vel = clamp(n.vel * r.range(0.95, 1.05));
-    const p = clamp(n.pan + r.range(-0.05, 0.05), -1, 1);
-    if (n.kind === "bell") strike(dry, send, n.t, n.m, BELL, 0.24 * vel ** 1.3, p, 0.004, vel, r);
-    else if (n.kind === "pluck") strike(dry, send, n.t, n.m, HARP, 0.6 * vel ** 1.3, p, 0.003, vel, r);
-    else if (n.kind === "horn") {
+    const vel = n.vel * mix.horn;
+    if (n.kind === "horn") {
       // a horn chord far away: root, fifth and octave of the chord, low, slow in and out
       const notes = [n.m[0], n.m[1], n.m[0] + 12].map((m) => (m < 45 ? m + 12 : m));
       const i0 = Math.floor(n.t * SR);
@@ -487,7 +510,7 @@ export function renderMusic(timeline, { target = -21, ceiling = -3 } = {}) {
     for (let i = 0; i < N; i++) {
       const a = nl() + nl() - 1;
       const b = nr() + nr() - 1;
-      const g = 1.6 * swellAt(i) ** 1.4;
+      const g = mix.swell * 1.6 * swellAt(i) ** 1.4;
       SWB.L[i] = (a * 0.8 + b * 0.2) * g;
       SWB.R[i] = (b * 0.8 + a * 0.2) * g;
     }
@@ -498,7 +521,7 @@ export function renderMusic(timeline, { target = -21, ceiling = -3 } = {}) {
       const t = i / SR;
       const p = sheet.pedals.findLast((x) => x.t <= t) ?? sheet.pedals[0];
       const d = hz(p.note);
-      const g = 0.045 * swellAt(i) ** 1.6;
+      const g = mix.swell * 0.045 * swellAt(i) ** 1.6;
       const tone = g ? g * (0.7 * Math.sin(TAU * d * t) + 0.6 * Math.sin(TAU * 1.5 * d * t) + 0.5 * Math.sin(TAU * 2 * d * t)) : 0;
       dry.L[i] += SWB.L[i] + tone;
       dry.R[i] += SWB.R[i] + tone;
@@ -522,7 +545,9 @@ export function renderMusic(timeline, { target = -21, ceiling = -3 } = {}) {
     peak = Math.max(peak, Math.abs(dry.L[i]), Math.abs(dry.R[i]));
   }
   const loud = gatedLoudness(dry.L, dry.R);
-  const gainDb = Math.min(target - loud, ceiling - 20 * Math.log10(peak || 1));
+  const wanted = accents === null ? target - loud : accents - accentLoud;
+  const gainDb = Math.min(wanted, ceiling - 20 * Math.log10(peak || 1));
+  if (accents === null) console.log(`music: accents at ${(accentLoud + gainDb).toFixed(2)} dB when the whole mix is at ${target} dB`);
   const k = 10 ** (gainDb / 20);
   const pcm = Buffer.alloc(N * 4);
   for (let i = 0; i < N; i++) {
@@ -532,7 +557,7 @@ export function renderMusic(timeline, { target = -21, ceiling = -3 } = {}) {
   const notes = sheet.notes;
   console.log(
     `music: ${sheet.chords.length} chords, ${notes.filter((n) => n.kind === "bell").length} bells, ${notes.filter((n) => n.kind === "pluck").length} plucks, ` +
-      `${notes.filter((n) => n.kind === "horn").length} horn chords, ${sheet.swells.length} swells; loudness ${(loud + gainDb).toFixed(1)} dB, peak ${(20 * Math.log10(peak * k)).toFixed(1)} dBFS`,
+      `${notes.filter((n) => n.kind === "horn").length} horn chords, ${sheet.swells.length} swells; loudness ${(loud + gainDb).toFixed(1)} dB (accents ${(accentLoud + gainDb).toFixed(1)} dB), peak ${(20 * Math.log10(peak * k)).toFixed(1)} dBFS`,
   );
   return pcm;
 }

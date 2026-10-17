@@ -91,7 +91,7 @@ beat and no loops. The capture writes every on-screen event with its time to `ti
 captions, clicks, highlights, scrolls, key presses, typing, drags, downloads and the cards.
 [`music.mjs`](music.mjs) turns those events into sound, using the rules in [`score.mjs`](score.mjs):
 
-- a warm string pad (three slightly detuned voices per note) holds one chord and changes, with a slow
+- a light string pad (two slightly detuned voices per note) holds one chord and changes, with a slow
   crossfade, when a new step or caption appears;
 - a quiet low pedal note gives each part of the tutorial its key, like five towns: D major, F Lydian,
   G major, A major, and D major again for the finale. A distant horn chord marks each new part;
@@ -104,8 +104,10 @@ captions, clicks, highlights, scrolls, key presses, typing, drags, downloads and
 
 Bells and plucks are snapped to a 96 bpm grid (eighths and sixteenths) so they sound placed, not random,
 and close events share the space: the busier a moment, the softer each note. Everything plays in an
-eight-line feedback-delay hall (about 3.6 s), normalised to about -21 dB gated loudness with a -3 dBFS
-peak ceiling. The colours are the Heroes III palette (harp, glass bells, warm strings, distant horns);
+eight-line feedback-delay hall (about 3.6 s). The accents set the level: bells and harp are rendered
+first and pinned at about -29 dB gated loudness, and the background (pad, pedal, swells, horns) sits
+just under them. It is light and distant: two voices per pad note, nothing below A2, a low cut, more
+hall. `MIX` in `score.mjs` sets each layer without moving the accents. Peaks stay under -3 dBFS. The colours are the Heroes III palette (harp, glass bells, warm strings, distant horns);
 the call and every chord are original, and none of the game's music is used or quoted.
 
 To redo only the music on an existing recording (it needs that recording's `timeline.json`):

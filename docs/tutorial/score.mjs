@@ -90,3 +90,26 @@ export const RULES = {
   download: [{ play: "chime", vel: 0.42 }],
   card: [{ play: "motif", vel: 0.6, slow: true }, { play: "swell", vel: 0.7, dur: 4 }],
 };
+
+/**
+ * Mix levels. The accents (bells, harp) set the master level: `accents` is
+ * their gated loudness in dB. The background layers are relative to the
+ * first version of this score (1 = as loud as then).
+ *   pad, pedal, swell, horn   background levels
+ *   padVoices                 2 or 3 detuned voices per pad note
+ *   padFloor                  pad notes below this MIDI note move up an octave
+ *   padCutoff, padLowCut      the pad's low-pass base and low cut (Hz)
+ *   padSend                   how much of the pad goes to the hall (0..1)
+ */
+export const MIX = {
+  accents: -28.9, // where the accents were in the first scored version
+  pad: 0.6,
+  pedal: 0.5,
+  swell: 0.55,
+  horn: 0.65,
+  padVoices: 2,
+  padFloor: 45,
+  padCutoff: 750,
+  padLowCut: 140,
+  padSend: 0.38,
+};
