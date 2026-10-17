@@ -12,6 +12,8 @@ art in it has its own licenses, see [NOTICE.md](../../NOTICE.md)).
 | [`scenes.mjs`](scenes.mjs) | The 16 steps: what is clicked and typed, and every annotation |
 | [`overlay.js`](overlay.js) | The annotation layer injected into the page: step chip, lower third, highlight boxes, callouts, arrows, cursor, title and closing cards |
 | [`demo.mjs`](demo.mjs) | The made-up demo scenario typed in the video |
+| [`score.mjs`](score.mjs) | The background music's score: keys, chords, the call, and what each on-screen event plays |
+| [`music.mjs`](music.mjs) | Scores the recording's events to sound (pad, pedal, bells, harp, swells, hall) and mixes it into the video and clips |
 
 ## What the video covers
 
@@ -69,16 +71,53 @@ node docs/tutorial/capture.mjs --update-docs
 It takes about 12 minutes (the video plays in real time). Output, by default in
 `%USERPROFILE%\Videos\HoMM3-Scenario-Creator-tutorial`:
 
-- `HoMM3-Scenario-Creator-tutorial.mp4`: 1440x810, 30 fps, H.264, with English soft subtitles and chapters
-- `clips\NN-<step>.mp4`: one clip per step, cut from the full recording
+- `HoMM3-Scenario-Creator-tutorial.mp4`: 1440x810, 30 fps, H.264, background music (AAC), English soft
+  subtitles and chapters
+- `clips\NN-<step>.mp4`: one clip per step, cut from the full recording, with its slice of the music
+- `tutorial-music.m4a`: the soundtrack on its own
 - `tutorial.en.vtt`, `tutorial.en.srt`, `chapters.txt`, `storyboard.md`, `timeline.json`
 - `exports\`: the files the app exported during the recording (ZIP, PDF, `.tex`, `.map`, PNG, project file)
 
 `--update-docs` also rewrites `storyboard.md` and `captions/` in this folder; commit those.
 
 Options: `--out <dir>`, `--port <n>` (default 5191), `--url <http://...>` to use a server that is already
-running, `--tools <dir>`, `--ffmpeg <path>`, `--headed` to watch the browser, `--no-encode` for a dry run
-that only checks the script.
+running, `--tools <dir>`, `--ffmpeg <path>`, `--headed` to watch the browser, `--no-music`, `--no-encode`
+for a dry run that only checks the script.
+
+## Music
+
+The background music is scored to the picture, the way the Ski Resort film's soundtrack is: no running
+beat and no loops. The capture writes every on-screen event with its time to `timeline.json`: steps,
+captions, clicks, highlights, scrolls, key presses, typing, drags, downloads and the cards.
+[`music.mjs`](music.mjs) turns those events into sound, using the rules in [`score.mjs`](score.mjs):
+
+- a light string pad (two slightly detuned voices per note) holds one chord and changes, with a slow
+  crossfade, when a new step or caption appears;
+- a quiet low pedal note gives each part of the tutorial its key, like five towns: D major, F Lydian,
+  G major, A major, and D major again for the finale. A distant horn chord marks each new part;
+- glass bells answer the captions and highlights, with a line that moves through the chord;
+- harp plucks walk up the scale with the clicks, roll through the chord while typing, and run up with
+  drags; key presses get a low pluck;
+- soft swells of filtered noise and low strings breathe with scrolls and drags, and each step opens with
+  the hero's call (D A F♯ G A on bells or harp);
+- the title and closing cards play the call slowly, ending on a low bell; downloads get a two-bell chime.
+
+Bells and plucks are snapped to a 96 bpm grid (eighths and sixteenths) so they sound placed, not random,
+and close events share the space: the busier a moment, the softer each note. Everything plays in an
+eight-line feedback-delay hall (about 3.6 s). The accents set the level: bells and harp are rendered
+first and pinned at about -29 dB gated loudness, and the background (pad, pedal, swells, horns) sits
+just under them. It is light and distant: two voices per pad note, nothing below A2, a low cut, more
+hall. `MIX` in `score.mjs` sets each layer without moving the accents. Peaks stay under -3 dBFS. The colours are the Heroes III palette (harp, glass bells, warm strings, distant horns);
+the call and every chord are original, and none of the game's music is used or quoted.
+
+To redo only the music on an existing recording (it needs that recording's `timeline.json`):
+
+```powershell
+node docs/tutorial/music.mjs --out "$env:USERPROFILEVideosHoMM3-Scenario-Creator-tutorial"
+```
+
+`--cues --timeline <timeline.json>` prints the cue sheet (time, sound, reason); `--wav music.wav
+--timeline <timeline.json>` writes the soundtrack on its own; `--check` checks the score.
 
 ## How it works
 

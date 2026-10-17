@@ -12,6 +12,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEMO } from "./demo.mjs";
+import { addMusic } from "./music.mjs";
 import { SCENES } from "./scenes.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,7 @@ function args() {
     headed: a.includes("--headed"),
     noEncode: a.includes("--no-encode") || a.includes("--fast"),
     fast: a.includes("--fast"),
+    noMusic: a.includes("--no-music"),
     updateDocs: a.includes("--update-docs"),
   };
 }
@@ -124,6 +126,9 @@ function director(page, rec, outDir, repoRequire) {
   const cues = [];
   const chapters = [];
   const downloads = [];
+  // Everything visible that happens, with its time: the music follows it.
+  const events = [];
+  const ev = (type, extra = {}) => events.push({ t: +rec.time().toFixed(3), type, chapter: chapter?.num ?? 0, ...extra });
   let cue = null;
   let chapter = null;
   let cursor = { x: 720, y: 420 };
@@ -138,6 +143,7 @@ function director(page, rec, outDir, repoRequire) {
     const file = path.join(outDir, "exports", d.suggestedFilename());
     const done = d.saveAs(file).then(() => file);
     downloads.push({ name: d.suggestedFilename(), done });
+    ev("download");
   });
 
   const box = async (target) => {
@@ -168,6 +174,7 @@ function director(page, rec, outDir, repoRequire) {
       if (chapter) chapter.end = rec.time();
       chapter = { num, title, sub, screen, start: rec.time(), end: null, beats: [], labels: [] };
       chapters.push(chapter);
+      ev("chapter", { num });
       await page.evaluate(([n, t, s]) => window.__tut.caption(n, t, s), [String(num), title, sub]);
     },
     /** Lower-third description; also one caption cue. Holds long enough to read. */
@@ -176,6 +183,7 @@ function director(page, rec, outDir, repoRequire) {
       cue = { start: rec.time(), end: null, title, text };
       cues.push(cue);
       chapter?.beats.push({ title, text });
+      ev("caption");
       await page.evaluate(([t, x]) => window.__tut.lower(t, x), [title, text]);
       await sleep(hold ?? readTime(`${title} ${text}`));
     },
@@ -190,6 +198,7 @@ function director(page, rec, outDir, repoRequire) {
       for (const t of list) rects.push(t && typeof t === "object" && "x" in t && "width" in t ? t : await box(t));
       if (label && !chapter?.labels.includes(label)) chapter?.labels.push(label);
       await page.evaluate(([r, l]) => window.__tut.highlight(r, l), [rects, label]);
+      ev("highlight", { boxes: rects.length, label: !!label });
       if (hold) await sleep(hold);
     },
     async clear() {
@@ -198,6 +207,7 @@ function director(page, rec, outDir, repoRequire) {
     async smoothScroll(target, block = "center") {
       const loc = (typeof target === "string" ? page.locator(target) : target).first();
       // "start" leaves room for the sticky top bar.
+      ev("scroll", { dur: 0.9 });
       await loc.evaluate((el, b) => {
         if (b === "start") window.scrollBy({ top: el.getBoundingClientRect().top - 72, behavior: "smooth" });
         else el.scrollIntoView({ behavior: "smooth", block: b });
@@ -205,6 +215,7 @@ function director(page, rec, outDir, repoRequire) {
       await sleep(900);
     },
     async scrollTop() {
+      ev("scroll", { dur: 0.7 });
       await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
       await sleep(700);
     },
@@ -224,12 +235,14 @@ function director(page, rec, outDir, repoRequire) {
       const y = b.y + (position ? position.y : b.height / 2);
       await d.moveTo(x, y);
       await page.evaluate(([a, c]) => window.__tut.ripple(a, c), [x, y]);
+      ev("click", { x: Math.round(x), y: Math.round(y) });
       await page.mouse.click(x, y);
       await sleep(hold);
     },
     async clickAt(x, y, hold = 350) {
       await d.moveTo(x, y);
       await page.evaluate(([a, c]) => window.__tut.ripple(a, c), [x, y]);
+      ev("click", { x: Math.round(x), y: Math.round(y) });
       await page.mouse.click(x, y);
       await sleep(hold);
     },
@@ -241,12 +254,14 @@ function director(page, rec, outDir, repoRequire) {
         await page.keyboard.press("Control+A");
         await page.keyboard.press("Delete");
       }
+      ev("type", { chars: text.length, dur: +((text.length * delay) / 1000).toFixed(2) });
       await loc.pressSequentially(text, { delay });
       await sleep(300);
     },
     async select(target, option) {
       const loc = (typeof target === "string" ? page.locator(target) : target).first();
       await d.click(loc, { hold: 200 });
+      ev("select");
       await loc.selectOption(option);
       await page.keyboard.press("Escape").catch(() => {});
       await sleep(500);
@@ -254,12 +269,14 @@ function director(page, rec, outDir, repoRequire) {
     /** Presses a key and shows it on screen. */
     async key(keys, label = keys) {
       await page.evaluate(([l, x, y]) => window.__tut.key(l, x, y), [label, cursor.x, cursor.y]);
+      ev("key", { key: label });
       await page.keyboard.press(keys);
       await sleep(700);
     },
     /** Mouse drag with the visible cursor (pointer events, e.g. moving a tile). */
     async drag(from, to, steps = 24) {
       await d.moveTo(from.x, from.y);
+      ev("drag", { dur: +((steps * 0.03 + 0.2)).toFixed(2) });
       await page.mouse.down();
       for (let i = 1; i <= steps; i++) {
         const x = from.x + ((to.x - from.x) * i) / steps;
@@ -279,6 +296,7 @@ function director(page, rec, outDir, repoRequire) {
       await d.moveTo(b.x + b.width / 2, b.y + b.height / 2);
       const tb = await targetLoc.boundingBox();
       await page.evaluate(([a, c]) => window.__tut.cursor(a, c, 900), [to.x, to.y]);
+      ev("drag", { dur: 0.9 });
       await source.dragTo(targetLoc, { targetPosition: { x: to.x - tb.x, y: to.y - tb.y } });
       cursor = to;
       await sleep(950);
@@ -294,6 +312,7 @@ function director(page, rec, outDir, repoRequire) {
     },
     async card(html, hold) {
       closeCue();
+      ev(html ? "card" : "card-off");
       await page.evaluate(([h]) => window.__tut.card(h), [html]);
       if (hold) await sleep(hold);
     },
@@ -305,7 +324,7 @@ function director(page, rec, outDir, repoRequire) {
     finish() {
       closeCue();
       if (chapter) chapter.end = rec.time();
-      return { cues, chapters, downloads };
+      return { cues, chapters, downloads, events };
     },
   };
   return d;
@@ -387,10 +406,11 @@ async function main() {
     await context.addInitScript({ path: path.join(HERE, "overlay.js") });
     const page = await context.newPage();
     page.on("pageerror", (e) => console.error("page error:", e.message));
-    await page.goto(server.url);
+    // The first load can be slow while Vite pre-bundles the dependencies.
+    await page.goto(server.url, { timeout: 180000 });
     await page.evaluate(() => localStorage.clear());
-    await page.reload();
-    await page.waitForLoadState("networkidle");
+    await page.reload({ timeout: 180000 });
+    await page.waitForLoadState("networkidle", { timeout: 180000 });
     await page.evaluate(() => document.fonts.ready);
 
     const cdp = await context.newCDPSession(page);
@@ -416,7 +436,7 @@ async function main() {
         throw e;
       }
     }
-    const { cues, chapters, downloads } = d.finish();
+    const { cues, chapters, downloads, events } = d.finish();
     await Promise.all(downloads.map((x) => x.done));
     await rec.stop();
     const total = rec.time();
@@ -427,7 +447,7 @@ async function main() {
     fs.writeFileSync(path.join(opt.out, "tutorial.en.srt"), cap.srt);
     fs.writeFileSync(path.join(opt.out, "chapters.txt"), ffmetadata(chapters, total));
     fs.writeFileSync(path.join(opt.out, "storyboard.md"), storyboard(chapters));
-    fs.writeFileSync(path.join(opt.out, "timeline.json"), JSON.stringify({ total, chapters, cues }, null, 2));
+    fs.writeFileSync(path.join(opt.out, "timeline.json"), JSON.stringify({ total, chapters, cues, events }, null, 2));
     if (opt.updateDocs) {
       fs.mkdirSync(path.join(HERE, "captions"), { recursive: true });
       fs.writeFileSync(path.join(HERE, "captions", "tutorial.en.vtt"), cap.vtt);
@@ -452,6 +472,7 @@ async function main() {
           "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", path.join(clips, name)]);
       }
       fs.rmSync(raw, { force: true });
+      if (!opt.noMusic) await addMusic(opt.out, ffmpegPath);
       console.log(`video: ${final}`);
     }
   } finally {
