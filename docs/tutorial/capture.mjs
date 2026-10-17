@@ -12,6 +12,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEMO } from "./demo.mjs";
+import { addMusic } from "./music.mjs";
 import { SCENES } from "./scenes.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,7 @@ function args() {
     headed: a.includes("--headed"),
     noEncode: a.includes("--no-encode") || a.includes("--fast"),
     fast: a.includes("--fast"),
+    noMusic: a.includes("--no-music"),
     updateDocs: a.includes("--update-docs"),
   };
 }
@@ -452,6 +454,7 @@ async function main() {
           "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", path.join(clips, name)]);
       }
       fs.rmSync(raw, { force: true });
+      if (!opt.noMusic) await addMusic(opt.out, ffmpegPath);
       console.log(`video: ${final}`);
     }
   } finally {

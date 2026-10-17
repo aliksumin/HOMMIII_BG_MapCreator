@@ -12,6 +12,7 @@ art in it has its own licenses, see [NOTICE.md](../../NOTICE.md)).
 | [`scenes.mjs`](scenes.mjs) | The 16 steps: what is clicked and typed, and every annotation |
 | [`overlay.js`](overlay.js) | The annotation layer injected into the page: step chip, lower third, highlight boxes, callouts, arrows, cursor, title and closing cards |
 | [`demo.mjs`](demo.mjs) | The made-up demo scenario typed in the video |
+| [`music.mjs`](music.mjs) | The original background music: score, synthesizer and the mix into the video and clips |
 
 ## What the video covers
 
@@ -69,16 +70,36 @@ node docs/tutorial/capture.mjs --update-docs
 It takes about 12 minutes (the video plays in real time). Output, by default in
 `%USERPROFILE%\Videos\HoMM3-Scenario-Creator-tutorial`:
 
-- `HoMM3-Scenario-Creator-tutorial.mp4`: 1440x810, 30 fps, H.264, with English soft subtitles and chapters
-- `clips\NN-<step>.mp4`: one clip per step, cut from the full recording
+- `HoMM3-Scenario-Creator-tutorial.mp4`: 1440x810, 30 fps, H.264, background music (AAC), English soft
+  subtitles and chapters
+- `clips\NN-<step>.mp4`: one clip per step, cut from the full recording, with its slice of the music
+- `tutorial-music.m4a`: the soundtrack on its own
 - `tutorial.en.vtt`, `tutorial.en.srt`, `chapters.txt`, `storyboard.md`, `timeline.json`
 - `exports\`: the files the app exported during the recording (ZIP, PDF, `.tex`, `.map`, PNG, project file)
 
 `--update-docs` also rewrites `storyboard.md` and `captions/` in this folder; commit those.
 
 Options: `--out <dir>`, `--port <n>` (default 5191), `--url <http://...>` to use a server that is already
-running, `--tools <dir>`, `--ffmpeg <path>`, `--headed` to watch the browser, `--no-encode` for a dry run
-that only checks the script.
+running, `--tools <dir>`, `--ffmpeg <path>`, `--headed` to watch the browser, `--no-music`, `--no-encode`
+for a dry run that only checks the script.
+
+## Music
+
+[`music.mjs`](music.mjs) composes and synthesizes the background music; there are no samples or audio
+files. It is an original piece written for this video in the spirit of the Heroes III soundtrack:
+pastoral and classical, in 3/4 at 84 bpm, in D major with a borrowed flat-VII chord. Three 16-bar themes
+(pastoral, lament, heroic) rotate through three keys. Each has harp arpeggios (Karplus-Strong), a
+string pad, a cello bass and a lead that changes between flute, piano, horn and strings, with timpani in
+the heroic sections and a Freeverb-style hall. None of the game's music is used or quoted. It is mixed
+at about -20 dBFS RMS with fades.
+
+To redo only the music on an existing recording (needs its `timeline.json`):
+
+```powershell
+node docs/tutorial/music.mjs --out "$env:USERPROFILE\Videos\HoMM3-Scenario-Creator-tutorial"
+```
+
+To listen to it on its own: `node docs/tutorial/music.mjs --wav music.wav --seconds 120`.
 
 ## How it works
 
