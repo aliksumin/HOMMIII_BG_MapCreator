@@ -7,17 +7,19 @@ import { decodeMap, encodeMap, newTile } from "../../lib/mapfile.ts";
 import { renderMapPng } from "../../lib/mapdraw.ts";
 import { newMapLayout } from "../../model/defaults.ts";
 import { useScenario } from "../../model/store.ts";
-import type { MapTile } from "../../model/types.ts";
+import type { BoardToken, MapLayout, MapTile } from "../../model/types.ts";
 import { Modal } from "../ui/Modal.tsx";
-import { Board } from "./Board.tsx";
-import { Inspector } from "./Inspector.tsx";
+import { type Armed, Board } from "./Board.tsx";
+import { Inspector, TokenInspector } from "./Inspector.tsx";
 import { Palette } from "./Palette.tsx";
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function MapEditor() {
   const [s, update] = useScenario();
   const [layoutIndex, setLayoutIndex] = useState(0);
-  const [armed, setArmed] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [armed, setArmed] = useState<Armed | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
   const [field, setField] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
@@ -28,29 +30,55 @@ export function MapEditor() {
   const index = Math.min(layoutIndex, s.maps.length - 1);
   const layout = s.maps[index];
   const tiles = layout.tiles;
-  const tile = tiles.find((t) => t.id === selected) ?? null;
+  const tokens = layout.tokens ?? [];
+  const picked = tiles.filter((t) => selected.includes(t.id));
+  const pickedTokens = tokens.filter((t) => selected.includes(t.id));
+  const tile = picked.length === 1 && !pickedTokens.length ? picked[0] : null;
+  const token = pickedTokens.length === 1 && !picked.length ? pickedTokens[0] : null;
+  const pickedCount = picked.length + pickedTokens.length;
   const counts = countTiles(tiles);
   const dupes = duplicateTiles(tiles);
   const parts = tiles.length ? connectedGroups(tiles).length : 0;
   const file = mapFiles(s).find((m) => m.layout.id === layout.id)?.file ?? "map";
 
-  const setTiles = (recipe: (tiles: MapTile[]) => MapTile[] | void, tag?: string) =>
+  const editLayout = (recipe: (layout: MapLayout) => void, tag?: string) =>
     update((d) => {
       const target = d.maps[index];
+      target.tokens ??= [];
+      recipe(target);
+    }, tag);
+
+  const setTiles = (recipe: (tiles: MapTile[]) => MapTile[] | void, tag?: string) =>
+    editLayout((target) => {
       const result = recipe(target.tiles);
       if (result) target.tiles = result;
     }, tag);
 
+  /** Applies a change to every selected tile. */
   const changeTile = (recipe: (tile: MapTile) => void) =>
     setTiles((list) => {
-      const t = list.find((x) => x.id === selected);
-      if (t) recipe(t);
-    }, `tile-${selected}`);
+      for (const t of list) if (selected.includes(t.id)) recipe(t);
+    }, `tile-${selected.join(",")}`);
+
+  /** Applies a change to every selected token beside the tiles. */
+  const changeToken = (recipe: (token: BoardToken) => void) =>
+    editLayout((l) => {
+      for (const t of l.tokens) if (selected.includes(t.id)) recipe(t);
+    }, `token-${selected.join(",")}`);
+
+  /** Turns every selected tile and token in place. */
+  const rotateSelected = (step: number) =>
+    editLayout((l) => {
+      for (const t of [...l.tiles, ...l.tokens]) if (selected.includes(t.id)) t.rotation = (t.rotation + step) % 6;
+    }, `tile-${selected.join(",")}`);
 
   const removeSelected = () => {
-    if (!selected) return;
-    setTiles((list) => list.filter((t) => t.id !== selected));
-    setSelected(null);
+    if (!pickedCount) return;
+    editLayout((l) => {
+      l.tiles = l.tiles.filter((t) => !selected.includes(t.id));
+      l.tokens = l.tokens.filter((t) => !selected.includes(t.id));
+    });
+    setSelected([]);
     setField(null);
   };
 
@@ -60,12 +88,12 @@ export function MapEditor() {
       if (el.closest("input, textarea, select, [contenteditable]")) return;
       if (e.key === "Escape") {
         setArmed(null);
-        setSelected(null);
+        setSelected([]);
         setField(null);
-      } else if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && selected) {
+      } else if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && pickedCount) {
         e.preventDefault();
-        changeTile((t) => void (t.rotation = (t.rotation + (e.shiftKey ? 5 : 1)) % 6));
-      } else if ((e.key === "Delete" || e.key === "Backspace") && selected) {
+        rotateSelected(e.shiftKey ? 5 : 1);
+      } else if ((e.key === "Delete" || e.key === "Backspace") && pickedCount) {
         e.preventDefault();
         removeSelected();
       }
@@ -77,13 +105,17 @@ export function MapEditor() {
   const doImport = (text: string, mode: "replace" | "append") => {
     try {
       const imported = decodeMap(text);
-      setTiles((list) => {
-        if (mode === "replace") return normalise(imported);
+      editLayout((l) => {
+        if (mode === "replace") {
+          l.tiles = normalise(imported);
+          l.tokens = [];
+          return;
+        }
         // append: shift the import below the current map, keeping row parity
-        const maxRow = Math.max(0, ...list.map((t) => t.row));
+        const maxRow = Math.max(0, ...l.tiles.map((t) => t.row), ...l.tokens.map((t) => t.row));
         const minRow = Math.min(...imported.map((t) => t.row));
         const shift = Math.ceil((maxRow + 4 - minRow) / 2) * 2;
-        return [...list, ...imported.map((t) => ({ ...t, id: guid(), row: t.row + shift }))];
+        l.tiles = [...l.tiles, ...imported.map((t) => ({ ...t, id: guid(), row: t.row + shift }))];
       });
       setImportOpen(false);
       setFitCount((n) => n + 1);
@@ -97,7 +129,7 @@ export function MapEditor() {
   const exportPng = async () => {
     setBusy("Rendering...");
     try {
-      download(`${file}.png`, await renderMapPng(tiles));
+      download(`${file}.png`, await renderMapPng(tiles, 2, tokens));
     } finally {
       setBusy("");
     }
@@ -114,7 +146,7 @@ export function MapEditor() {
               className={i === index ? "on" : ""}
               onClick={() => {
                 setLayoutIndex(i);
-                setSelected(null);
+                setSelected([]);
               }}
             >
               {m.name || `Map ${i + 1}`}
@@ -128,7 +160,7 @@ export function MapEditor() {
             onClick={() => {
               update((d) => void d.maps.push(newMapLayout(`Map ${d.maps.length + 1}`)));
               setLayoutIndex(s.maps.length);
-              setSelected(null);
+              setSelected([]);
             }}
           >
             + Layout
@@ -140,7 +172,7 @@ export function MapEditor() {
             onClick={() => {
               update((d) => void d.maps.push({ ...structuredClone(layout), id: uid(), name: `${layout.name} (copy)` }));
               setLayoutIndex(s.maps.length);
-              setSelected(null);
+              setSelected([]);
             }}
           >
             Duplicate
@@ -154,6 +186,7 @@ export function MapEditor() {
             type="button"
             className="btn small"
             disabled={!tiles.length}
+            title={tokens.length ? "The .map file holds the tiles only; tokens beside the tiles are left out" : undefined}
             onClick={() => download(`${file}.map`, encodeMap(tiles), "text/plain")}
           >
             Export .map
@@ -203,7 +236,7 @@ export function MapEditor() {
               if (layout.tiles.length && !window.confirm(`Delete the layout "${layout.name}" and its ${layout.tiles.length} tiles?`)) return;
               update((d) => void d.maps.splice(index, 1));
               setLayoutIndex(Math.max(0, index - 1));
-              setSelected(null);
+              setSelected([]);
             }}
           >
             Delete layout
@@ -216,27 +249,36 @@ export function MapEditor() {
         <div className="board-col">
           <Board
             tiles={tiles}
-            selectedId={selected}
+            tokens={tokens}
+            selectedIds={selected}
             selectedField={field}
             armed={armed}
             layoutKey={`${layout.id}-${fitCount}`}
-            onPlace={(tileId, row, col) => {
-              const t = newTile(tileId, row, col);
-              setTiles((list) => void list.push(t));
-              setSelected(t.id);
+            onPlace={(a, row, col) => {
+              if (a.kind === "tile") {
+                const t = newTile(a.id, row, col);
+                setTiles((list) => void list.push(t));
+                setSelected([t.id]);
+              } else {
+                const t: BoardToken = { id: guid(), location: a.id, row, col, rotation: 0 };
+                editLayout((l) => void l.tokens.push(t));
+                setSelected([t.id]);
+              }
               setField(null);
             }}
-            onMove={(id, row, col) =>
-              setTiles((list) => {
-                const t = list.find((x) => x.id === id);
-                if (t) {
-                  t.row = row;
-                  t.col = col;
+            onMove={(moves) =>
+              editLayout((l) => {
+                for (const m of moves) {
+                  const t = l.tiles.find((x) => x.id === m.id) ?? l.tokens.find((x) => x.id === m.id);
+                  if (t) {
+                    t.row = m.row;
+                    t.col = m.col;
+                  }
                 }
               })
             }
-            onSelect={(id, f) => {
-              setSelected(id);
+            onSelect={(ids, f) => {
+              setSelected(ids);
               setField(f);
             }}
           />
@@ -257,7 +299,11 @@ export function MapEditor() {
                 Placed more than once: {[...dupes].map(([id, n]) => `${id} ×${n}`).join(", ")}
               </span>
             )}
-            <span className="keys">Click: place/select &middot; Drag: move or pan &middot; Wheel: zoom &middot; R: rotate &middot; Del: remove</span>
+            {tokens.length > 0 && <span className="note">{plural(tokens.length, "token")} beside the tiles: in the PNG and PDF, not in the .map file</span>}
+            <span className="keys">
+              Click: place/select &middot; Shift+click: add to selection &middot; Ctrl+drag: select with a frame &middot; Drag: move or pan &middot;
+              Wheel: zoom &middot; R: rotate &middot; Del: remove &middot; Esc: unselect
+            </span>
           </div>
         </div>
         {tile ? (
@@ -268,8 +314,22 @@ export function MapEditor() {
             onField={setField}
             onChange={changeTile}
             onDelete={removeSelected}
-            onDuplicate={() => setArmed(tile.tileId)}
+            onDuplicate={() => setArmed({ kind: "tile", id: tile.tileId })}
           />
+        ) : token ? (
+          <TokenInspector token={token} onChange={changeToken} onDelete={removeSelected} />
+        ) : pickedCount > 1 ? (
+          <aside className="inspector empty">
+            <h4>
+              {[picked.length && plural(picked.length, "tile"), pickedTokens.length && plural(pickedTokens.length, "token")].filter(Boolean).join(" and ")}{" "}
+              selected
+            </h4>
+            <p className="hint">Drag any of them to move them all together. R rotates each one in place, Del removes them.</p>
+            <p className="hint">Shift+click a tile or token to add it or drop it from the selection. Esc or a click on the empty board clears it.</p>
+            <button type="button" className="btn small danger" onClick={removeSelected}>
+              Remove {pickedCount}
+            </button>
+          </aside>
         ) : (
           <aside className="inspector empty">
             <h4>No tile selected</h4>
@@ -278,12 +338,18 @@ export function MapEditor() {
               printed tiles where the Scenario needs a specific one.
             </p>
             <p className="hint">Select a placed tile to rotate it, give a face-down Starting tile a faction border, or put cubes, Heroes, tokens and blocks on its Fields.</p>
-            {tiles.length > 0 && (
+            <p className="hint">To put a Location token next to the tiles instead, pick it from the bottom of the tile box and click an empty Field.</p>
+            {(tiles.length > 0 || tokens.length > 0) && (
               <button
                 type="button"
                 className="btn small danger"
                 onClick={() => {
-                  if (window.confirm(`Remove all ${tiles.length} tiles from "${layout.name}"?`)) setTiles(() => []);
+                  const what = [tiles.length && plural(tiles.length, "tile"), tokens.length && plural(tokens.length, "token")].filter(Boolean).join(" and ");
+                  if (window.confirm(`Remove all ${what} from "${layout.name}"?`))
+                    editLayout((l) => {
+                      l.tiles = [];
+                      l.tokens = [];
+                    });
                 }}
               >
                 Clear this layout

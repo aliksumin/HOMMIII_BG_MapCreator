@@ -111,7 +111,7 @@ export async function buildBundle(s: Scenario, onProgress?: (what: string) => vo
   files[`${root}${texPath(s)}`] = strToU8(scenarioToLatex(s));
   for (const map of mapFiles(s)) {
     onProgress?.(`Rendering ${map.file}.png...`);
-    files[`${root}assets/maps/${map.file}.png`] = new Uint8Array(await (await renderMapPng(map.layout.tiles)).arrayBuffer());
+    files[`${root}assets/maps/${map.file}.png`] = new Uint8Array(await (await renderMapPng(map.layout.tiles, 2, map.layout.tokens)).arrayBuffer());
     files[`${root}assets/map-files/${map.file}.map`] = strToU8(`${encodeMap(map.layout.tiles)}\n`);
   }
   if (s.titleImage?.kind === "upload" && s.titleImage.dataUrl) {

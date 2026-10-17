@@ -408,7 +408,7 @@ export async function scenarioToPdf(scenario: Scenario, onProgress?: (what: stri
 
   for (const map of doc.maps) {
     onProgress?.(`Drawing the map ${map.layout.name}...`);
-    const png = await blobToDataUrl(await renderMapPng(map.layout.tiles, 1.6));
+    const png = await blobToDataUrl(await renderMapPng(map.layout.tiles, 1.6, map.layout.tokens));
     await w.figure(png, map.caption);
   }
 

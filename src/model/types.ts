@@ -40,6 +40,17 @@ export interface MapTile {
   faction: string;
 }
 
+/** A Location token on an empty board Field beside the tiles. The .map file has no place for it. */
+export interface BoardToken {
+  id: string;
+  /** key into the Location token catalogue */
+  location: string;
+  row: number;
+  col: number;
+  /** steps of 60 degrees clockwise */
+  rotation: number;
+}
+
 /** One map layout: the whole board, or the board for some player counts. */
 export interface MapLayout {
   id: string;
@@ -49,6 +60,8 @@ export interface MapLayout {
   /** caption under the image; empty = derived from playerCounts */
   caption: string;
   tiles: MapTile[];
+  /** Location tokens beside the tiles */
+  tokens: BoardToken[];
 }
 
 export interface TimedEvent {

@@ -1,6 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canPlace, cellKey, connectedGroups, fieldCell, footprint, neighbours, pixelToCell, cellCenter } from "../src/lib/hex.ts";
+import {
+  canPlace,
+  boardBounds,
+  canPlaceGroup,
+  canPlaceToken,
+  cellKey,
+  connectedGroups,
+  fieldCell,
+  footprint,
+  neighbours,
+  pixelToCell,
+  cellCenter,
+  shiftCell,
+  tilesTouch,
+} from "../src/lib/hex.ts";
 import { newTile } from "../src/lib/mapfile.ts";
 
 test("neighbours follow the map editor offsets", () => {
@@ -49,4 +63,75 @@ test("pixelToCell inverts cellCenter", () => {
     const p = cellCenter(r, c);
     assert.deepEqual(pixelToCell(p.x + 5, p.y - 7), [r, c]);
   }
+});
+
+test("a group shifted by an odd number of rows keeps its shape", () => {
+  const a = newTile("S0", 7, 9);
+  const b = newTile("S0", 8, 12);
+  const touching = (x: [number, number], y: [number, number]) => tilesTouch({ ...a, row: x[0], col: x[1] }, { ...b, row: y[0], col: y[1] });
+  for (const to of [
+    [8, 9],
+    [9, 10],
+    [12, 4],
+    [7, 9],
+  ] as [number, number][]) {
+    const movedA = shiftCell(a.row, a.col, [a.row, a.col], to);
+    const movedB = shiftCell(b.row, b.col, [a.row, a.col], to);
+    assert.deepEqual(movedA, to);
+    const gap = cellCenter(movedB[0], movedB[1]).x - cellCenter(movedA[0], movedA[1]).x;
+    assert.equal(gap, cellCenter(8, 12).x - cellCenter(7, 9).x);
+    assert.equal(movedB[0] - movedA[0], 1);
+    assert.ok(touching(movedA, movedB));
+  }
+});
+
+test("a group may move onto its own old Fields but not onto other tiles", () => {
+  const a = newTile("S0", 7, 9);
+  const b = newTile("S0", 8, 12);
+  const c = newTile("F1", 10, 7);
+  const tiles = [a, b, c];
+  const move = (to: [number, number]) =>
+    [a, b].map((t) => {
+      const [row, col] = shiftCell(t.row, t.col, [a.row, a.col], to);
+      return { id: t.id, row, col };
+    });
+  assert.equal(canPlaceGroup(tiles, move([7, 10])), true);
+  assert.equal(canPlaceGroup(tiles, move([9, 8])), false);
+  assert.equal(canPlaceGroup(tiles, move([0, 9])), false);
+});
+
+test("a Location token sits only on a Field no tile covers and no token holds", () => {
+  const a = newTile("S0", 8, 12);
+  const token = { id: "t1", row: 8, col: 14 };
+  assert.equal(canPlaceToken([a], [], 8, 13), false);
+  assert.equal(canPlaceToken([a], [], 8, 14), true);
+  assert.equal(canPlaceToken([a], [token], 8, 14), false);
+  assert.equal(canPlaceToken([a], [token], 8, 14, "t1"), true);
+  assert.equal(canPlaceToken([a], [], -1, 3), false);
+  assert.equal(canPlace([a], 8, 15, undefined, [token]), false);
+  assert.equal(canPlace([a], 8, 15), true);
+});
+
+test("tokens move along with a group but block tiles that stay put", () => {
+  const a = newTile("S0", 8, 12);
+  const b = newTile("F1", 8, 17);
+  const token = { id: "t1", row: 8, col: 14 };
+  // the token alone may not move onto a tile
+  assert.equal(canPlaceGroup([a, b], [{ id: "t1", row: 8, col: 16 }], [token]), false);
+  // tile a moving onto the token's Field is blocked unless the token moves too
+  const shifted = (p: { row: number; col: number }) => shiftCell(p.row, p.col, [8, 12], [8, 13]);
+  const moveA = { id: a.id, row: 8, col: 13 };
+  assert.equal(canPlaceGroup([a, b], [moveA], [token]), false);
+  const [tr, tc] = shifted(token);
+  assert.equal(canPlaceGroup([a, b], [moveA, { id: "t1", row: tr, col: tc }], [token]), true);
+});
+
+test("the board box takes in tokens beside the tiles", () => {
+  const a = newTile("S0", 8, 12);
+  const tilesOnly = boardBounds([a]);
+  const withToken = boardBounds([a], [{ id: "t1", row: 8, col: 15 }]);
+  assert.ok(tilesOnly && withToken);
+  assert.ok(withToken.maxX > tilesOnly.maxX);
+  assert.equal(withToken.minX, tilesOnly.minX);
+  assert.equal(boardBounds([], []), null);
 });
