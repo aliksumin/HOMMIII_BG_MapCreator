@@ -67,7 +67,7 @@ test("removing a paragraph renumbers later ones and flags references to it", () 
   assert.equal(s.storyBook.paragraphs[0].text, "If you help the peasants, read §?. Otherwise, read §2.");
   assert.equal(s.rules[0], "When you enter a location, read §2 first.");
   assert.equal(s.storyBook.specialTiles[0].text, "On your first visit, read §2.");
-  const errors = lintScenario(s).filter((f) => f.step === "storybook" && f.level === "error");
+  const errors = lintScenario(s).filter((f) => f.step === "story" && f.level === "error");
   assert.equal(errors.length, 1);
   assert.match(errors[0].message, /removed paragraph/);
 });
@@ -76,7 +76,7 @@ test("the checklist catches missing and unreachable paragraphs", () => {
   const s = solo();
   s.storyBook.paragraphs[2].text = "The end. See §9.";
   s.storyBook.locations[0].text = "Nothing happens.";
-  const found = lintScenario(s).filter((f) => f.step === "storybook");
+  const found = lintScenario(s).filter((f) => f.step === "story");
   assert.ok(found.some((f) => f.level === "error" && f.message.includes("§9")));
   assert.ok(found.some((f) => f.level === "warning" && f.message.includes("Nothing leads to paragraph §1")));
   assert.equal(paragraphRefs(s).get(3), 2);

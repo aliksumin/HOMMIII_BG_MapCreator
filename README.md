@@ -8,7 +8,7 @@ It exports exactly what a Mission Book pull request needs, plus a PDF:
 
 | File | Where it goes in the Mission Book |
 | --- | --- |
-| `<name>.tex` | `draft-scenarios/<clash/coops/alliances/campaigns>/` |
+| `<name>.tex` | `draft-scenarios/<clash/coops/alliances/campaigns/solo>/` |
 | `<map>.png` | `assets/maps/` |
 | `<map>.map` | `assets/map-files/` (same format as the [community map editor](https://zedero.github.io/homm3boardgame/)) |
 | `<name>.png` (uploaded title icon only) | `assets/images/` |
@@ -26,7 +26,7 @@ from the start screen and the map editor to the checks and the Mission Book bund
 ## The steps
 
 1. **Basics** - Basic parameters of the scenario like name, type (Clash, Cooperative, Alliance, Campaign, Solo), heading line, complexity of the scenario, author, source, title icon.
-2. **Story** - Narrative story behind the scenario; optional long Story page for campaign or story based scenarios.
+2. **Story** - Flavor text, plus an optional story page after the map: a long story, Story Locations, Special Tiles and numbered paragraphs that point to each other (§12), as in solo and campaign scenarios.
 3. **Player Setup** - Rounds, player counts, Starting Resources and Income, Starting Units,
    Town Buildings, Map Tile Pool, Bonuses.
 4. **Map** - hex map editor for creating and exporting the scenario map.
