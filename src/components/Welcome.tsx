@@ -4,7 +4,7 @@ import { CATEGORIES } from "../data/game.ts";
 import { parseProject } from "../lib/bundle.ts";
 import { decodeMap } from "../lib/mapfile.ts";
 import { normalise } from "../lib/hex.ts";
-import { newScenario } from "../model/defaults.ts";
+import { copyScenario, newScenario } from "../model/defaults.ts";
 import { deleteProject, listProjects, loadProject, useStore } from "../model/store.ts";
 
 export function Welcome() {
@@ -12,6 +12,17 @@ export function Welcome() {
   const open = useStore((s) => s.open);
   const [projects, setProjects] = useState(listProjects);
   const [error, setError] = useState("");
+
+  // The template scenario (examples/template-scenario/) is loaded on demand, so it stays out of the first download.
+  const openTemplate = async () => {
+    setError("");
+    try {
+      const { default: text } = await import("../../examples/template-scenario/lanterns_over_the_mistfall_marches.scenario.json?raw");
+      open(copyScenario(parseProject(text)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   const openFile = async (file: File) => {
     setError("");
@@ -59,6 +70,12 @@ export function Welcome() {
               </button>
             ))}
           </div>
+          <p className="hint">
+            New here? Open the <b>template scenario</b>, a finished Campaign Scenario that uses every feature of the editor.{" "}
+            <button type="button" className="btn small" onClick={() => void openTemplate()}>
+              Open the template
+            </button>
+          </p>
         </section>
 
         <section className="welcome-card">

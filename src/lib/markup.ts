@@ -79,6 +79,7 @@ export function parseInline(source: string, base: { b?: boolean; i?: boolean } =
   };
   let bold = !!base.b;
   let italic = !!base.i;
+  let emphasis = false;
   let buffer = "";
   let k = 0;
   while (k < source.length) {
@@ -90,17 +91,14 @@ export function parseInline(source: string, base: { b?: boolean; i?: boolean } =
       k += 2;
       continue;
     }
-    if (rest[0] === "*" && rest[1] !== " ") {
+    // A single * opens emphasis (unless a space follows) and the next * closes
+    // it. Inside text that is already italic (the flavor text) emphasis turns
+    // italics off, so what closes it is tracked apart from the italic state.
+    if (rest[0] === "*" && (emphasis || rest[1] !== " ")) {
       text(buffer, bold, italic);
       buffer = "";
       italic = !italic;
-      k += 1;
-      continue;
-    }
-    if (rest[0] === "*" && italic) {
-      text(buffer, bold, italic);
-      buffer = "";
-      italic = false;
+      emphasis = !emphasis;
       k += 1;
       continue;
     }
