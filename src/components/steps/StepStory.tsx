@@ -1,6 +1,7 @@
 import { useScenario } from "../../model/store.ts";
 import { Field, Panel } from "../ui/Form.tsx";
 import { MarkupField } from "../ui/MarkupField.tsx";
+import { StoryBookPanels } from "./StoryBookPanels.tsx";
 
 export function StepStory() {
   const [s, update] = useScenario();
@@ -18,13 +19,24 @@ export function StepStory() {
         </Field>
       </Panel>
       <Panel title="The Story">
-        <Field
-          label="Long story (optional)"
-          hint="Campaigns often tell a longer story on its own page after the map. Separate paragraphs with a blank line."
-        >
-          <MarkupField multiline rows={10} value={s.story} onChange={(v) => update((d) => void (d.story = v), "story")} />
+        <p className="hint">
+          Everything from here on prints on its own page after the map, and all of it is optional: the long story first, then the Story
+          Locations, Special Tiles and numbered Paragraphs. Campaign and Solo Scenarios, like the one in the Naval Battles mission book, tell
+          their story this way. A location or tile sends the reader to a paragraph, and a paragraph ends with choices that send them on. Write{" "}
+          <code>§12</code>, or pick from the <b>§ Read</b> menu, to point to paragraph 12. Moving or removing a paragraph renumbers every
+          reference.
+        </p>
+        <Field label="Long story" hint="Separate paragraphs with a blank line.">
+          <MarkupField
+            multiline
+            rows={10}
+            value={s.story}
+            paragraphs={s.storyBook.paragraphs.length}
+            onChange={(v) => update((d) => void (d.story = v), "story")}
+          />
         </Field>
       </Panel>
+      <StoryBookPanels />
     </>
   );
 }
