@@ -1,7 +1,35 @@
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { assetUrl, titleImageUrl } from "../../data/catalog.ts";
 import type { Block, ScenarioDoc } from "../../lib/document.ts";
+import { fitTitle, PAGE_W_PT, TITLE_W_PT } from "../../lib/titlefit.ts";
 import { MapView } from "../map/MapLayers.tsx";
 import { Glyph, Runs } from "../ui/Runs.tsx";
+
+const TITLE_FONT = '700 100px "Liberation Serif"';
+let titleCanvas: CanvasRenderingContext2D | null = null;
+
+/** Title width in points, measured with the same font the PDF embeds and, like jsPDF, without kerning. */
+function measureTitle(text: string, size: number): number {
+  titleCanvas ??= document.createElement("canvas").getContext("2d");
+  if (!titleCanvas) return text.length * size * 0.7;
+  titleCanvas.font = TITLE_FONT;
+  titleCanvas.fontKerning = "none";
+  return (titleCanvas.measureText(text).width / 100) * size;
+}
+
+/** The title's size and line breaks as the PDF draws them; re-measured once the font has loaded. */
+function useFittedTitle(title: string, lines: 1 | 2): { size: number; lines: string[] } {
+  const [fontReady, setFontReady] = useState(() => document.fonts.check(TITLE_FONT));
+  useEffect(() => {
+    if (fontReady) return;
+    let live = true;
+    document.fonts.load(TITLE_FONT).then(() => live && setFontReady(true));
+    return () => {
+      live = false;
+    };
+  }, [fontReady]);
+  return useMemo(() => fitTitle(title, lines, TITLE_W_PT, measureTitle), [title, lines, fontReady]);
+}
 
 function BlockView({ block }: { block: Block }) {
   switch (block.k) {
@@ -51,6 +79,7 @@ function BlockView({ block }: { block: Block }) {
 export function BookPage({ doc, showMaps = true }: { doc: ScenarioDoc; showMaps?: boolean }) {
   const icon =
     doc.image?.kind === "upload" ? doc.image.dataUrl : doc.image?.kind === "library" ? titleImageUrl(doc.image.name) : undefined;
+  const title = useFittedTitle(doc.title, doc.titleLines === 2 ? 2 : 1);
   return (
     <div className="book">
       <article className="book-page" style={{ backgroundImage: `url(${assetUrl("assets/layout/tausta.webp")})` }}>
@@ -58,7 +87,16 @@ export function BookPage({ doc, showMaps = true }: { doc: ScenarioDoc; showMaps?
           <div className="bk-icon">{icon ? <img src={icon} alt="" /> : <span className="bk-icon-empty">?</span>}</div>
           <div className="bk-titles">
             <div className="bk-kind">{doc.kind}</div>
-            <div className="bk-title">{doc.title}</div>
+            <div className="bk-title" style={{ fontSize: `${(title.size * 100) / PAGE_W_PT}cqi` }}>
+              <span>
+                {title.lines.map((line, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && <br />}
+                    {line}
+                  </Fragment>
+                ))}
+              </span>
+            </div>
           </div>
           {doc.rating && (
             <div className="bk-rating">

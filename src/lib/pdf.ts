@@ -10,19 +10,26 @@ import { type Block, buildDocument, type ScenarioDoc } from "./document.ts";
 import { loadImage, rasterise } from "./images.ts";
 import { renderMapPng } from "./mapdraw.ts";
 import { type Inline, ordinalSuffix } from "./markup.ts";
+import { fitTitle, PAGE_W_PT, TITLE_W_PT } from "./titlefit.ts";
 
-const PAGE_W = 595.28;
+const PAGE_W = PAGE_W_PT;
 const PAGE_H = 841.89;
-const MARGIN_X = 48;
-const MARGIN_TOP = 44;
+// Page geometry and type sizes measured from the official Mission Book: the
+// heading frame and the two columns share the 35.3pt side margins, and the
+// body is 11pt on 14pt leading. theme.css uses the same numbers.
+const MARGIN_X = 35.3;
+const MARGIN_TOP = 34;
 const MARGIN_BOTTOM = 56;
-const GAP = 22;
+const GAP = 23;
 const CONTENT_W = PAGE_W - MARGIN_X * 2;
 const COL_W = (CONTENT_W - GAP) / 2;
-const BODY = 9.6;
-const LEADING = 1.28;
+const BODY = 11;
+const LEADING = 14 / 11;
+const FRAME_TOP = 35.3;
 const INK: [number, number, number] = [32, 24, 16];
-const HEAD_INK: [number, number, number] = [250, 235, 215];
+const HEAD_INK: [number, number, number] = [222, 200, 120];
+const KIND_INK: [number, number, number] = [203, 181, 116];
+const HEAD_SHADOW: [number, number, number] = [20, 15, 10];
 const FONT = "Liberation";
 
 type Style = "normal" | "bold" | "italic" | "bolditalic";
@@ -37,7 +44,7 @@ interface Assets {
   background: string;
   heading: string;
   bullet: string;
-  icon: string | null;
+  icon: { data: string; ratio: number } | null;
 }
 
 function styleOf(b?: boolean, i?: boolean): Style {
@@ -83,9 +90,13 @@ async function loadAssets(doc: ScenarioDoc): Promise<Assets> {
       glyphs.set(name, { data: await rasterise(glyphUrl(name), Math.round(72 * ratio), 72), ratio });
     }),
   );
-  let icon: string | null = null;
-  if (doc.image?.kind === "upload" && doc.image.dataUrl) icon = doc.image.dataUrl;
-  else if (doc.image?.kind === "library") icon = await rasterise(titleImageUrl(doc.image.name), 256);
+  let icon: Assets["icon"] = null;
+  const iconUrl = doc.image?.kind === "upload" ? doc.image.dataUrl : doc.image?.kind === "library" ? titleImageUrl(doc.image.name) : undefined;
+  if (iconUrl) {
+    const img = await loadImage(iconUrl);
+    const ratio = (img.naturalWidth || 1) / (img.naturalHeight || 1);
+    icon = { data: doc.image?.kind === "upload" ? iconUrl : await rasterise(iconUrl, 256), ratio };
+  }
   return {
     glyphs,
     background: await rasterise(assetUrl("assets/pdf/tausta.jpg"), 1210, 859, "image/jpeg"),
@@ -237,22 +248,23 @@ class Writer {
     lines.forEach((line, i) => {
       this.ensure(lh);
       const baseline = this.y + size * 0.9;
-      if (i === 0 && opts.bullet) this.pdf.addImage(this.assets.bullet, "PNG", this.x0 + indent - 10, baseline - size * 0.62, 6.5, 6.5, "bullet", "FAST");
+      if (i === 0 && opts.bullet) this.pdf.addImage(this.assets.bullet, "PNG", this.x0 + indent - 16, baseline - size * 0.33 - 3, 6, 6, "bullet", "FAST");
       this.drawLine(line, this.x0 + indent, baseline, size, INK);
       this.y += lh;
     });
-    this.y += opts.after ?? size * 0.55;
+    this.y += opts.after ?? size * 0.48;
   }
 
+  /** Section heading: 32.7pt cap to cap after the text above, 19.3pt to the text below. */
   heading(text: string): void {
-    const size = 11.5;
+    const size = 13;
     this.ensure(size * 1.6 + BODY * LEADING * 2);
-    if (this.y > this.top + 1) this.y += 5;
+    if (this.y > this.top + 1) this.y += 13;
     this.pdf.setFont(FONT, "bold");
     this.pdf.setFontSize(size);
     this.pdf.setTextColor(...INK);
     this.pdf.text(text.toUpperCase(), this.x0, this.y + size * 0.9);
-    this.y += size * 1.45;
+    this.y += size * 1.52;
   }
 
   block(block: Block, next?: Block): void {
@@ -272,7 +284,7 @@ class Writer {
         });
         break;
       case "list":
-        block.items.forEach((item, i) => this.paragraph(item, { indent: 13, bullet: true, after: i === block.items.length - 1 ? BODY * 0.55 : 1.5 }));
+        block.items.forEach((item, i) => this.paragraph(item, { indent: 35, bullet: true, after: i === block.items.length - 1 ? BODY * 0.48 : 2.7 }));
         break;
     }
   }
@@ -281,39 +293,56 @@ class Writer {
     blocks.forEach((b, i) => this.block(b, blocks[i + 1]));
   }
 
+  /**
+   * The marble heading. section_heading.png is 1200x339 with the frame at
+   * 31..1168 x 31..307; the frame's outer edges line up with the columns. The
+   * icon sits in a box 5-28% across the frame and the title block is centred
+   * 59.7% across, as in the official book.
+   */
   header(doc: ScenarioDoc): void {
-    const h = CONTENT_W * 0.235 * (doc.titleLines === 2 ? 1.25 : 1);
-    const x = MARGIN_X - 8;
-    const w = CONTENT_W + 16;
-    this.pdf.addImage(this.assets.heading, "PNG", x, MARGIN_TOP - 10, w, h, "heading", "FAST");
-    const iconSize = CONTENT_W * 0.15;
-    if (this.assets.icon) {
-      this.pdf.addImage(this.assets.icon, "PNG", x + 6, MARGIN_TOP - 10 + (h - iconSize) / 2, iconSize, iconSize, "icon", "FAST");
+    const stretch = doc.titleLines === 2 ? 1.25 : 1;
+    const scale = CONTENT_W / 1138;
+    const frameH = 277 * scale * stretch;
+    const frameBottom = FRAME_TOP + frameH;
+    this.pdf.addImage(this.assets.heading, "PNG", MARGIN_X - 31 * scale, FRAME_TOP - 31 * scale * stretch, 1200 * scale, 339 * scale * stretch, "heading", "FAST");
+    const icon = this.assets.icon;
+    if (icon) {
+      const boxW = CONTENT_W * 0.23;
+      const boxH = 277 * scale * 0.6;
+      const w = Math.min(boxW, boxH * icon.ratio);
+      const h = w / icon.ratio;
+      const cy = FRAME_TOP + frameH * 0.495;
+      this.pdf.addImage(icon.data, "PNG", MARGIN_X + CONTENT_W * 0.05 + (boxW - w) / 2, cy - h / 2, w, h, "icon", "FAST");
     }
-    const textLeft = x + iconSize + 16;
-    const textW = x + w - 20 - textLeft;
-    const cx = textLeft + textW / 2;
-    this.pdf.setTextColor(...HEAD_INK);
+    const textW = TITLE_W_PT;
+    const cx = MARGIN_X + CONTENT_W * 0.597;
+    const kindSize = 11.7;
+    const fitted = fitTitle(doc.title, doc.titleLines === 2 ? 2 : 1, textW, (text, at) => this.measure(text, "bold", at));
+    const size = fitted.size;
+    const lines = fitted.lines.slice(0, 2);
+    // Cap top of the kind line to the last title baseline, centred at 48.5% of the frame.
+    const blockH = 0.655 * kindSize + 1.029 * size + (lines.length - 1) * size * 1.05;
+    const kindBaseline = FRAME_TOP + frameH * 0.485 - blockH / 2 + 0.655 * kindSize;
     this.pdf.setFont(FONT, "bold");
-    this.pdf.setFontSize(9.5);
-    this.pdf.setCharSpace(1.6);
-    const kind = doc.kind.toUpperCase();
-    this.pdf.text(kind, cx, MARGIN_TOP - 10 + h * 0.4, { align: "center", maxWidth: textW });
+    this.pdf.setFontSize(kindSize);
+    this.pdf.setCharSpace(0.7);
+    this.pdf.setTextColor(...KIND_INK);
+    this.pdf.text(doc.kind.toUpperCase(), cx, kindBaseline, { align: "center", maxWidth: textW });
     this.pdf.setCharSpace(0);
-    let size = 22;
-    const title = doc.title.toUpperCase();
-    while (size > 12 && this.measure(title, "bold", size) > textW * (doc.titleLines === 2 ? 1.9 : 1)) size -= 1;
-    this.pdf.setFont(FONT, "bold");
     this.pdf.setFontSize(size);
-    this.pdf.setTextColor(...HEAD_INK);
-    const lines = this.pdf.splitTextToSize(title, textW) as string[];
-    const first = MARGIN_TOP - 10 + h * 0.4 + size * 1.25;
-    lines.slice(0, 2).forEach((line, i) => this.pdf.text(line, cx, first + i * size * 1.05, { align: "center" }));
+    const first = kindBaseline + 1.029 * size;
+    lines.forEach((line, i) => {
+      const baseline = first + i * size * 1.05;
+      this.pdf.setTextColor(...HEAD_SHADOW);
+      this.pdf.text(line, cx, baseline + 0.8, { align: "center" });
+      this.pdf.setTextColor(...HEAD_INK);
+      this.pdf.text(line, cx, baseline, { align: "center" });
+    });
     if (doc.rating) {
       const g = this.assets.glyphs.get(doc.rating);
-      if (g) this.pdf.addImage(g.data, "PNG", x + w - 34, MARGIN_TOP - 10 + h - 30, 14 * g.ratio, 14, `glyph-${doc.rating}`, "FAST");
+      if (g) this.pdf.addImage(g.data, "PNG", MARGIN_X + CONTENT_W * 0.92 - 14 * g.ratio, frameBottom - frameH * 0.22 - 14, 14 * g.ratio, 14, `glyph-${doc.rating}`, "FAST");
     }
-    this.top = MARGIN_TOP - 10 + h + 14;
+    this.top = frameBottom + 33;
     this.y = this.top;
   }
 
