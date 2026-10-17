@@ -1,7 +1,7 @@
 // Background music for the tutorial video: an original piece written for it,
-// in the spirit of the classic Heroes III soundtrack (pastoral, classical,
-// strings-led, in 3/4), synthesized here from scratch: no samples, nothing
-// taken from the game's music. Every note is in this file.
+// in the spirit of the classic Heroes III soundtrack (pastoral and classical,
+// strings, harp, woodwinds and piano), synthesized here from scratch: no
+// samples, nothing taken from the game's music. Every note is in this file.
 //
 //   node docs/tutorial/music.mjs --out <capture output folder>
 //
@@ -15,9 +15,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SR = 44100;
-const BPM = 84;
-const BEAT = 60 / BPM;
-const BAR = 3 * BEAT;
 
 // ------------------------------------------------------------ the score
 
@@ -34,10 +31,11 @@ const CH = {
   "V/vi": [6, 10, 1],
 };
 
-// Three 16-bar themes: one chord per bar, and the melody as [MIDI note, beats].
-// Written for this video.
+// Five 16-bar themes, written for this video: the meter, one chord per bar,
+// and the melody as [MIDI note or null for a rest, beats].
 const THEMES = {
   pastoral: {
+    meter: 3,
     chords: ["I", "IV", "vi", "V", "I", "iii", "IV", "V", "vi", "ii", "V", "I", "IV", "bVII", "V", "I"],
     melody: [
       [[69, 2], [66, 1]], [[67, 1], [69, 1], [71, 1]], [[74, 2], [73, 1]], [[71, 1], [69, 2]],
@@ -47,6 +45,7 @@ const THEMES = {
     ],
   },
   lament: {
+    meter: 3,
     chords: ["vi", "iii", "IV", "I", "ii", "V", "I", "V/vi", "vi", "IV", "I", "V", "vi", "ii", "V7", "I"],
     melody: [
       [[71, 2], [74, 1]], [[73, 2], [69, 1]], [[71, 1], [67, 1], [71, 1]], [[69, 3]],
@@ -56,6 +55,7 @@ const THEMES = {
     ],
   },
   heroic: {
+    meter: 3,
     chords: ["I", "bVII", "IV", "I", "vi", "IV", "V", "V", "I", "bVII", "IV", "I", "ii", "V", "I", "I"],
     melody: [
       [[62, 1], [66, 1], [69, 1]], [[72, 2], [67, 1]], [[67, 1], [71, 1], [74, 1]], [[74, 2], [69, 1]],
@@ -64,22 +64,60 @@ const THEMES = {
       [[71, 1], [67, 1], [64, 1]], [[69, 1], [73, 1], [76, 1]], [[74, 3]], [[66, 1], [69, 1], [74, 1]],
     ],
   },
+  march: {
+    meter: 4,
+    chords: ["I", "I", "IV", "V", "vi", "iii", "IV", "V", "I", "V/vi", "vi", "IV", "ii", "V", "I", "I"],
+    melody: [
+      [[62, 1.5], [66, 0.5], [69, 1], [74, 1]], [[74, 1.5], [73, 0.5], [71, 1], [69, 1]],
+      [[71, 1.5], [74, 0.5], [79, 1], [78, 1]], [[76, 3], [69, 1]],
+      [[71, 1.5], [69, 0.5], [66, 1], [71, 1]], [[73, 1.5], [71, 0.5], [69, 2]],
+      [[67, 1], [71, 1], [74, 1], [76, 1]], [[76, 2], [73, 1], [69, 1]],
+      [[74, 1.5], [78, 0.5], [81, 2]], [[82, 1], [78, 1], [73, 2]],
+      [[74, 1.5], [71, 0.5], [66, 2]], [[67, 1], [71, 1], [74, 1], [79, 1]],
+      [[76, 1.5], [74, 0.5], [71, 1], [67, 1]], [[69, 1], [73, 1], [76, 1], [73, 1]],
+      [[74, 4]], [[62, 1], [66, 1], [69, 1], [null, 1]],
+    ],
+  },
+  nocturne: {
+    meter: 4,
+    chords: ["I", "vi", "ii", "V", "I", "IV", "ii", "V", "iii", "vi", "IV", "I", "ii", "V7", "I", "I"],
+    melody: [
+      [[78, 2], [76, 1], [74, 1]], [[73, 3], [71, 1]], [[71, 1], [69, 1], [67, 1], [76, 1]], [[73, 4]],
+      [[74, 2], [78, 1], [81, 1]], [[79, 3], [76, 1]], [[74, 1], [76, 1], [71, 2]], [[69, 4]],
+      [[71, 2], [73, 1], [76, 1]], [[74, 2], [73, 1], [71, 1]], [[69, 1.5], [71, 0.5], [74, 2]], [[74, 2], [69, 2]],
+      [[71, 2], [76, 2]], [[79, 1], [78, 1], [76, 1], [73, 1]], [[74, 4]], [[null, 4]],
+    ],
+  },
 };
 
-// The running order: theme, lead instrument (or none), transposition, timpani.
+// The running order. Each section has its own theme, tempo, accompaniment
+// texture, lead (or none), key (semitones from D) and loudness, so the
+// pulse, meter and colour keep changing:
+//   arp      harp broken chords, four rhythms, settling every fourth bar
+//   rolled   rolled harp chords and long cello notes, no running pulse
+//   waltz    piano left hand: bass, then two chord beats (3/4 only)
+//   chorale  sustained strings only, swelling with the phrase
+//   pizz     pizzicato bass and chords on the beat, with timpani: a march
+//   nocturne piano left hand that wanders, never the same two bars running
 const ORDER = [
-  { theme: "pastoral", lead: null, t: 0 },
-  { theme: "pastoral", lead: "flute", t: 0 },
-  { theme: "lament", lead: "piano", t: 0 },
-  { theme: "heroic", lead: "horn", t: 0, timpani: true },
-  { theme: "pastoral", lead: "strings", t: 0 },
-  { theme: "lament", lead: null, t: 0 },
-  { theme: "pastoral", lead: "flute", t: 5 },
-  { theme: "heroic", lead: "horn", t: 5, timpani: true },
-  { theme: "lament", lead: "piano", t: 5 },
-  { theme: "pastoral", lead: "strings", t: -2 },
-  { theme: "lament", lead: "flute", t: -2 },
-  { theme: "heroic", lead: "strings", t: -2, timpani: true },
+  { theme: "pastoral", bpm: 78, tex: "rolled", lead: null, t: 0, dyn: 0.7 },
+  { theme: "pastoral", bpm: 84, tex: "arp", lead: "flute", t: 0, dyn: 0.85 },
+  { theme: "nocturne", bpm: 63, tex: "nocturne", lead: "piano", t: 0, dyn: 0.7 },
+  { theme: "march", bpm: 100, tex: "pizz", lead: "horn", t: 0, dyn: 1, timpani: true },
+  { theme: "lament", bpm: 66, tex: "chorale", lead: "strings", t: 0, dyn: 0.75 },
+  { theme: "pastoral", bpm: 88, tex: "waltz", lead: "flute", t: 5, dyn: 0.85 },
+  { theme: "heroic", bpm: 92, tex: "rolled", lead: "horn", t: 5, dyn: 1, timpani: true },
+  { theme: "nocturne", bpm: 60, tex: "nocturne", lead: "flute", t: -2, dyn: 0.65 },
+  { theme: "lament", bpm: 72, tex: "arp", lead: "piano", t: -2, dyn: 0.8 },
+  { theme: "march", bpm: 104, tex: "pizz", lead: "strings", t: 5, dyn: 1, timpani: true },
+  { theme: "heroic", bpm: 86, tex: "chorale", lead: "horn", t: 0, dyn: 0.9, timpani: true },
+  { theme: "pastoral", bpm: 80, tex: "waltz", lead: "piano", t: -2, dyn: 0.75 },
+  { theme: "lament", bpm: 66, tex: "rolled", lead: "flute", t: 5, dyn: 0.7 },
+  { theme: "nocturne", bpm: 63, tex: "nocturne", lead: "piano", t: 5, dyn: 0.65 },
+  { theme: "march", bpm: 100, tex: "pizz", lead: "horn", t: -2, dyn: 1, timpani: true },
+  { theme: "pastoral", bpm: 84, tex: "arp", lead: "strings", t: 0, dyn: 0.85 },
+  { theme: "heroic", bpm: 90, tex: "rolled", lead: "strings", t: 0, dyn: 1, timpani: true },
+  { theme: "pastoral", bpm: 76, tex: "chorale", lead: "flute", t: 0, dyn: 0.7 },
 ];
 
 // ------------------------------------------------------------ synthesis
@@ -302,64 +340,145 @@ function voicing(pcs, root, center, count) {
   return notes;
 }
 
+/** Harp rhythms for "arp", as [chord tone, beats]. */
+const ARP = {
+  3: [
+    [[0, 0.5], [2, 0.5], [3, 0.5], [4, 0.5], [3, 0.5], [2, 0.5]],
+    [[0, 1], [3, 0.5], [4, 0.5], [2, 1]],
+    [[0, 0.5], [2, 0.5], [4, 2]],
+    [[1, 1.5], [3, 0.5], [4, 1]],
+  ],
+  4: [
+    [[0, 1], [2, 0.5], [3, 0.5], [4, 1], [2, 1]],
+    [[0, 0.5], [2, 0.5], [4, 1], [3, 2]],
+  ],
+};
+
+/** "nocturne" left-hand figures, as [beat, chord tone]; 0 is the bass. */
+const NOCTURNE = [
+  [[0, 0], [1, 2], [2, 3], [3, 2]],
+  [[0, 0], [1.5, 3], [2.5, 4]],
+  [[0, 0], [1, 1], [2, 3], [2.5, 4], [3.5, 3]],
+  [[0, 0], [2, 2], [2, 3]],
+];
+
 /** Renders `seconds` of music as interleaved 16-bit stereo PCM. */
 export function renderMusic(seconds, seed = 3) {
   const rand = rng(seed);
   const mix = new Mix(seconds);
   const human = () => (rand() - 0.5) * 0.012;
+  const strum = (t, notes, gain, step = 0.035) =>
+    notes.forEach((m, i) => mix.put(t + i * step + human(), pluck(m, 3, rand, 0.4), -0.4 + (i / notes.length) * 0.8, gain, 0.4));
+
   let t = 1.0; // a breath of silence under the title card
-  let section = 0;
-  while (t < seconds) {
-    const sec = ORDER[section % ORDER.length];
+  for (let s = 0; t < seconds; s++) {
+    const sec = ORDER[s % ORDER.length];
     const theme = THEMES[sec.theme];
+    const meter = theme.meter;
     const tonic = 62 + sec.t; // D, or G (+5), or C (-2)
     for (let bar = 0; bar < 16 && t < seconds; bar++) {
+      // Tempo: a gentle slowing over the last two bars, then a breath.
+      const slow = bar >= 14 ? 1 + 0.12 * (bar - 13) : 1;
+      const beat = (60 / sec.bpm) * slow;
+      const barLen = meter * beat;
+      const cadence = bar % 4 === 3;
+      // Loudness: the section's level, swelling over each four-bar phrase.
+      const dyn = sec.dyn * (0.8 + 0.2 * Math.sin((Math.PI * ((bar % 4) + 0.5)) / 4));
+
       const pcs = CH[theme.chords[bar]];
       const root = tonic + pcs[0];
-
-      // Harp: rising and falling arpeggio in eighths.
-      const arp = voicing(pcs, tonic, 57, 5);
-      const pattern = [0, 2, 3, 4, 3, 2];
-      pattern.forEach((k, i) => {
-        const note = arp[k] ?? arp[0];
-        mix.put(t + i * (BEAT / 2) + human(), pluck(note, 2.4, rand, 0.45), -0.35 + k * 0.15, 0.16, 0.35);
-      });
-
-      // String pad: the chord, sustained over the bar.
-      for (const [i, note] of voicing(pcs, tonic, 64, 4).entries()) {
-        mix.put(t, bowed(note, BAR, { voices: 3, detune: 8, cutoff: 1500, attack: 0.45, release: 0.6, vib: 0.003, rand }), -0.5 + i * 0.33, 0.035, 0.5);
-      }
-
-      // Cello: the root, dotted half or half + quarter.
       const bass = 38 + ((((root - 38) % 12) + 12) % 12);
-      if (bar % 2 === 0) mix.put(t, bowed(bass, BAR * 0.95, { voices: 2, detune: 5, cutoff: 700, attack: 0.12, release: 0.35, vib: 0.002, rand }), 0.1, 0.09, 0.3);
-      else {
-        mix.put(t, bowed(bass, BEAT * 1.9, { voices: 2, detune: 5, cutoff: 700, attack: 0.1, release: 0.3, vib: 0.002, rand }), 0.1, 0.09, 0.3);
-        mix.put(t + 2 * BEAT, bowed(bass + 7 > 50 ? bass - 5 : bass + 7, BEAT * 0.9, { voices: 2, detune: 5, cutoff: 700, attack: 0.08, release: 0.25, vib: 0.002, rand }), 0.1, 0.08, 0.3);
+      const chord = voicing(pcs, tonic, 57, 5);
+      const pad = (gain, attack = 0.45) => {
+        for (const [i, note] of voicing(pcs, tonic, 64, 4).entries()) {
+          mix.put(t, bowed(note, barLen, { voices: 3, detune: 8, cutoff: 1500, attack, release: 0.7, vib: 0.003, rand }), -0.5 + i * 0.33, gain * dyn, 0.5);
+        }
+      };
+      const cello = (at, dur, gain = 0.09) =>
+        mix.put(at, bowed(bass, dur, { voices: 2, detune: 5, cutoff: 700, attack: 0.15, release: 0.4, vib: 0.002, rand }), 0.1, gain * dyn, 0.3);
+
+      switch (sec.tex) {
+        case "arp": {
+          if (cadence) strum(t, chord, 0.13 * dyn);
+          else {
+            let at = t;
+            for (const [k, beats] of ARP[meter][(bar + s) % ARP[meter].length]) {
+              mix.put(at + human(), pluck(chord[k] ?? chord[0], 2.4, rand, 0.45), -0.35 + k * 0.15, 0.16 * dyn, 0.35);
+              at += beats * beat;
+            }
+          }
+          pad(0.03);
+          if (bar % 2 === 0) cello(t, barLen * 2 * 0.95);
+          break;
+        }
+        case "rolled": {
+          if (bar % 2 === 0) strum(t, chord, 0.15 * dyn, 0.05);
+          else if (!cadence) mix.put(t + (meter - 1) * beat, pluck(chord[4] + 12, 2.5, rand, 0.4), 0.3, 0.1 * dyn, 0.45);
+          pad(0.03, 0.8);
+          if (bar % 2 === 0) cello(t, barLen * 2 * 0.95, 0.1);
+          break;
+        }
+        case "waltz": {
+          mix.put(t + human(), piano(bass, 2.5, 0.8), -0.1, 0.12 * dyn, 0.35);
+          const upper = voicing(pcs, tonic, 57, 3);
+          if (cadence) for (const m of upper) mix.put(t + beat + human(), piano(m, 2.8, 0.5), 0, 0.09 * dyn, 0.35);
+          else
+            for (let b = 1; b < meter; b++) for (const m of upper) mix.put(t + b * beat + human(), piano(m, 1.2, 0.45), 0, 0.08 * dyn, 0.35);
+          pad(0.02);
+          break;
+        }
+        case "chorale": {
+          pad(0.05, 0.9);
+          cello(t, barLen * 0.98, 0.11);
+          break;
+        }
+        case "pizz": {
+          const pz = (at, m, gain, pan) => mix.put(at + human(), pluck(m, 0.9, rand, 0.8), pan, gain * dyn, 0.25);
+          const upper = voicing(pcs, tonic, 60, 2);
+          for (let b = 0; b < meter; b++) {
+            if (cadence && b > 0) break;
+            if (b % 2 === 0) pz(t + b * beat, b === 0 ? bass : bass + 7, 0.22, 0.1);
+            else for (const m of upper) pz(t + b * beat, m, 0.12, -0.2);
+          }
+          if (cadence) pad(0.03);
+          break;
+        }
+        case "nocturne": {
+          const lh = voicing(pcs, tonic, 52, 5);
+          for (const [b, k] of NOCTURNE[(bar * 3 + s) % NOCTURNE.length]) {
+            const m = k === 0 ? bass + 12 : lh[k] ?? lh[0];
+            mix.put(t + b * beat + human(), piano(m, 3, k === 0 ? 0.75 : 0.5), -0.15, 0.1 * dyn, 0.45);
+          }
+          pad(0.015, 1.2);
+          break;
+        }
       }
 
-      // Timpani at the start of each four-bar phrase in heroic sections.
-      if (sec.timpani && bar % 4 === 0) {
-        mix.put(t, timpani(bass + 12 > 52 ? bass : bass + 12, 2.2, rand), 0, 0.22, 0.4);
-        if (bar % 8 === 4) mix.put(t + 2 * BEAT, timpani(bass + 7, 1.6, rand), 0, 0.14, 0.4);
+      // Timpani: a stroke at the start of each phrase, and a roll into the last bar.
+      if (sec.timpani) {
+        const tp = bass + 12 > 52 ? bass : bass + 12;
+        if (bar % 4 === 0) mix.put(t, timpani(tp, 2.2, rand), 0, 0.22 * dyn, 0.4);
+        if (bar === 14) for (let r = 0; r < 8; r++) mix.put(t + (meter - 1) * beat + (r * beat) / 8, timpani(tp, 0.6, rand), 0, (0.05 + r * 0.012) * dyn, 0.4);
       }
 
       // Lead.
       if (sec.lead) {
         let at = t;
         for (const [m, beats] of theme.melody[bar]) {
-          const note = m + sec.t;
-          const dur = beats * BEAT;
-          if (sec.lead === "flute") mix.put(at + human(), flute(note + 12, dur * 0.95, rand), 0.15, 0.07, 0.45);
-          else if (sec.lead === "piano") mix.put(at + human(), piano(note, Math.max(2.5, dur + 1.5), 0.9), 0.05, 0.11, 0.4);
-          else if (sec.lead === "horn") mix.put(at + human(), bowed(note - 12, dur * 0.92, { voices: 2, detune: 4, cutoff: 1100, attack: 0.09, release: 0.25, vib: 0.0025, q: 0.8, rand }), -0.1, 0.1, 0.45);
-          else mix.put(at + human(), bowed(note, dur * 0.97, { voices: 4, detune: 10, cutoff: 2600, attack: 0.15, release: 0.4, vib: 0.005, rand }), -0.2, 0.07, 0.5);
+          const dur = beats * beat;
+          if (m !== null) {
+            const note = m + sec.t;
+            if (sec.lead === "flute") mix.put(at + human(), flute(note + 12, dur * 0.95, rand), 0.15, 0.07 * dyn, 0.45);
+            else if (sec.lead === "piano") mix.put(at + human(), piano(note, Math.max(2.5, dur + 1.5), 0.9), 0.05, 0.11 * dyn, 0.4);
+            else if (sec.lead === "horn") mix.put(at + human(), bowed(note - 12, dur * 0.92, { voices: 2, detune: 4, cutoff: 1100, attack: 0.09, release: 0.25, vib: 0.0025, q: 0.8, rand }), -0.1, 0.1 * dyn, 0.45);
+            else mix.put(at + human(), bowed(note, dur * 0.97, { voices: 4, detune: 10, cutoff: 2600, attack: 0.15, release: 0.4, vib: 0.005, rand }), -0.2, 0.07 * dyn, 0.5);
+          }
           at += dur;
         }
       }
-      t += BAR;
+      t += barLen;
     }
-    section++;
+    t += 60 / sec.bpm; // a beat of breath between sections
   }
 
   // Reverb, level, fades, soft limit.

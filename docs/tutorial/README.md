@@ -87,11 +87,22 @@ for a dry run that only checks the script.
 
 [`music.mjs`](music.mjs) composes and synthesizes the background music; there are no samples or audio
 files. It is an original piece written for this video in the spirit of the Heroes III soundtrack:
-pastoral and classical, in 3/4 at 84 bpm, in D major with a borrowed flat-VII chord. Three 16-bar themes
-(pastoral, lament, heroic) rotate through three keys. Each has harp arpeggios (Karplus-Strong), a
-string pad, a cello bass and a lead that changes between flute, piano, horn and strings, with timpani in
-the heroic sections and a Freeverb-style hall. None of the game's music is used or quoted. It is mixed
-at about -20 dBFS RMS with fades.
+pastoral and classical, in D major with a borrowed flat-VII chord. Five 16-bar themes (pastoral, lament
+and heroic in 3/4, a march and a nocturne in 4/4) go through 18 sections in three keys. Each section has
+its own tempo (60 to 104 bpm, slowing into a breath at the end), loudness and accompaniment texture, so
+no rhythm keeps running:
+
+- harp broken chords in four rhythms
+- rolled harp chords over long cello notes
+- a piano waltz
+- a sustained string chorale
+- a pizzicato march with timpani
+- a wandering nocturne left hand
+
+Every fourth bar settles on a held or rolled chord, and each four-bar phrase swells and eases. The lead
+moves between flute, piano, horn and strings. Harp and pizzicato are Karplus-Strong strings, and
+everything plays in a Freeverb-style hall. None of the game's music is used or quoted. It is mixed at
+about -20 dBFS RMS with fades.
 
 To redo only the music on an existing recording (needs its `timeline.json`):
 
