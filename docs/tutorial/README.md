@@ -12,7 +12,8 @@ art in it has its own licenses, see [NOTICE.md](../../NOTICE.md)).
 | [`scenes.mjs`](scenes.mjs) | The 16 steps: what is clicked and typed, and every annotation |
 | [`overlay.js`](overlay.js) | The annotation layer injected into the page: step chip, lower third, highlight boxes, callouts, arrows, cursor, title and closing cards |
 | [`demo.mjs`](demo.mjs) | The made-up demo scenario typed in the video |
-| [`music.mjs`](music.mjs) | The original background music: score, synthesizer and the mix into the video and clips |
+| [`score.mjs`](score.mjs) | The background music's score: five original pieces, written as themes and variations |
+| [`music.mjs`](music.mjs) | Turns the score into sound (harmony, counterpoint, instruments, hall) and mixes it into the video and clips |
 
 ## What the video covers
 
@@ -85,24 +86,36 @@ for a dry run that only checks the script.
 
 ## Music
 
-[`music.mjs`](music.mjs) composes and synthesizes the background music; there are no samples or audio
-files. It is an original piece written for this video in the spirit of the Heroes III soundtrack:
-pastoral and classical, in D major with a borrowed flat-VII chord. Five 16-bar themes (pastoral, lament
-and heroic in 3/4, a march and a nocturne in 4/4) go through 18 sections in three keys. Each section has
-its own tempo (60 to 104 bpm, slowing into a breath at the end), loudness and accompaniment texture, so
-no rhythm keeps running:
+The background music is original: five short pieces composed for this video, written down in
+[`score.mjs`](score.mjs) and synthesized by [`music.mjs`](music.mjs) (no samples or audio files). None
+of the game's music is used or quoted. They borrow the principles that make the Heroes III soundtrack
+work, not its notes:
 
-- harp broken chords in four rhythms
-- rolled harp chords over long cello notes
-- a piano waltz
-- a sustained string chorale
-- a pizzicato march with timpani
-- a wandering nocturne left hand
+- **One motif, developed.** Each piece is a set of variations on a central motif: sequenced to other
+  degrees, inverted, ornamented, slowed down, moved to new keys (dominant, relative minor, a step up for
+  the climax). Nothing repeats literally.
+- **Counterpoint.** A second voice answers the melody. It holds while the melody moves, and moves by step
+  (against the melody's direction) while the melody holds. The bass walks between chords.
+- **Harmony.** Sevenths, suspensions, secondary dominants, borrowed chords (minor iv, flat VII) and modal
+  colour (Lydian, Dorian), voice-led so inner voices move smoothly.
+- **A journey in about two minutes.** Each piece starts quietly, builds through changing textures to a
+  climax (timpani roll, choir) and settles. Tempo pushes and broadens with the phrase; dynamics swell.
+- **Changing colour.** The melody passes between flute, oboe, clarinet, bassoon, violins, horn, cello,
+  piano and celesta. Accompaniments change per variation: harp figures, rolled chords, Alberti piano,
+  pizzicato, driving string eighths, tremolo, impressionist piano chords, music box, choir.
 
-Every fourth bar settles on a held or rolled chord, and each four-bar phrase swells and eases. The lead
-moves between flute, piano, horn and strings. Harp and pizzicato are Karplus-Strong strings, and
-everything plays in a Freeverb-style hall. None of the game's music is used or quoted. It is mixed at
-about -20 dBFS RMS with fades.
+| Piece | Steps it plays under | Character |
+| --- | --- | --- |
+| Brindlemere at dawn | 1 to 3 | pastoral 3/4 in D: oboe theme, a minor-key bassoon episode, a full string climax |
+| The mapmaker's study | 4 and 5 | Lydian F, 4/4: piano and celesta, flute over harp, choir climax |
+| Riders at the ford | 6 and 7 | G major: clarinet, then horns over driving strings, a lift to A |
+| Marsh lanterns | 8 to 13 | Dorian E: playful bassoon over tremolo and pizzicato, a lyrical oboe trio in G |
+| Banners over the ford | 14 to 16 | D major finale: horns and strings, a turn to F, the opening motif returns at the end |
+
+Each piece starts when its first step starts, and its tempo (within 12%), optional variations and
+repeats are fitted to the time until the next one. Everything plays in a Freeverb-style hall, mixed at
+about -20 dBFS RMS with fades. `node docs/tutorial/music.mjs --check` checks that every chord parses
+and every melody fills its bars.
 
 To redo only the music on an existing recording (needs its `timeline.json`):
 
@@ -110,7 +123,7 @@ To redo only the music on an existing recording (needs its `timeline.json`):
 node docs/tutorial/music.mjs --out "$env:USERPROFILE\Videos\HoMM3-Scenario-Creator-tutorial"
 ```
 
-To listen to it on its own: `node docs/tutorial/music.mjs --wav music.wav --seconds 120`.
+To listen to it on its own: `node docs/tutorial/music.mjs --wav music.wav --seconds 688 --timeline <recording>/timeline.json`.
 
 ## How it works
 
