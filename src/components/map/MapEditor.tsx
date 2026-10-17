@@ -233,7 +233,8 @@ export function MapEditor() {
             type="button"
             className="btn small danger"
             onClick={() => {
-              if (layout.tiles.length && !window.confirm(`Delete the layout "${layout.name}" and its ${layout.tiles.length} tiles?`)) return;
+              const what = [tiles.length && plural(tiles.length, "tile"), tokens.length && plural(tokens.length, "token")].filter(Boolean).join(" and ");
+              if (what && !window.confirm(`Delete the layout "${layout.name}" and its ${what}?`)) return;
               update((d) => void d.maps.splice(index, 1));
               setLayoutIndex(Math.max(0, index - 1));
               setSelected([]);
