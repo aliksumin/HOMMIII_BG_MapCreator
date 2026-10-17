@@ -6,6 +6,7 @@ import type { Scenario } from "../model/types.ts";
 import { connectedGroups } from "./hex.ts";
 import { countTiles } from "./document.ts";
 import { scenarioToLatex } from "./latex.ts";
+import { brokenRefs, paragraphRefs } from "./storybook.ts";
 
 export interface Finding {
   level: "error" | "warning";
@@ -43,6 +44,7 @@ export function lintScenario(s: Scenario): Finding[] {
   if (!s.lore.trim()) warn("story", "Add one or two paragraphs of flavor text.");
   if (s.rounds === null) err("setup", "Set the Scenario Length in Rounds.");
   if (!s.playerCounts.length && s.category !== "campaigns") err("setup", "Choose the player counts.");
+  if (s.category === "solo" && s.playerCounts.join() !== "1") warn("setup", "A Solo Scenario is for 1 player.");
   if (!s.victory.trim()) err("conditions", "Write the Victory Conditions.");
   if (!s.defeat.trim()) warn("conditions", "Write the Defeat Conditions (or say there are none).");
 
@@ -64,6 +66,22 @@ export function lintScenario(s: Scenario): Finding[] {
         warn("map", `Map Setup lists ${c.n} ${key} Tiles but the first map has ${counts[key]}.`);
       }
     }
+  }
+
+  // Story book: every §n must lead to a paragraph, and every paragraph should be reachable.
+  const paragraphs = s.storyBook.paragraphs;
+  const refs = paragraphRefs(s);
+  for (const n of [...refs.keys()].sort((a, b) => a - b)) {
+    if (n < 1 || n > paragraphs.length) err("storybook", `The text refers to §${n}, but there is no paragraph ${n}.`);
+  }
+  const broken = brokenRefs(s);
+  if (broken) err("storybook", `${broken} reference${broken === 1 ? "" : "s"} (§?) still point${broken === 1 ? "s" : ""} to a removed paragraph.`);
+  paragraphs.forEach((p, i) => {
+    if (!p.text.trim()) warn("storybook", `Paragraph §${i + 1} is empty.`);
+    else if (!refs.has(i + 1)) warn("storybook", `Nothing leads to paragraph §${i + 1}.`);
+  });
+  if (s.category === "solo" && !paragraphs.length && !s.storyBook.locations.length) {
+    warn("storybook", "Solo Scenarios usually have Story Locations that lead to numbered paragraphs.");
   }
 
   for (const f of capsFindings(scenarioToLatex(s))) {

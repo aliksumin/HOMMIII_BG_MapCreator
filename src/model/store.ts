@@ -15,6 +15,7 @@ export type StepId =
   | "conditions"
   | "events"
   | "rules"
+  | "storybook"
   | "review";
 
 export const STEPS: readonly { id: StepId; label: string; hint: string }[] = [
@@ -27,6 +28,7 @@ export const STEPS: readonly { id: StepId; label: string; hint: string }[] = [
   { id: "conditions", label: "Victory & Defeat", hint: "How the Scenario is won and lost" },
   { id: "events", label: "Timed Events", hint: "What happens in which Round" },
   { id: "rules", label: "Rules", hint: "Additional rules and own sections" },
+  { id: "storybook", label: "Story Book", hint: "Story Locations and numbered paragraphs" },
   { id: "review", label: "Review & Export", hint: "Check, preview, download" },
 ];
 

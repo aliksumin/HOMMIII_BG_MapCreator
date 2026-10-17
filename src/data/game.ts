@@ -12,16 +12,26 @@ export interface CategoryInfo {
   /** the macro the category main.tex uses for its directory */
   pathMacro: string;
   blurb: string;
+  /** the card picture, under public/ */
+  art: string;
 }
 
 export const CATEGORIES: readonly CategoryInfo[] = [
-  { key: "clash", label: "Clash", kind: "Clash Scenario", pathMacro: "clashpath", blurb: "Competitive, player against player." },
+  {
+    key: "clash",
+    label: "Clash",
+    kind: "Clash Scenario",
+    pathMacro: "clashpath",
+    blurb: "Competitive, player against player.",
+    art: "assets/layout/clash.webp",
+  },
   {
     key: "coops",
     label: "Cooperative",
     kind: "Cooperative Scenario",
     pathMacro: "coopspath",
     blurb: "Players together against the Scenario.",
+    art: "assets/layout/coops.webp",
   },
   {
     key: "alliances",
@@ -29,6 +39,7 @@ export const CATEGORIES: readonly CategoryInfo[] = [
     kind: "Alliance Scenario",
     pathMacro: "alliancespath",
     blurb: "Teams of allies, usually 2 against 2.",
+    art: "assets/layout/alliance.webp",
   },
   {
     key: "campaigns",
@@ -36,6 +47,16 @@ export const CATEGORIES: readonly CategoryInfo[] = [
     kind: "Campaign",
     pathMacro: "campaignspath",
     blurb: "One chapter of a linked story, often solo against an AI Hero.",
+    art: "assets/layout/campaigns.webp",
+  },
+  {
+    // The mission book has no solo section yet; the export guide says how to add one.
+    key: "solo",
+    label: "Solo",
+    kind: "Solo Scenario",
+    pathMacro: "solopath",
+    blurb: "One player and a story book of numbered paragraphs.",
+    art: "assets/layout/solo.webp",
   },
 ];
 

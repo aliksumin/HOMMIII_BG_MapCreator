@@ -24,7 +24,7 @@ export function newScenario(category: Category = "clash"): Scenario {
     lore: "",
     rounds: 12,
     roundsNote: "",
-    playerCounts: [2],
+    playerCounts: category === "solo" ? [1] : [2],
     faction: "",
     factionHero: "",
     resources: { gold: 10, building_materials: 2, valuables: 1 },
@@ -37,7 +37,7 @@ export function newScenario(category: Category = "clash"): Scenario {
     mapSetup: {
       auto: true,
       counts: {
-        starting: { n: 2, perPlayer: false },
+        starting: { n: category === "solo" ? 1 : 2, perPlayer: false },
         far: { n: 4, perPlayer: false },
         near: { n: 2, perPlayer: false },
         center: { n: 1, perPlayer: false },
@@ -53,6 +53,7 @@ export function newScenario(category: Category = "clash"): Scenario {
     rules: [],
     customSections: [],
     story: "",
+    storyBook: { locations: [], locationsNote: "", specialTiles: [], paragraphs: [] },
     maps: [newMapLayout()],
     updatedAt: new Date().toISOString(),
   };
@@ -74,6 +75,7 @@ export function upgradeScenario(input: Partial<Scenario>): Scenario {
     tilePool: { ...base.tilePool, ...input.tilePool },
     bonus: { ...base.bonus, ...input.bonus },
     aiHero: { ...base.aiHero, ...input.aiHero },
+    storyBook: { ...base.storyBook, ...input.storyBook },
     mapSetup: {
       ...base.mapSetup,
       ...input.mapSetup,

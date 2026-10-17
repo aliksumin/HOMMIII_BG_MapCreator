@@ -10,6 +10,7 @@ import { StepReview } from "./components/steps/StepReview.tsx";
 import { StepRules } from "./components/steps/StepRules.tsx";
 import { StepSetup } from "./components/steps/StepSetup.tsx";
 import { StepStory } from "./components/steps/StepStory.tsx";
+import { StepStoryBook } from "./components/steps/StepStoryBook.tsx";
 import { Welcome } from "./components/Welcome.tsx";
 import { assetUrl } from "./data/catalog.ts";
 import { PROJECT_EXTENSION, projectJson } from "./lib/bundle.ts";
@@ -18,7 +19,7 @@ import { download } from "./lib/images.ts";
 import { lintScenario } from "./lib/lint.ts";
 import { STEPS, type StepId, useStore } from "./model/store.ts";
 
-const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI"];
 
 const VIEWS: Record<StepId, () => React.JSX.Element> = {
   basics: StepBasics,
@@ -30,6 +31,7 @@ const VIEWS: Record<StepId, () => React.JSX.Element> = {
   conditions: StepConditions,
   events: StepEvents,
   rules: StepRules,
+  storybook: StepStoryBook,
   review: StepReview,
 };
 

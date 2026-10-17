@@ -2,7 +2,7 @@
 // what the project file (.scenario.json) holds, and what every exporter reads.
 
 /** The mission book's scenario directories, which are also its categories. */
-export type Category = "clash" | "coops" | "alliances" | "campaigns";
+export type Category = "clash" | "coops" | "alliances" | "campaigns" | "solo";
 
 export type ResourceKey = "gold" | "building_materials" | "valuables";
 
@@ -66,6 +66,33 @@ export interface CustomSection {
   text: string;
   /** bullets (markup) */
   items: string[];
+}
+
+/** A Story Location or Special Tile entry: a bold name and what happens there (markup). */
+export interface StoryEntry {
+  id: string;
+  /** e.g. "Witch Hut", or "F5 Mystical Garden" for a Special Tile */
+  title: string;
+  text: string;
+}
+
+/** One numbered paragraph of the story book; its number is its position, from 1. */
+export interface StoryParagraph {
+  id: string;
+  /** markup; "§12" refers to paragraph 12 */
+  text: string;
+}
+
+/**
+ * The story book of a solo Scenario (as in the official Naval Battles mission
+ * book): locations and tiles send the player to numbered paragraphs.
+ */
+export interface StoryBook {
+  locations: StoryEntry[];
+  /** printed after the Story Locations, e.g. "Whenever you visit one of the locations above..." */
+  locationsNote: string;
+  specialTiles: StoryEntry[];
+  paragraphs: StoryParagraph[];
 }
 
 export interface TitleImage {
@@ -142,6 +169,8 @@ export interface Scenario {
   customSections: CustomSection[];
   /** campaigns: The Story, on its own page */
   story: string;
+  /** Story Locations, Special Tiles and Paragraphs, on the story page */
+  storyBook: StoryBook;
 
   maps: MapLayout[];
   updatedAt: string;

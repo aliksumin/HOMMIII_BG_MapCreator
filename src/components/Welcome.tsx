@@ -62,7 +62,7 @@ export function Welcome() {
                 type="button"
                 key={c.key}
                 className="category-card"
-                style={{ backgroundImage: `url(${assetUrl(`assets/layout/${c.key === "alliances" ? "alliance" : c.key}.webp`)})` }}
+                style={{ backgroundImage: `url(${assetUrl(c.art)})` }}
                 onClick={() => start(c.key)}
               >
                 <span className="category-name">{c.label}</span>

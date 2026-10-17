@@ -11,13 +11,15 @@ interface Props {
   plain?: boolean;
   autoFocus?: boolean;
   className?: string;
+  /** how many story book paragraphs there are; when set, a § menu inserts a reference to one */
+  paragraphs?: number;
 }
 
 /**
  * A text input that accepts the editor markup (**bold**, *italic*, :glyph:),
  * with a small toolbar that inserts it for the contributor.
  */
-export function MarkupField({ value, onChange, multiline, rows = 3, placeholder, plain, autoFocus, className }: Props) {
+export function MarkupField({ value, onChange, multiline, rows = 3, placeholder, plain, autoFocus, className, paragraphs }: Props) {
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
 
   const wrap = (before: string, after = before) => {
@@ -68,6 +70,21 @@ export function MarkupField({ value, onChange, multiline, rows = 3, placeholder,
             <i>I</i>
           </button>
           <GlyphPicker onPick={(name) => insert(`:${name}:`)} />
+          {!!paragraphs && (
+            <select
+              className="ref-picker"
+              title="Insert a reference to a paragraph"
+              value=""
+              onChange={(e) => e.target.value && insert(`read §${e.target.value}.`)}
+            >
+              <option value="">§ Read…</option>
+              {Array.from({ length: paragraphs }, (_, i) => (
+                <option key={i} value={i + 1}>
+                  read §{i + 1}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
     </div>
