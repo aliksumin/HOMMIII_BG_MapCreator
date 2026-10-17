@@ -195,7 +195,6 @@ export const RULE_CHIPS: readonly string[] = [
   "Ignore all yellow borders on Starting Tiles.",
   "Players cannot attack the Heroes of other players.",
   "Players can trade resources when their Heroes stand on adjacent Fields.",
-  "Neutral Units do not respawn.",
   "Astrologers Proclaim Cards are not used.",
 ];
 

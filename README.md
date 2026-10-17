@@ -16,33 +16,40 @@ It exports exactly what a Mission Book pull request needs, plus a PDF:
 | `<name>.scenario.json` | the project file, to reopen and keep editing |
 | `HOW-TO-SUBMIT.md` | the line to add to `main.tex` and the build/PR steps |
 
+## Tutorial video
+
+[![Scenario Creator tutorial on YouTube](https://img.youtube.com/vi/akaf_XUwnU0/maxresdefault.jpg)](https://youtu.be/akaf_XUwnU0)
+
+[Watch the 11-minute tutorial on YouTube](https://youtu.be/akaf_XUwnU0). It goes through every step of a demo scenario,
+from the start screen and the map editor to the checks and the Mission Book bundle.
+
 ## The steps
 
-1. **Basics** - name, type (Clash, Cooperative, Alliance, Campaign), heading line, rating, author, source, title icon.
-2. **Story** - italic flavor text; optional long "The Story" page.
-3. **Player Setup** - Rounds, player counts, Starting Resources and Income (on the income track), Starting Units,
-   Town Buildings, Map Tile Pool, Bonus.
-4. **Map** - hex map editor: face-down (I, II-III, IV-V, VI-VII) and printed tiles of every expansion, drag and drop,
-   rotate, faction borders, cubes, Heroes, location tokens, Creature Banks, blocked Fields; several layouts per
-   scenario (e.g. one per player count); import/export `.map`; PNG export.
-5. **Map Setup** - tile list counted from the map (or typed, also per player as `2P`), notes, Heroes Placement.
+1. **Basics** - Basic parameters of the scenario like name, type (Clash, Cooperative, Alliance, Campaign, Solo), heading line, complexity of the scenario, author, source, title icon.
+2. **Story** - Narrative story behind the scenario; optional long Story page for campaign or story based scenarios.
+3. **Player Setup** - Rounds, player counts, Starting Resources and Income, Starting Units,
+   Town Buildings, Map Tile Pool, Bonuses.
+4. **Map** - hex map editor for creating and exporting the scenario map.
+5. **Map Setup** - tile list counted from the map (or typed), notes, Heroes Placement.
 6. **AI Opponent** - AI Hero Setup for campaigns and coops.
-7. **Victory & Defeat**
-8. **Timed Events** - by Round, with repeats.
-9. **Rules** - Additional Rules and your own sections.
+7. **Victory & Defeat** - Victory conditions.
+8. **Timed Events** - Description of the Timed Events.
+9. **Rules** - Additional Rules for the scenario.
 10. **Review & Export** - checklist (including the Mission Book capitalisation lint), live page preview, LaTeX, exports.
-
-Every text field takes a small markup instead of LaTeX: `**bold**`, `*italic*`, `:gold:` (any game icon,
-also from the Icon button), `"quotes"` and `--` for a dash.
 
 Work is saved automatically in the browser; use **Save file** to keep a project file.
 
 `examples/template-scenario/` holds a finished sample Scenario that uses every feature (open it with **Open the template**
 on the start screen); see its README.
 
-## Run it
+## Use it online
 
-Needs Node 24.
+Open **https://aliksumin.github.io/HOMMIII_BG_MapCreator/**. Nothing to install; your work stays in your browser
+(use **Save file** to keep a project file). The site is rebuilt from `main` on every merge.
+
+## Run it on your PC
+
+Needs Node 24. Clone the repository, then:
 
 ```bash
 npm ci
@@ -52,7 +59,17 @@ npm ci
 npm run dev
 ```
 
-Then open http://localhost:5173. Other scripts: `npm test` (unit tests for the `.map`, hex and LaTeX code),
+Then open http://localhost:5173.
+
+Without cloning: download `scenario-creator-<version>.zip` from the
+[Releases](https://github.com/aliksumin/HOMMIII_BG_MapCreator/releases) page, unzip it, and serve the folder
+(opening `index.html` straight from disk does not work, because browsers block the app's scripts on `file://`):
+
+```bash
+npx serve <unzipped-folder>
+```
+
+Other scripts: `npm test` (unit tests for the `.map`, hex and LaTeX code),
 `npm run typecheck`, `npm run build` (static site in `dist/`, works from any sub-path).
 
 ## Assets

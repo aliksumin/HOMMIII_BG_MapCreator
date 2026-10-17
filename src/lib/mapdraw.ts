@@ -58,6 +58,25 @@ export function tileImageUrl(tileId: string): string | null {
   return info ? assetUrl(info.img) : null;
 }
 
+/**
+ * Creature Bank and location token art is shown in a square this many board
+ * pixels wide, centred on its Field, with the picture fitted inside (never
+ * stretched). The community map editor draws a 150 px box scaled by 0.68.
+ */
+export const TOKEN_SIZE = 102;
+
+/** Location tokens whose art is turned a fixed amount before the Field rotation is applied (the Whirlpool is a flat-topped hex). */
+function baseRotation(tokenId: string): number {
+  return tokenId.startsWith("whirlpool-") ? 30 : 0;
+}
+
+/** Size of a picture of the given proportions fitted inside a square box (object-fit: contain). */
+export function fitContain(width: number, height: number, box: number): { w: number; h: number } {
+  if (!(width > 0) || !(height > 0)) return { w: box, h: box };
+  const k = box / Math.max(width, height);
+  return { w: width * k, h: height * k };
+}
+
 export type Overlay =
   | { kind: "token"; x: number; y: number; url: string; rotation: number; label: string }
   | { kind: "blocked"; x: number; y: number }
@@ -73,7 +92,10 @@ export function tileOverlays(tile: MapTile): Overlay[] {
     const bank = CREATURE_BANKS[tile.creaturebanks[f]];
     if (bank) out.push({ kind: "token", x: p.x, y: p.y, url: assetUrl(bank.img), rotation, label: bank.desc });
     const location = MAP_LOCATIONS[tile.mapLocations[f]];
-    if (location) out.push({ kind: "token", x: p.x, y: p.y, url: assetUrl(location.img), rotation, label: location.desc });
+    if (location) {
+      const turned = rotation + baseRotation(tile.mapLocations[f]);
+      out.push({ kind: "token", x: p.x, y: p.y, url: assetUrl(location.img), rotation: turned, label: location.desc });
+    }
     if (tile.blockedHex[f]) out.push({ kind: "blocked", x: p.x, y: p.y });
   }
   for (let f = 0; f < 7; f++) {
@@ -166,7 +188,9 @@ export async function renderMapPng(tiles: MapTile[], scale = 2): Promise<Blob> {
       if (o.kind === "token") {
         ctx.translate(o.x, o.y);
         ctx.rotate((o.rotation * Math.PI) / 180);
-        ctx.drawImage(await loadImage(o.url), -43, -50, 86, 100);
+        const img = await loadImage(o.url);
+        const { w, h } = fitContain(img.naturalWidth, img.naturalHeight, TOKEN_SIZE);
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
       } else if (o.kind === "blocked") {
         polygon(ctx, hexPoints(o.x, o.y, 0.92));
         ctx.fillStyle = "rgba(120, 0, 0, 0.35)";
