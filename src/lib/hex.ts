@@ -220,8 +220,11 @@ export interface Box {
   maxY: number;
 }
 
-/** Half the width of a token picture (TOKEN_SIZE in mapdraw), to fit tokens beside the tiles. */
-const TOKEN_HALF = 51;
+/**
+ * How far a token picture reaches from its Field centre at any rotation: the
+ * corner of its TOKEN_SIZE (102 px, see mapdraw) square, 51 * sqrt(2).
+ */
+const TOKEN_REACH = Math.ceil(51 * Math.SQRT2);
 
 /** The pixel box around every tile image and token; a seven-Field flower looks the same after any rotation. */
 export function boardBounds(tiles: MapTile[], tokens: readonly Piece[] = []): Box | null {
@@ -236,10 +239,10 @@ export function boardBounds(tiles: MapTile[], tokens: readonly Piece[] = []): Bo
   }
   for (const token of tokens) {
     const c = cellCenter(token.row, token.col);
-    box.minX = Math.min(box.minX, c.x - TOKEN_HALF);
-    box.maxX = Math.max(box.maxX, c.x + TOKEN_HALF);
-    box.minY = Math.min(box.minY, c.y - TOKEN_HALF);
-    box.maxY = Math.max(box.maxY, c.y + TOKEN_HALF);
+    box.minX = Math.min(box.minX, c.x - TOKEN_REACH);
+    box.maxX = Math.max(box.maxX, c.x + TOKEN_REACH);
+    box.minY = Math.min(box.minY, c.y - TOKEN_REACH);
+    box.maxY = Math.max(box.maxY, c.y + TOKEN_REACH);
   }
   return box;
 }

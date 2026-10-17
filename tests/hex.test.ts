@@ -132,6 +132,8 @@ test("the board box takes in tokens beside the tiles", () => {
   const withToken = boardBounds([a], [{ id: "t1", row: 8, col: 15 }]);
   assert.ok(tilesOnly && withToken);
   assert.ok(withToken.maxX > tilesOnly.maxX);
+  // room for the token picture turned to any angle
+  assert.ok(withToken.maxX >= cellCenter(8, 15).x + 51 * Math.SQRT2);
   assert.equal(withToken.minX, tilesOnly.minX);
   assert.equal(boardBounds([], []), null);
 });
