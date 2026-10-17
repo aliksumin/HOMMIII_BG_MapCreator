@@ -379,8 +379,10 @@ async function main() {
   if (!opt.noEncode && !fs.existsSync(ffmpegPath)) throw new Error(`No ffmpeg at ${ffmpegPath} (pass --ffmpeg or --no-encode).`);
 
   const server = opt.url ? { url: opt.url, proc: null } : await startServer();
-  const browser = await chromium.launch({ headless: !opt.headed });
+  let browser;
   try {
+    // Inside the try, so a failed launch still stops the dev server.
+    browser = await chromium.launch({ headless: !opt.headed });
     const context = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 1, acceptDownloads: true, locale: "en-GB" });
     await context.addInitScript({ path: path.join(HERE, "overlay.js") });
     const page = await context.newPage();
@@ -453,7 +455,7 @@ async function main() {
       console.log(`video: ${final}`);
     }
   } finally {
-    await browser.close();
+    await browser?.close().catch(() => {});
     server.proc?.kill();
   }
 }
