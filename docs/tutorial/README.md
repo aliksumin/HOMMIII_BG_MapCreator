@@ -11,31 +11,42 @@ art in it has its own licenses, see [NOTICE.md](../../NOTICE.md)).
 | [`capture.mjs`](capture.mjs) | Starts the dev server, drives the app, records, encodes, writes captions and storyboard |
 | [`scenes.mjs`](scenes.mjs) | The 16 steps: what is clicked and typed, and every annotation |
 | [`overlay.js`](overlay.js) | The annotation layer injected into the page: step chip, lower third, highlight boxes, callouts, arrows, cursor, title and closing cards |
-| [`demo.mjs`](demo.mjs) | The made-up demo scenario typed in the video |
+| [`demo.mjs`](demo.mjs) | The made-up demo scenario typed in the video: "The Flooded Ford", a small Clash kept to the rules (see below) |
 | [`score.mjs`](score.mjs) | The background music's score: keys, chords, the call, and what each on-screen event plays |
 | [`music.mjs`](music.mjs) | Scores the recording's events to sound (pad, pedal, bells, harp, swells, hall) and mixes it into the video and clips |
 
 ## What the video covers
 
-1. Welcome screen and starting a project
+1. Welcome screen: the online address, the five Scenario types (Solo included), the template, starting a project
 2. Basics: name, type, heading line, rating, author, title icon, live page
-3. Story: flavor text, the long Story
+3. Story: flavor text, the long Story, the story book (Story Locations, Special Tiles, numbered Paragraphs)
 4. Player Setup: Rounds, player counts, resources and income, Units, Town Buildings, tile pool, Bonus
-5. Map editor, placing tiles: face-down and printed tiles, click and drag-and-drop, search, moving, rotating,
-   the "falls apart" warning, zoom
-6. Map editor, tile details: faction borders, Fields, cubes, Heroes, location tokens (Monoliths),
-   Creature Banks, blocked Fields
+5. Map editor, placing tiles: face-down and printed tiles, click and drag-and-drop, search, the
+   duplicate-tile warning, moving, rotating, the "falls apart" warning, zoom
+6. Map editor, tile details: Fields, cubes in the players' colours, faction borders and Heroes (and when
+   to use them), a Monolith pair, a Random (Far) Creature Bank, a blocked Field
 7. Map editor, layouts and files: layout name, player counts and caption, Export `.map`, Export PNG,
-   a second layout filled by Import `.map`, Duplicate
+   a second layout filled by Import `.map` with a third Starting Tile, Duplicate
 8. Map Setup: counted tile list, own and per-player counts, notes, Heroes Placement
 9. AI Opponent
 10. Victory & Defeat
-11. Timed Events: Rounds, repeats
+11. Timed Events: an event repeating in three Rounds, two events in one Round
 12. Rules: Additional Rules, own sections
 13. Text markup and the Icon button
 14. Undo, autosave, Save file, reopening from the start screen
 15. Review & Export: checklist with the Mission Book capitalisation lint, page preview, LaTeX, How to submit
 16. Review & Export, the files: ZIP bundle, PDF, single files; closing card with where each file goes
+
+The demo follows the rules and published Mission Book maps, so it can be copied:
+- **Players choose their Factions.** The Starting Tiles are face-down, and a cube in each player's colour
+  marks whose start it is, as in the published "Close to Enemies" maps. No faction borders or Hero
+  portraits are placed; the video shows them and says when they apply.
+- **The Center Tile is C4.** The race is for the Grail in its middle. Its Mystical Garden is flooded (a
+  Blocked Field) until a Timed Event in the 6th Round. A second event, in the 3rd, 6th and 9th Rounds,
+  clears the Black Cubes from Mystical Gardens.
+- **The Monoliths come as a pair.** They join the two flanks.
+- **The Creature Bank uses the optional rule.** A Random (Far) token on a Far Tile, as the rulebook allows
+  (a Far bank, placed on the tile's Blocked Field once it is revealed).
 
 ## Re-record
 
@@ -68,8 +79,8 @@ Then, from the repository root (after `npm ci`):
 node docs/tutorial/capture.mjs --update-docs
 ```
 
-It takes about 12 minutes (the video plays in real time). Output, by default in
-`%USERPROFILE%\Videos\HoMM3-Scenario-Creator-tutorial`:
+It takes about 13 minutes (the video plays in real time). Output, by default in
+`HoMM3-Scenario-Creator-tutorial/` at the repository root (git ignores it):
 
 - `HoMM3-Scenario-Creator-tutorial.mp4`: 1440x810, 30 fps, H.264, background music (AAC), English soft
   subtitles and chapters
@@ -107,13 +118,15 @@ and close events share the space: the busier a moment, the softer each note. Eve
 eight-line feedback-delay hall (about 3.6 s). The accents set the level: bells and harp are rendered
 first and pinned at about -29 dB gated loudness, and the background (pad, pedal, swells, horns) sits
 just under them. It is light and distant: two voices per pad note, nothing below A2, a low cut, more
-hall. `MIX` in `score.mjs` sets each layer without moving the accents. Peaks stay under -3 dBFS. The colours are the Heroes III palette (harp, glass bells, warm strings, distant horns);
-the call and every chord are original, and none of the game's music is used or quoted.
+hall. `MIX` in `score.mjs` sets each layer without moving the accents. Peaks stay under -3 dBFS. The
+colours are the Heroes III palette (harp, glass bells, warm strings, distant horns); the call and every
+chord are original, and none of the game's music is used or quoted.
 
-To redo only the music on an existing recording (it needs that recording's `timeline.json`):
+To redo only the music on an existing recording (it needs that recording's `timeline.json`; `--out`
+defaults to `HoMM3-Scenario-Creator-tutorial/`):
 
 ```powershell
-node docs/tutorial/music.mjs --out "$env:USERPROFILEVideosHoMM3-Scenario-Creator-tutorial"
+node docs/tutorial/music.mjs --out HoMM3-Scenario-Creator-tutorial
 ```
 
 `--cues --timeline <timeline.json>` prints the cue sheet (time, sound, reason); `--wav music.wav
