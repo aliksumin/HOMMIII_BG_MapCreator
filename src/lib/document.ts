@@ -172,6 +172,37 @@ export function scenarioTitle(s: Scenario): string {
   return s.category === "campaigns" ? `${s.campaignIndex}. ${name}` : name;
 }
 
+/** Story Locations, Special Tiles and the numbered Paragraphs, as the solo mission book prints them. */
+function storyBookBlocks(s: Scenario): Block[] {
+  const book = s.storyBook;
+  const out: Block[] = [];
+  const locations = book.locations.filter((e) => e.title.trim() || e.text.trim());
+  if (locations.length || book.locationsNote.trim()) {
+    out.push({ k: "heading", text: "Story Locations" });
+    for (const e of locations) {
+      if (e.title.trim()) out.push({ k: "label", runs: md(e.title.trim()) });
+      out.push(...paraBlocks(e.text));
+    }
+    out.push(...paraBlocks(book.locationsNote));
+  }
+  const tiles = book.specialTiles.filter((e) => e.title.trim() || e.text.trim());
+  if (tiles.length) {
+    out.push({ k: "heading", text: "Special Tiles" });
+    for (const e of tiles) {
+      const [first = "", ...more] = paragraphs(e.text);
+      out.push({ k: "field", label: e.title.trim() || "Special Tile", runs: md(first) });
+      out.push(...more.map((p): Block => ({ k: "para", runs: md(p) })));
+    }
+  }
+  if (book.paragraphs.length) {
+    out.push({ k: "heading", text: "Paragraphs" });
+    book.paragraphs.forEach((p, i) => {
+      out.push({ k: "label", runs: [{ t: "text", s: `\u00a7${i + 1}` }] }, ...paraBlocks(p.text));
+    });
+  }
+  return out;
+}
+
 /** Lays the scenario out. */
 export function buildDocument(s: Scenario): ScenarioDoc {
   const body: Block[] = [];
@@ -325,6 +356,7 @@ export function buildDocument(s: Scenario): ScenarioDoc {
   }
 
   const story = s.story.trim() ? [{ k: "heading", text: "The Story" } as Block, ...paraBlocks(s.story)] : [];
+  story.push(...storyBookBlocks(s));
 
   return {
     kind: scenarioKind(s),
@@ -335,7 +367,7 @@ export function buildDocument(s: Scenario): ScenarioDoc {
     campaignToc: campaign && s.campaignIndex === 1 ? s.campaignName.trim() : "",
     body,
     maps: mapFiles(s),
-    story: campaign || story.length ? story : [],
+    story,
   };
 }
 

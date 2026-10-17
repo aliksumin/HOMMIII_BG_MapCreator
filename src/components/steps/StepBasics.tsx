@@ -8,13 +8,6 @@ import type { Rating } from "../../model/types.ts";
 import { Field, Panel, Segmented, Stepper, TextInput } from "../ui/Form.tsx";
 import { Glyph } from "../ui/Runs.tsx";
 
-const CATEGORY_ART: Record<string, string> = {
-  clash: "assets/layout/clash.webp",
-  coops: "assets/layout/coops.webp",
-  alliances: "assets/layout/alliance.webp",
-  campaigns: "assets/layout/campaigns.webp",
-};
-
 export function StepBasics() {
   const [s, update] = useScenario();
   const [filter, setFilter] = useState("");
@@ -34,11 +27,12 @@ export function StepBasics() {
               type="button"
               key={c.key}
               className={`category-card ${s.category === c.key ? "on" : ""}`}
-              style={{ backgroundImage: `url(${assetUrl(CATEGORY_ART[c.key])})` }}
+              style={{ backgroundImage: `url(${assetUrl(c.art)})` }}
               onClick={() =>
                 update((d) => {
                   d.category = c.key;
                   if (c.key === "campaigns") d.aiHero.enabled = true;
+                  if (c.key === "solo") d.playerCounts = [1];
                 })
               }
             >
