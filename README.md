@@ -39,7 +39,7 @@ from the start screen and the map editor to the checks and the Mission Book bund
 
 Work is saved automatically in the browser; use **Save file** to keep a project file.
 
-`examples/template-scenario/` holds a finished sample Scenario that uses every feature (open it with **Open the template**
+`examples/template-scenario/` holds a finished sample Scenario that uses nearly every feature (open it with **Open the template**
 on the start screen); see its README.
 
 ## Use it online

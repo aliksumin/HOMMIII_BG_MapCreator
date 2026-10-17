@@ -71,7 +71,7 @@ export function Welcome() {
             ))}
           </div>
           <p className="hint">
-            New here? Open the <b>template scenario</b>, a finished Campaign Scenario that uses every feature of the editor.{" "}
+            New here? Open the <b>template scenario</b>, a finished Campaign Scenario that uses nearly every feature of the editor.{" "}
             <button type="button" className="btn small" onClick={() => void openTemplate()}>
               Open the template
             </button>
