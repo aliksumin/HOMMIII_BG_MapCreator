@@ -18,9 +18,9 @@ It exports exactly what a Mission Book pull request needs, plus a PDF:
 
 ## Tutorial video
 
-[![Scenario Creator tutorial on YouTube](https://img.youtube.com/vi/akaf_XUwnU0/maxresdefault.jpg)](https://youtu.be/akaf_XUwnU0)
+[![Scenario Creator tutorial on YouTube](https://img.youtube.com/vi/E1P7PzS9f20/maxresdefault.jpg)](https://youtu.be/E1P7PzS9f20)
 
-[Watch the 11-minute tutorial on YouTube](https://youtu.be/akaf_XUwnU0). It goes through every step of a demo scenario,
+[Watch the 12-minute tutorial on YouTube](https://youtu.be/E1P7PzS9f20). It goes through every step of a demo scenario,
 from the start screen and the map editor to the checks and the Mission Book bundle.
 
 ## The steps
