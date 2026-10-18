@@ -12,6 +12,11 @@ import { STEPS, useScenario, useStore } from "../../model/store.ts";
 import { BookPage } from "../preview/BookPage.tsx";
 import { Panel } from "../ui/Form.tsx";
 
+/** Lets long paths and file names wrap after "/" and "_" instead of spilling out of their button. */
+function breakable(text: string) {
+  return text.split(/(?<=[/_])/).flatMap((part, i) => (i ? [<wbr key={i} />, part] : [part]));
+}
+
 export function StepReview() {
   const [s] = useScenario();
   const setStep = useStore((st) => st.setStep);
@@ -77,7 +82,7 @@ export function StepReview() {
           </button>
           <button type="button" className="btn big" onClick={() => download(`${slug}.tex`, tex, "text/x-tex")}>
             <span>LaTeX (.tex)</span>
-            <small>{texPath(s)}</small>
+            <small>{breakable(texPath(s))}</small>
           </button>
           <button type="button" className="btn big" onClick={() => download(`${slug}${PROJECT_EXTENSION}`, projectJson(s), "application/json")}>
             <span>Project file</span>
@@ -87,7 +92,7 @@ export function StepReview() {
             <div key={m.file} className="export-map">
               <b>{m.layout.name}</b>
               <button type="button" className="btn small" onClick={() => download(`${m.file}.map`, `${encodeMap(m.layout.tiles)}\n`, "text/plain")}>
-                {m.file}.map
+                {breakable(`${m.file}.map`)}
               </button>
               <button
                 type="button"
@@ -95,7 +100,7 @@ export function StepReview() {
                 disabled={!!busy}
                 onClick={() => run("Rendering...", async () => download(`${m.file}.png`, await renderMapPng(m.layout.tiles, 2, m.layout.tokens)))}
               >
-                {m.file}.png
+                {breakable(`${m.file}.png`)}
               </button>
             </div>
           ))}
