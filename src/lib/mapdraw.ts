@@ -7,6 +7,7 @@ import { CUBE_COLORS, FACTION_BORDER } from "../data/game.ts";
 import type { BoardToken, MapTile } from "../model/types.ts";
 import { boardBounds, CELL_W, cellCenter, fieldCenter, type Point, ROW_PITCH, TILE_H, TILE_W } from "./hex.ts";
 import { loadImage } from "./images.ts";
+import { GATE, GATE_NAME, GATE_SURFACE, GATE_UNDERGROUND, tokenCells, tokenSpot } from "./tokens.ts";
 
 /** Corner offsets of a pointy-top hex the size of one Field. */
 export const HEX_CORNERS: readonly Point[] = [
@@ -51,6 +52,25 @@ export const FLOWER_OUTLINE: readonly [Point, Point][] = (() => {
 /** SVG path data of the tile outline centred at (cx, cy). */
 export function flowerPath(cx: number, cy: number): string {
   return FLOWER_OUTLINE.map(([a, b]) => `M${cx + a.x} ${cy + a.y}L${cx + b.x} ${cy + b.y}`).join("");
+}
+
+/** SVG path data of the outline around some neighbouring Fields, with the edges between them left out. */
+export function cellsOutlinePath(cells: [number, number][]): string {
+  const edges: [Point, Point][] = [];
+  const mid = ([a, b]: [Point, Point]): Point => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  for (const [row, col] of cells) {
+    const o = cellCenter(row, col);
+    for (let i = 0; i < 6; i++) {
+      const a = { x: o.x + HEX_CORNERS[i].x, y: o.y + HEX_CORNERS[i].y };
+      const b = { x: o.x + HEX_CORNERS[(i + 1) % 6].x, y: o.y + HEX_CORNERS[(i + 1) % 6].y };
+      // Fields in neighbouring rows overlap by a pixel, so a shared edge only matches roughly
+      const m = mid([a, b]);
+      const twin = edges.findIndex((e) => Math.hypot(mid(e).x - m.x, mid(e).y - m.y) < 3);
+      if (twin >= 0) edges.splice(twin, 1);
+      else edges.push([a, b]);
+    }
+  }
+  return edges.map(([a, b]) => `M${a.x} ${a.y}L${b.x} ${b.y}`).join("");
 }
 
 export function tileImageUrl(tileId: string): string | null {
@@ -108,9 +128,16 @@ export function tileOverlays(tile: MapTile): Overlay[] {
   return out;
 }
 
-/** Location tokens on empty board Fields beside the tiles. */
+/** Location tokens on empty board Fields beside the tiles; a whole Gate shows both halves, facing each other. */
 export function boardTokenOverlays(tokens: readonly BoardToken[]): Overlay[] {
   return tokens.flatMap((t): Overlay[] => {
+    if (t.location === GATE) {
+      return tokenCells(t).map(([row, col], i): Overlay => {
+        const c = cellCenter(row, col);
+        const half = MAP_LOCATIONS[i === 0 ? GATE_UNDERGROUND : GATE_SURFACE];
+        return { kind: "token", x: c.x, y: c.y, url: assetUrl(half.img), rotation: t.rotation * 60, label: GATE_NAME };
+      });
+    }
     const location = MAP_LOCATIONS[t.location];
     if (!location) return [];
     const c = cellCenter(t.row, t.col);
@@ -155,7 +182,7 @@ function polygon(ctx: CanvasRenderingContext2D, points: string): void {
  * @param scale output pixels per board pixel
  */
 export async function renderMapPng(tiles: MapTile[], scale = 2, tokens: readonly BoardToken[] = []): Promise<Blob> {
-  const box = boardBounds(tiles, tokens);
+  const box = boardBounds(tiles, tokens.map(tokenSpot));
   if (!box) throw new Error("The map is empty.");
   const pad = 6;
   const canvas = document.createElement("canvas");

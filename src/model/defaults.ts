@@ -1,4 +1,5 @@
 import { uid } from "../lib/id.ts";
+import { mergeGateHalves } from "../lib/tokens.ts";
 import type { Category, MapLayout, Scenario } from "./types.ts";
 
 export function newMapLayout(name = "Scenario map", playerCounts: number[] = []): MapLayout {
@@ -82,7 +83,7 @@ export function upgradeScenario(input: Partial<Scenario>): Scenario {
       counts: { ...base.mapSetup.counts, ...input.mapSetup?.counts },
       notes: { ...base.mapSetup.notes, ...input.mapSetup?.notes },
     },
-    maps: input.maps?.length ? input.maps.map((m) => ({ ...m, tokens: m.tokens ?? [] })) : base.maps,
+    maps: input.maps?.length ? input.maps.map((m) => ({ ...m, tokens: mergeGateHalves(m.tiles ?? [], m.tokens ?? []) })) : base.maps,
     version: 1,
   };
 }

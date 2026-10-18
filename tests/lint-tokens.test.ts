@@ -113,23 +113,20 @@ test("Creature Banks are not checked on land Tiles or Tiles without a known Bloc
   assert.deepEqual(tokenFindings(layout(bank("NU0", 0))), []);
 });
 
-test("tokens beside the tiles count toward Whirlpool, Monolith and Gate pairs", () => {
+test("tokens beside the tiles count toward Whirlpool and Monolith pairs", () => {
   const monolith = tile("N7", ...LEFT, { 0: "monolith-2w-01a" });
   assert.deepEqual(tokenFindings({ ...layout(monolith), tokens: [beside("monolith-2w-01b", 8, 8)] }), []);
 
   const lone = tokenFindings({ ...layout(tile("N7", ...LEFT)), tokens: [beside("whirlpool-plus1", 8, 8)] });
   assert.deepEqual(lone, ['Map "Test" has a single Whirlpool (beside the tiles), which leads nowhere: place at least two.']);
-
-  const surface = tile("N7", ...LEFT, { 4: "subterranean-gate-surface" });
-  const [r, c] = freeNeighbour(surface, 4);
-  assert.deepEqual(tokenFindings({ ...layout(surface), tokens: [beside("subterranean-gate-underground", r, c)] }), []);
-  assert.equal(tokenFindings({ ...layout(tile("N7", ...LEFT)), tokens: [beside("subterranean-gate-surface", 8, 8)] }).length, 2);
 });
 
-test("a Gate made of two tokens beside the tiles needs its halves on neighbouring Fields", () => {
-  const base = layout(tile("N7", ...LEFT));
-  const apart = tokenFindings({ ...base, tokens: [beside("subterranean-gate-surface", 8, 8), beside("subterranean-gate-underground", 8, 12)] });
-  assert.equal(apart.length, 2);
-  const [r, c] = neighbours(8, 8)[1];
-  assert.deepEqual(tokenFindings({ ...base, tokens: [beside("subterranean-gate-surface", 8, 8), beside("subterranean-gate-underground", r, c)] }), []);
+test("a whole Gate beside the tiles counts as both halves and pairs with nothing on the tiles", () => {
+  assert.deepEqual(tokenFindings({ ...layout(tile("N7", ...LEFT)), tokens: [beside("subterranean-gate", 8, 8)] }), []);
+  // a half on a tile still needs its other half on a neighbouring tile
+  const surface = tile("N7", ...LEFT, { 4: "subterranean-gate-surface" });
+  const [r, c] = freeNeighbour(surface, 4);
+  const found = tokenFindings({ ...layout(surface), tokens: [beside("subterranean-gate", r, c)] });
+  assert.equal(found.length, 2);
+  assert.match(found[0], /no underground half on a neighbouring Subterranean Tile/);
 });

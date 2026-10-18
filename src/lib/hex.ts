@@ -132,11 +132,16 @@ export interface Piece {
   col: number;
 }
 
+/** A token beside the tiles and every Field it covers (two for a whole Subterranean Gate). */
+export interface TokenSpot extends Piece {
+  cells: [number, number][];
+}
+
 /** Whether a tile can sit at (row, col) without covering another tile or a token beside the tiles. */
-export function canPlace(tiles: MapTile[], row: number, col: number, except?: string, tokens: readonly Piece[] = []): boolean {
+export function canPlace(tiles: MapTile[], row: number, col: number, except?: string, tokens: readonly TokenSpot[] = []): boolean {
   if (row < 1 || col < 1) return false;
   const taken = occupancy(tiles, except);
-  for (const t of tokens) taken.set(cellKey(t.row, t.col), t.id);
+  for (const t of tokens) for (const [r, c] of t.cells) taken.set(cellKey(r, c), t.id);
   return footprint(row, col).every(([r, c]) => !taken.has(cellKey(r, c)));
 }
 
@@ -161,26 +166,29 @@ export function shiftCell(row: number, col: number, from: [number, number], to: 
   return fromAxial(q + tq - fq, r + tr - fr);
 }
 
-/** Whether a Location token can sit on the Field (row, col): one no tile covers and no other token holds. */
-export function canPlaceToken(tiles: MapTile[], tokens: readonly Piece[], row: number, col: number, except?: string): boolean {
-  if (row < 0 || col < 0 || occupancy(tiles).has(cellKey(row, col))) return false;
-  return !tokens.some((t) => t.id !== except && t.row === row && t.col === col);
+/** Whether a Location token can cover these Fields: ones no tile covers and no other token holds. */
+export function canPlaceToken(tiles: MapTile[], tokens: readonly TokenSpot[], cells: [number, number][], except?: string): boolean {
+  const taken = occupancy(tiles);
+  for (const t of tokens) if (t.id !== except) for (const [r, c] of t.cells) taken.set(cellKey(r, c), t.id);
+  return cells.every(([r, c]) => r >= 0 && c >= 0 && !taken.has(cellKey(r, c)));
 }
 
 /**
  * Whether several tiles and tokens can move together without leaving the
  * board or landing on a tile or token that stays put.
  */
-export function canPlaceGroup(tiles: MapTile[], moves: Piece[], tokens: readonly Piece[] = []): boolean {
+export function canPlaceGroup(tiles: MapTile[], moves: Piece[], tokens: readonly TokenSpot[] = []): boolean {
   const moving = new Set(moves.map((m) => m.id));
   const tileIds = new Set(tiles.map((t) => t.id));
+  const spots = new Map(tokens.map((t) => [t.id, t]));
   const taken = occupancy(tiles.filter((t) => !moving.has(t.id)));
-  for (const t of tokens) if (!moving.has(t.id)) taken.set(cellKey(t.row, t.col), t.id);
+  for (const t of tokens) if (!moving.has(t.id)) for (const [r, c] of t.cells) taken.set(cellKey(r, c), t.id);
+  const free = ([r, c]: [number, number]) => !taken.has(cellKey(r, c));
   return moves.every((m) => {
-    const isTile = tileIds.has(m.id);
-    const cells: [number, number][] = isTile ? footprint(m.row, m.col) : [[m.row, m.col]];
-    const min = isTile ? 1 : 0;
-    return m.row >= min && m.col >= min && cells.every(([r, c]) => !taken.has(cellKey(r, c)));
+    if (tileIds.has(m.id)) return m.row >= 1 && m.col >= 1 && footprint(m.row, m.col).every(free);
+    const spot = spots.get(m.id);
+    const cells = spot ? spot.cells.map(([r, c]) => shiftCell(r, c, [spot.row, spot.col], [m.row, m.col])) : [[m.row, m.col] as [number, number]];
+    return cells.every(([r, c]) => r >= 0 && c >= 0 && free([r, c]));
   });
 }
 
@@ -227,7 +235,7 @@ export interface Box {
 const TOKEN_REACH = Math.ceil(51 * Math.SQRT2);
 
 /** The pixel box around every tile image and token; a seven-Field flower looks the same after any rotation. */
-export function boardBounds(tiles: MapTile[], tokens: readonly Piece[] = []): Box | null {
+export function boardBounds(tiles: MapTile[], tokens: readonly TokenSpot[] = []): Box | null {
   if (!tiles.length && !tokens.length) return null;
   const box: Box = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
   for (const tile of tiles) {
@@ -237,8 +245,8 @@ export function boardBounds(tiles: MapTile[], tokens: readonly Piece[] = []): Bo
     box.minY = Math.min(box.minY, c.y - TILE_H / 2);
     box.maxY = Math.max(box.maxY, c.y + TILE_H / 2);
   }
-  for (const token of tokens) {
-    const c = cellCenter(token.row, token.col);
+  for (const [row, col] of tokens.flatMap((t) => t.cells)) {
+    const c = cellCenter(row, col);
     box.minX = Math.min(box.minX, c.x - TOKEN_REACH);
     box.maxX = Math.max(box.maxX, c.x + TOKEN_REACH);
     box.minY = Math.min(box.minY, c.y - TOKEN_REACH);
