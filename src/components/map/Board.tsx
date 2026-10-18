@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { assetUrl, MAP_LOCATIONS } from "../../data/catalog.ts";
 import { duplicateTiles } from "../../lib/document.ts";
 import {
   boardBounds,
@@ -15,14 +14,17 @@ import {
   TILE_H,
   TILE_W,
 } from "../../lib/hex.ts";
-import { flowerPath, hexPoints, TOKEN_SIZE, tileImageUrl } from "../../lib/mapdraw.ts";
+import { boardTokenOverlays, cellsOutlinePath, flowerPath, hexPoints, TOKEN_SIZE, tileImageUrl } from "../../lib/mapdraw.ts";
+import { gateHalves, tokenCells, tokenSpot } from "../../lib/tokens.ts";
 import { MapLayers } from "./MapLayers.tsx";
 import type { BoardToken, MapTile } from "../../model/types.ts";
 
-/** What the palette holds ready to place: a tile, or a Location token for an empty Field. */
+/** What the palette holds ready to place: a tile, or a Location token for empty Fields. */
 export interface Armed {
   kind: "tile" | "token";
   id: string;
+  /** how far a token is turned before it is placed, in steps of 60 degrees */
+  turn?: number;
 }
 
 interface Props {
@@ -63,10 +65,8 @@ const MAX_K = 2.5;
 
 const toggled = (ids: string[], id: string) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
 
-const hexPath = (row: number, col: number, scale: number) => {
-  const c = cellCenter(row, col);
-  return `M${hexPoints(c.x, c.y, scale).replace(/ /g, "L")}Z`;
-};
+/** A token about to be placed from the palette, at a board Field. */
+const armedToken = (a: Armed, row: number, col: number): BoardToken => ({ id: "armed", location: a.id, row, col, rotation: a.turn ?? 0 });
 
 export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlace, onMove, onSelect, layoutKey }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -76,6 +76,8 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
   const viewRef = useRef(view);
   viewRef.current = view;
 
+  const spots = useMemo(() => tokens.map(tokenSpot), [tokens]);
+
   const toBoard = useCallback((clientX: number, clientY: number): Point => {
     const r = wrapRef.current?.getBoundingClientRect();
     const v = viewRef.current;
@@ -84,7 +86,7 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
 
   const fit = useCallback(() => {
     const el = wrapRef.current;
-    const box = boardBounds(tiles, tokens);
+    const box = boardBounds(tiles, spots);
     if (!el) return;
     if (!box) {
       setView({ x: 40, y: 30, k: 0.55 });
@@ -94,7 +96,7 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
     const h = el.clientHeight;
     const k = Math.max(MIN_K, Math.min(1.2, Math.min((w - 60) / (box.maxX - box.minX), (h - 60) / (box.maxY - box.minY))));
     setView({ k, x: (w - (box.maxX - box.minX) * k) / 2 - box.minX * k, y: (h - (box.maxY - box.minY) * k) / 2 - box.minY * k });
-  }, [tiles, tokens]);
+  }, [tiles, spots]);
 
   // Refit when another layout is shown (not on every edit).
   // biome-ignore lint/correctness/useExhaustiveDependencies: only the layout switch should refit
@@ -151,16 +153,16 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
       });
   };
 
-  /** Tiles and tokens whose middle lies inside the selection frame. */
+  /** Tiles whose middle Field, and tokens whose middle, lies inside the selection frame. */
   const inFrame = (d: Extract<Drag, { mode: "frame" }>): string[] => {
     const [x0, x1] = [Math.min(d.start.x, d.end.x), Math.max(d.start.x, d.end.x)];
     const [y0, y1] = [Math.min(d.start.y, d.end.y), Math.max(d.start.y, d.end.y)];
-    return pieces
-      .filter((p) => {
-        const c = cellCenter(p.row, p.col);
-        return c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1;
-      })
-      .map((p) => p.id);
+    const inside = ({ x, y }: Point) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+    const middle = (cells: [number, number][]): Point => {
+      const centres = cells.map(([r, c]) => cellCenter(r, c));
+      return { x: centres.reduce((s, p) => s + p.x, 0) / centres.length, y: centres.reduce((s, p) => s + p.y, 0) / centres.length };
+    };
+    return [...tiles.filter((t) => inside(cellCenter(t.row, t.col))), ...spots.filter((s) => inside(middle(s.cells)))].map((p) => p.id);
   };
 
   const dragging = drag?.mode === "piece" && drag.moved ? drag : null;
@@ -173,12 +175,13 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
   };
   const shown = tiles.map(moved);
   const shownTokens = tokens.map(moved);
-  const dragValid = dragging ? canPlaceGroup(tiles, moves, tokens) : true;
+  const dragValid = dragging ? canPlaceGroup(tiles, moves, spots) : true;
+  const ghostToken = armed?.kind === "token" && hover ? armedToken(armed, hover[0], hover[1]) : null;
   const ghostValid =
     armed && hover
       ? armed.kind === "tile"
-        ? canPlace(tiles, hover[0], hover[1], undefined, tokens)
-        : canPlaceToken(tiles, tokens, hover[0], hover[1])
+        ? canPlace(tiles, hover[0], hover[1], undefined, spots)
+        : canPlaceToken(tiles, spots, tokenCells(ghostToken as BoardToken))
       : false;
 
   const nearestField = (tile: MapTile, p: Point): number => {
@@ -196,7 +199,7 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
   };
 
   const place = (a: Armed, row: number, col: number) => {
-    const ok = a.kind === "tile" ? canPlace(tiles, row, col, undefined, tokens) : canPlaceToken(tiles, tokens, row, col);
+    const ok = a.kind === "tile" ? canPlace(tiles, row, col, undefined, spots) : canPlaceToken(tiles, spots, tokenCells(armedToken(a, row, col)));
     if (ok) onPlace(a, row, col);
   };
 
@@ -259,7 +262,7 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
       const tile = tiles.find((t) => t.id === d.id);
       if (d.moved) {
         const m = groupMoves(d);
-        if (canPlaceGroup(tiles, m, tokens)) onMove(m);
+        if (canPlaceGroup(tiles, m, spots)) onMove(m);
         onSelect(d.group, null);
       } else if (d.toggle) {
         onSelect(toggled(selectedIds, d.id), null);
@@ -291,8 +294,10 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
   const outlinedTiles = shown.filter((t) => outlinedIds.includes(t.id));
   const outlinedTokens = shownTokens.filter((t) => outlinedIds.includes(t.id));
   const dupes = duplicateTiles(tiles);
+  // Gate halves on the tiles with no other half next to them
+  const unpaired = gateHalves(shown).unpaired;
   const single = !framing && outlinedTiles.length === 1 && !outlinedTokens.length ? outlinedTiles[0] : null;
-  const ghostUrl = !armed ? null : armed.kind === "tile" ? tileImageUrl(armed.id) : MAP_LOCATIONS[armed.id] ? assetUrl(MAP_LOCATIONS[armed.id].img) : null;
+  const ghostUrl = armed?.kind === "tile" ? tileImageUrl(armed.id) : null;
 
   return (
     <div
@@ -331,13 +336,20 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
                 ))}
             </g>
           )}
+          {unpaired.length > 0 && (
+            <g className="gate-unpaired">
+              {unpaired.map((h) => (
+                <path key={`${h.tile.id}-${h.field}`} d={cellsOutlinePath([h.cell])} />
+              ))}
+            </g>
+          )}
           {(outlinedTiles.length > 0 || outlinedTokens.length > 0) && (
             <g className="selection">
               {outlinedTiles.map((t) => (
                 <path key={t.id} d={flowerPath(cellCenter(t.row, t.col).x, cellCenter(t.row, t.col).y)} className={dragValid ? "" : "invalid"} />
               ))}
               {outlinedTokens.map((t) => (
-                <path key={t.id} d={hexPath(t.row, t.col, 0.96)} className={dragValid ? "" : "invalid"} />
+                <path key={t.id} d={cellsOutlinePath(tokenCells(t))} className={dragValid ? "" : "invalid"} />
               ))}
               {single && selectedField !== null && !dragging && (
                 <polygon points={hexPoints(fieldCenter(single, selectedField).x, fieldCenter(single, selectedField).y, 0.9)} className="field-sel" />
@@ -355,7 +367,7 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
           )}
           {armed && hover && (
             <g className={`ghost ${ghostValid ? "ok" : "bad"}`}>
-              {ghostUrl && armed.kind === "tile" && (
+              {ghostUrl && (
                 <image
                   href={ghostUrl}
                   x={cellCenter(hover[0], hover[1]).x - TILE_W / 2}
@@ -364,17 +376,22 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
                   height={TILE_H}
                 />
               )}
-              {ghostUrl && armed.kind === "token" && (
-                <image
-                  href={ghostUrl}
-                  x={cellCenter(hover[0], hover[1]).x - TOKEN_SIZE / 2}
-                  y={cellCenter(hover[0], hover[1]).y - TOKEN_SIZE / 2}
-                  width={TOKEN_SIZE}
-                  height={TOKEN_SIZE}
-                />
-              )}
+              {ghostToken &&
+                boardTokenOverlays([ghostToken]).map((o, i) =>
+                  o.kind === "token" ? (
+                    <image
+                      key={i}
+                      href={o.url}
+                      x={o.x - TOKEN_SIZE / 2}
+                      y={o.y - TOKEN_SIZE / 2}
+                      width={TOKEN_SIZE}
+                      height={TOKEN_SIZE}
+                      transform={`rotate(${o.rotation} ${o.x} ${o.y})`}
+                    />
+                  ) : null,
+                )}
               <path
-                d={armed.kind === "tile" ? flowerPath(cellCenter(hover[0], hover[1]).x, cellCenter(hover[0], hover[1]).y) : hexPath(hover[0], hover[1], 0.96)}
+                d={ghostToken ? cellsOutlinePath(tokenCells(ghostToken)) : flowerPath(cellCenter(hover[0], hover[1]).x, cellCenter(hover[0], hover[1]).y)}
               />
             </g>
           )}

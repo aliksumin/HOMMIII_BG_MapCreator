@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { countTiles, duplicateTiles, mapFiles } from "../../lib/document.ts";
-import { connectedGroups, normalise } from "../../lib/hex.ts";
+import { canPlaceToken, connectedGroups, normalise } from "../../lib/hex.ts";
 import { guid, uid } from "../../lib/id.ts";
 import { download } from "../../lib/images.ts";
 import { decodeMap, encodeMap, newTile } from "../../lib/mapfile.ts";
 import { renderMapPng } from "../../lib/mapdraw.ts";
+import { gateHalves, orientGates, tokenCells, tokenSpot } from "../../lib/tokens.ts";
 import { newMapLayout } from "../../model/defaults.ts";
 import { useScenario } from "../../model/store.ts";
 import type { BoardToken, MapLayout, MapTile } from "../../model/types.ts";
@@ -39,13 +40,17 @@ export function MapEditor() {
   const counts = countTiles(tiles);
   const dupes = duplicateTiles(tiles);
   const parts = tiles.length ? connectedGroups(tiles).length : 0;
+  const gates = gateHalves(tiles);
+  const linkedHalves = new Set(gates.pairs.flatMap((p) => [p.underground, p.surface]).map((h) => `${h.tile.id}:${h.field}`));
   const file = mapFiles(s).find((m) => m.layout.id === layout.id)?.file ?? "map";
 
+  /** Changes the shown layout; Gate halves that end up on neighbouring Fields turn to face each other. */
   const editLayout = (recipe: (layout: MapLayout) => void, tag?: string) =>
     update((d) => {
       const target = d.maps[index];
       target.tokens ??= [];
       recipe(target);
+      orientGates(target.tiles);
     }, tag);
 
   const setTiles = (recipe: (tiles: MapTile[]) => MapTile[] | void, tag?: string) =>
@@ -66,10 +71,20 @@ export function MapEditor() {
       for (const t of l.tokens) if (selected.includes(t.id)) recipe(t);
     }, `token-${selected.join(",")}`);
 
-  /** Turns every selected tile and token in place. */
+  /** Turns every selected tile and token in place; a whole Gate skips the turns where its surface half has no room. */
   const rotateSelected = (step: number) =>
     editLayout((l) => {
-      for (const t of [...l.tiles, ...l.tokens]) if (selected.includes(t.id)) t.rotation = (t.rotation + step) % 6;
+      for (const t of l.tiles) if (selected.includes(t.id)) t.rotation = (t.rotation + step) % 6;
+      for (const t of l.tokens) {
+        if (!selected.includes(t.id)) continue;
+        for (let k = 1; k < 6; k++) {
+          const rotation = (t.rotation + step * k) % 6;
+          if (canPlaceToken(l.tiles, l.tokens.map(tokenSpot), tokenCells({ ...t, rotation }), t.id)) {
+            t.rotation = rotation;
+            break;
+          }
+        }
+      }
     }, `tile-${selected.join(",")}`);
 
   const removeSelected = () => {
@@ -90,6 +105,10 @@ export function MapEditor() {
         setArmed(null);
         setSelected([]);
         setField(null);
+      } else if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && armed?.kind === "token") {
+        // turn the token before it is placed
+        e.preventDefault();
+        setArmed({ ...armed, turn: ((armed.turn ?? 0) + (e.shiftKey ? 5 : 1)) % 6 });
       } else if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && pickedCount) {
         e.preventDefault();
         rotateSelected(e.shiftKey ? 5 : 1);
@@ -261,7 +280,7 @@ export function MapEditor() {
                 setTiles((list) => void list.push(t));
                 setSelected([t.id]);
               } else {
-                const t: BoardToken = { id: guid(), location: a.id, row, col, rotation: 0 };
+                const t: BoardToken = { id: guid(), location: a.id, row, col, rotation: a.turn ?? 0 };
                 editLayout((l) => void l.tokens.push(t));
                 setSelected([t.id]);
               }
@@ -306,6 +325,12 @@ export function MapEditor() {
                 {tiles.length ? "in the PNG and PDF, not in the .map file" : "place tiles too, a layout without tiles is left out of the book and the PDF"}
               </span>
             )}
+            {gates.unpaired.length > 0 && (
+              <span className="warn" title="A Subterranean Gate is one token over two Fields: put its halves on neighbouring Fields.">
+                {gates.unpaired.length === 1 ? "A Gate half has" : `${gates.unpaired.length} Gate halves have`} no other half next to{" "}
+                {gates.unpaired.length === 1 ? "it" : "them"}
+              </span>
+            )}
             <span className="keys">
               Click: place/select &middot; Shift+click: add to selection &middot; Ctrl+drag: select with a frame &middot; Drag: move or pan &middot;
               Wheel: zoom &middot; R: rotate &middot; Del: remove &middot; Esc: unselect
@@ -316,6 +341,7 @@ export function MapEditor() {
           <Inspector
             tile={tile}
             copies={tiles.filter((t) => t.tileId === tile.tileId).length}
+            gateLinked={linkedHalves.has(`${tile.id}:${field ?? 3}`)}
             field={field}
             onField={setField}
             onChange={changeTile}
@@ -323,7 +349,7 @@ export function MapEditor() {
             onDuplicate={() => setArmed({ kind: "tile", id: tile.tileId })}
           />
         ) : token ? (
-          <TokenInspector token={token} onChange={changeToken} onDelete={removeSelected} />
+          <TokenInspector token={token} onChange={changeToken} onRotate={rotateSelected} onDelete={removeSelected} />
         ) : pickedCount > 1 ? (
           <aside className="inspector empty">
             <h4>

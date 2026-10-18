@@ -1,8 +1,10 @@
 import { assetUrl, CREATURE_BANKS, EXPANSIONS, isRandomTile, MAP_LOCATIONS, PORTRAITS, TILES, tileName } from "../../data/catalog.ts";
 import { CUBE_COLORS, FACTION_BORDER } from "../../data/game.ts";
 import { hexPoints } from "../../lib/mapdraw.ts";
+import { boardTokenName, GATE, isGateHalf } from "../../lib/tokens.ts";
 import type { BoardToken, MapTile } from "../../model/types.ts";
 import { Toggle } from "../ui/Form.tsx";
+import { GateArt } from "./GateArt.tsx";
 
 const MINI: readonly [number, number][] = [
   [-21.5, -37],
@@ -18,6 +20,8 @@ interface Props {
   tile: MapTile;
   /** how many tiles of this kind the layout holds, this one included */
   copies: number;
+  /** the picked Field holds a Gate half with its other half next to it */
+  gateLinked?: boolean;
   field: number | null;
   onField: (field: number) => void;
   onChange: (recipe: (tile: MapTile) => void) => void;
@@ -26,7 +30,7 @@ interface Props {
 }
 
 /** Edits the selected tile and one of its seven Fields. */
-export function Inspector({ tile, copies, field, onField, onChange, onDelete, onDuplicate }: Props) {
+export function Inspector({ tile, copies, gateLinked = false, field, onField, onChange, onDelete, onDuplicate }: Props) {
   const info = TILES[tile.tileId];
   const f = field ?? 3;
   return (
@@ -153,7 +157,14 @@ export function Inspector({ tile, copies, field, onField, onChange, onDelete, on
           ))}
         </select>
       </label>
-      {(tile.mapLocations[f] || tile.creaturebanks[f]) && (
+      {isGateHalf(tile.mapLocations[f]) && (
+        <p className="hint">
+          {gateLinked
+            ? "This half faces its other half on the neighbouring Field, so the two show as one Gate."
+            : "A Subterranean Gate is one token over two Fields: put the other half on a neighbouring Field of the next tile and the halves turn to face each other. Until then this Field is outlined in red."}
+        </p>
+      )}
+      {(tile.mapLocations[f] || tile.creaturebanks[f]) && !(gateLinked && isGateHalf(tile.mapLocations[f]) && !tile.creaturebanks[f]) && (
         <button
           type="button"
           className="btn small"
@@ -171,46 +182,62 @@ export function Inspector({ tile, copies, field, onField, onChange, onDelete, on
 export function TokenInspector({
   token,
   onChange,
+  onRotate,
   onDelete,
 }: {
   token: BoardToken;
   onChange: (recipe: (token: BoardToken) => void) => void;
+  onRotate: (step: number) => void;
   onDelete: () => void;
 }) {
+  const gate = token.location === GATE;
   const info = MAP_LOCATIONS[token.location];
   return (
     <aside className="inspector">
       <div className="inspector-head">
-        {info && <img src={assetUrl(info.img)} alt="" style={{ transform: `rotate(${token.rotation * 60}deg)` }} />}
+        {gate ? (
+          <GateArt />
+        ) : (
+          info && <img src={assetUrl(info.img)} alt="" style={{ transform: `rotate(${token.rotation * 60}deg)` }} />
+        )}
         <div>
-          <b>{info?.desc ?? token.location}</b>
-          <span className="hint">Location token beside the tiles</span>
+          <b>{boardTokenName(token.location)}</b>
+          <span className="hint">{gate ? "Whole Gate over two Fields beside the tiles" : "Location token beside the tiles"}</span>
         </div>
       </div>
       <div className="inspector-actions">
-        <button type="button" className="btn small" title="Rotate left (Shift+R)" onClick={() => onChange((t) => void (t.rotation = (t.rotation + 5) % 6))}>
+        <button type="button" className="btn small" title="Rotate left (Shift+R)" onClick={() => onRotate(5)}>
           &#x21BA; Rotate
         </button>
-        <button type="button" className="btn small" title="Rotate right (R)" onClick={() => onChange((t) => void (t.rotation = (t.rotation + 1) % 6))}>
+        <button type="button" className="btn small" title="Rotate right (R)" onClick={() => onRotate(1)}>
           Rotate &#x21BB;
         </button>
         <button type="button" className="btn small danger" title="Delete (Del)" onClick={onDelete}>
           Delete
         </button>
       </div>
-      <label className="field">
-        <span className="field-label">Location token</span>
-        <select value={token.location} onChange={(e) => onChange((t) => void (t.location = e.target.value))}>
-          {Object.entries(MAP_LOCATIONS).map(([k, l]) => (
-            <option key={k} value={k}>
-              {l.desc}
-            </option>
-          ))}
-        </select>
-      </label>
+      {gate ? (
+        <p className="hint">
+          The underground half sits on the Field you placed it on and the surface half next to it; rotating swings the surface half around
+          it, skipping the sides where it has no room.
+        </p>
+      ) : (
+        <label className="field">
+          <span className="field-label">Location token</span>
+          <select value={token.location} onChange={(e) => onChange((t) => void (t.location = e.target.value))}>
+            {Object.entries(MAP_LOCATIONS)
+              .filter(([k]) => !isGateHalf(k))
+              .map(([k, l]) => (
+                <option key={k} value={k}>
+                  {l.desc}
+                </option>
+              ))}
+          </select>
+        </label>
+      )}
       <p className="hint">
-        It sits on an empty Field, so it shows in the editor, the map PNG and the PDF, but the .map file (the community map editor&rsquo;s
-        format) has no place for it.
+        It sits on {gate ? "empty Fields" : "an empty Field"}, so it shows in the editor, the map PNG and the PDF, but the .map file (the
+        community map editor&rsquo;s format) has no place for it.
       </p>
     </aside>
   );

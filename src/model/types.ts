@@ -40,11 +40,12 @@ export interface MapTile {
   faction: string;
 }
 
-/** A Location token on an empty board Field beside the tiles. The .map file has no place for it. */
+/** A Location token on empty board Fields beside the tiles. The .map file has no place for it. */
 export interface BoardToken {
   id: string;
-  /** key into the Location token catalogue */
+  /** key into the Location token catalogue, or "subterranean-gate" for a whole Gate over two Fields */
   location: string;
+  /** the Field it is on; for a whole Gate, the Field of its underground half */
   row: number;
   col: number;
   /** steps of 60 degrees clockwise */

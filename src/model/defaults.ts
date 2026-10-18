@@ -1,4 +1,5 @@
 import { uid } from "../lib/id.ts";
+import { mergeGateHalves, orientGates } from "../lib/tokens.ts";
 import type { Category, MapLayout, Scenario } from "./types.ts";
 
 export function newMapLayout(name = "Scenario map", playerCounts: number[] = []): MapLayout {
@@ -64,6 +65,17 @@ export function copyScenario(s: Scenario): Scenario {
   return { ...structuredClone(s), id: uid(), updatedAt: new Date().toISOString() };
 }
 
+/**
+ * A layout as a project or a map file holds it, made current: Gate halves on
+ * neighbouring Fields turned to face each other, and Gate halves beside the
+ * tiles made whole. The tiles are copied, so the input stays as it was.
+ */
+function upgradeLayout(m: MapLayout): MapLayout {
+  const tiles = structuredClone(m.tiles ?? []);
+  orientGates(tiles);
+  return { ...m, tiles, tokens: mergeGateHalves(tiles, m.tokens ?? []) };
+}
+
 /** Fills fields a project file from an older version lacks. */
 export function upgradeScenario(input: Partial<Scenario>): Scenario {
   const base = newScenario(input.category ?? "clash");
@@ -82,7 +94,7 @@ export function upgradeScenario(input: Partial<Scenario>): Scenario {
       counts: { ...base.mapSetup.counts, ...input.mapSetup?.counts },
       notes: { ...base.mapSetup.notes, ...input.mapSetup?.notes },
     },
-    maps: input.maps?.length ? input.maps.map((m) => ({ ...m, tokens: m.tokens ?? [] })) : base.maps,
+    maps: input.maps?.length ? input.maps.map(upgradeLayout) : base.maps,
     version: 1,
   };
 }

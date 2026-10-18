@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { assetUrl, EXPANSIONS, MAP_LOCATIONS, TILES, type TileInfo, tileGroup, tileName } from "../../data/catalog.ts";
 import { TILE_GROUPS } from "../../data/game.ts";
+import { boardTokenName, GATE, GATE_NAME, isGateHalf } from "../../lib/tokens.ts";
 import type { Armed } from "./Board.tsx";
+import { GateArt } from "./GateArt.tsx";
 
 const RANDOM_ORDER = ["S0", "F0", "N0", "C0", "NW0", "CW0", "NU0", "CU0"];
 
@@ -35,16 +37,17 @@ export function Palette({ armed, onArm }: { armed: Armed | null; onArm: (armed: 
     ].filter((g) => g.tiles.length);
   }, [expansion, query]);
 
+  // Beside the tiles the Subterranean Gate is one token over two Fields, never two halves.
   const locations = useMemo(
     () =>
-      Object.entries(MAP_LOCATIONS).filter(
-        ([k, l]) => !query.trim() || `${k} ${l.desc}`.toLowerCase().includes(query.trim().toLowerCase()),
+      [GATE, ...Object.keys(MAP_LOCATIONS).filter((k) => !isGateHalf(k))].filter(
+        (k) => !query.trim() || `${k} ${boardTokenName(k)}`.toLowerCase().includes(query.trim().toLowerCase()),
       ),
     [query],
   );
 
   const isArmed = (kind: Armed["kind"], id: string) => armed?.kind === kind && armed.id === id;
-  const armedName = !armed ? "" : armed.kind === "tile" ? tileName(armed.id) : (MAP_LOCATIONS[armed.id]?.desc ?? armed.id);
+  const armedName = !armed ? "" : armed.kind === "tile" ? tileName(armed.id) : boardTokenName(armed.id);
 
   return (
     <aside className="palette">
@@ -63,7 +66,7 @@ export function Palette({ armed, onArm }: { armed: Armed | null; onArm: (armed: 
       </div>
       {armed && (
         <div className="armed-note">
-          Placing <b>{armedName}</b>. Click {armed.kind === "token" ? "an empty Field" : "the board"}.{" "}
+          Placing <b>{armedName}</b>. Click {armed.kind === "token" ? (armed.id === GATE ? "two empty Fields side by side; R turns it" : "an empty Field; R turns it") : "the board"}.{" "}
           <button type="button" className="link" onClick={() => onArm(null)}>
             Stop (Esc)
           </button>
@@ -98,12 +101,16 @@ export function Palette({ armed, onArm }: { armed: Armed | null; onArm: (armed: 
           <div className="palette-group">
             <h3>Location tokens (beside the tiles)</h3>
             <div className="palette-grid">
-              {locations.map(([k, l]) => (
+              {locations.map((k) => (
                 <button
                   type="button"
                   key={k}
-                  className={`palette-tile token ${isArmed("token", k) ? "on" : ""}`}
-                  title={`${l.desc}: place it on an empty Field next to the tiles. To put it on a tile, pick the tile's Field instead.`}
+                  className={`palette-tile token ${k === GATE ? "wide" : ""} ${isArmed("token", k) ? "on" : ""}`}
+                  title={
+                    k === GATE
+                      ? `${GATE_NAME}: one token over two empty Fields next to the tiles. On the tiles, pick its two halves on neighbouring Fields of two tiles instead.`
+                      : `${boardTokenName(k)}: place it on an empty Field next to the tiles. To put it on a tile, pick the tile's Field instead.`
+                  }
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.setData("text/x-token", k);
@@ -111,8 +118,8 @@ export function Palette({ armed, onArm }: { armed: Armed | null; onArm: (armed: 
                   }}
                   onClick={() => onArm(isArmed("token", k) ? null : { kind: "token", id: k })}
                 >
-                  <img src={assetUrl(l.img)} alt={l.desc} loading="lazy" draggable={false} />
-                  <span>{l.desc}</span>
+                  {k === GATE ? <GateArt /> : <img src={assetUrl(MAP_LOCATIONS[k].img)} alt={MAP_LOCATIONS[k].desc} loading="lazy" draggable={false} />}
+                  <span>{boardTokenName(k)}</span>
                 </button>
               ))}
             </div>
