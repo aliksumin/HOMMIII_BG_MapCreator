@@ -52,6 +52,37 @@ export interface GateHalf {
 }
 
 /**
+ * Pairs underground halves with surface halves on neighbouring Fields, as
+ * many as possible (augmenting paths), so one half next to two others never
+ * leaves a third without its partner. `side` is where the surface half lies
+ * seen from the underground one.
+ */
+function matchHalves(undergrounds: [number, number][], surfaces: [number, number][]): { u: number; s: number; side: number }[] {
+  const at = new Map(surfaces.map((cell, i) => [cellKey(...cell), i]));
+  const near = undergrounds.map((cell) =>
+    neighbours(...cell).flatMap(([r, c], side) => {
+      const s = at.get(cellKey(r, c));
+      return s === undefined ? [] : [{ s, side }];
+    }),
+  );
+  const owner = new Map<number, number>();
+  const claim = (u: number, seen: Set<number>): boolean => {
+    for (const { s } of near[u]) {
+      if (seen.has(s)) continue;
+      seen.add(s);
+      const other = owner.get(s);
+      if (other === undefined || claim(other, seen)) {
+        owner.set(s, u);
+        return true;
+      }
+    }
+    return false;
+  };
+  undergrounds.forEach((_, u) => claim(u, new Set()));
+  return [...owner].map(([s, u]) => ({ u, s, side: near[u].find((n) => n.s === s)?.side ?? 0 }));
+}
+
+/**
  * The Gate halves on the tiles, matched into Gates: an underground and a
  * surface half on neighbouring Fields, each half in one Gate at most.
  * `side` is where the surface half lies seen from the underground one.
@@ -65,36 +96,10 @@ export function gateHalves(tiles: MapTile[]): { pairs: { underground: GateHalf; 
   }
   const undergrounds = halves.filter((h) => h.half === GATE_UNDERGROUND);
   const surfaces = halves.filter((h) => h.half === GATE_SURFACE);
-  const at = new Map(surfaces.map((s, i) => [cellKey(...s.cell), i]));
-  const near = undergrounds.map((u) =>
-    neighbours(...u.cell).flatMap(([r, c], side) => {
-      const i = at.get(cellKey(r, c));
-      return i === undefined ? [] : [{ i, side }];
-    }),
-  );
-
-  // A matching with as many Gates as possible (augmenting paths), so one
-  // half next to two others never leaves a third half without its partner.
-  const owner = new Map<number, number>();
-  const claim = (u: number, seen: Set<number>): boolean => {
-    for (const { i } of near[u]) {
-      if (seen.has(i)) continue;
-      seen.add(i);
-      const other = owner.get(i);
-      if (other === undefined || claim(other, seen)) {
-        owner.set(i, u);
-        return true;
-      }
-    }
-    return false;
-  };
-  undergrounds.forEach((_, u) => claim(u, new Set()));
-
-  const pairs = [...owner].map(([i, u]) => ({
-    underground: undergrounds[u],
-    surface: surfaces[i],
-    side: near[u].find((n) => n.i === i)?.side ?? 0,
-  }));
+  const pairs = matchHalves(
+    undergrounds.map((h) => h.cell),
+    surfaces.map((h) => h.cell),
+  ).map(({ u, s, side }) => ({ underground: undergrounds[u], surface: surfaces[s], side }));
   const paired = new Set(pairs.flatMap((p) => [p.underground, p.surface]));
   return { pairs, unpaired: halves.filter((h) => !paired.has(h)) };
 }
@@ -114,43 +119,70 @@ export function orientGates(tiles: MapTile[]): void {
 /** Sides tried, in order, when a lone Gate half is made whole: the right first, as the Gate lies unturned. */
 const SIDE_ORDER = [1, 0, 2, 3, 4, 5];
 
+/** How many Fields to search, outwards, for room for a lone half's Gate (far more than any board holds). */
+const SEARCH_LIMIT = 100_000;
+
+/**
+ * A whole Gate for a lone half: on the half's own Field with the other half
+ * on a free side, or, with no room there, on the nearest two free Fields side
+ * by side, so it never covers a tile or another token.
+ */
+function wholeGate(h: BoardToken, free: (cell: [number, number]) => boolean): BoardToken {
+  const freeSide = (cell: [number, number]) => SIDE_ORDER.find((i) => free(neighbours(...cell)[i]));
+  const side = freeSide([h.row, h.col]);
+  if (side !== undefined && free([h.row, h.col])) {
+    // the underground half stays put with the surface half on `side`, or the
+    // surface half stays put and the underground half goes on `side` of it
+    const [r, c] = neighbours(h.row, h.col)[side];
+    return h.location === GATE_UNDERGROUND
+      ? { ...h, location: GATE, rotation: (side + 5) % 6 }
+      : { ...h, location: GATE, row: r, col: c, rotation: (side + 2) % 6 };
+  }
+  const seen = new Set([cellKey(h.row, h.col)]);
+  const queue: [number, number][] = [[h.row, h.col]];
+  for (let i = 0; i < queue.length && i < SEARCH_LIMIT; i++) {
+    const cell = queue[i];
+    const s = free(cell) ? freeSide(cell) : undefined;
+    if (s !== undefined) return { ...h, location: GATE, row: cell[0], col: cell[1], rotation: (s + 5) % 6 };
+    for (const next of neighbours(...cell)) {
+      if (next[0] < 0 || next[1] < 0 || seen.has(cellKey(...next))) continue;
+      seen.add(cellKey(...next));
+      queue.push(next);
+    }
+  }
+  return { ...h, location: GATE };
+}
+
 /**
  * Tokens beside the tiles with the Gate halves of older projects made whole:
- * an underground and a surface half on neighbouring Fields become one Gate,
- * and a lone half gets its other half on a free neighbouring Field.
+ * underground and surface halves on neighbouring Fields become Gates (matched
+ * like the halves on tiles), and each lone half gets its other half on a free
+ * neighbouring Field, or moves with it to the nearest free pair of Fields.
  */
 export function mergeGateHalves(tiles: MapTile[], tokens: BoardToken[]): BoardToken[] {
   if (!tokens.some((t) => isGateHalf(t.location))) return tokens;
   const out = tokens.filter((t) => !isGateHalf(t.location));
+  const undergrounds = tokens.filter((t) => t.location === GATE_UNDERGROUND);
   const surfaces = tokens.filter((t) => t.location === GATE_SURFACE);
-  const used = new Set<string>();
-  for (const u of tokens.filter((t) => t.location === GATE_UNDERGROUND)) {
-    const side = neighbours(u.row, u.col).findIndex(([r, c]) => surfaces.some((s) => !used.has(s.id) && s.row === r && s.col === c));
-    if (side < 0) continue;
-    const [r, c] = neighbours(u.row, u.col)[side];
-    const s = surfaces.find((x) => !used.has(x.id) && x.row === r && x.col === c) as BoardToken;
-    used.add(u.id).add(s.id);
-    out.push({ ...u, location: GATE, rotation: (side + 5) % 6 });
-  }
+  const pairs = matchHalves(
+    undergrounds.map((t): [number, number] => [t.row, t.col]),
+    surfaces.map((t): [number, number] => [t.row, t.col]),
+  );
+  for (const { u, side } of pairs) out.push({ ...undergrounds[u], location: GATE, rotation: (side + 5) % 6 });
 
-  const lone = tokens.filter((t) => isGateHalf(t.location) && !used.has(t.id));
+  const paired = new Set(pairs.flatMap(({ u, s }) => [undergrounds[u].id, surfaces[s].id]));
+  const lone = tokens.filter((t) => isGateHalf(t.location) && !paired.has(t.id));
   const taken = new Set([
     ...occupancy(tiles).keys(),
     ...out.flatMap((t) => tokenCells(t).map(([r, c]) => cellKey(r, c))),
     ...lone.map((t) => cellKey(t.row, t.col)),
   ]);
+  const free = ([r, c]: [number, number]) => r >= 0 && c >= 0 && !taken.has(cellKey(r, c));
   for (const h of lone) {
-    const around = neighbours(h.row, h.col);
-    const side = SIDE_ORDER.find((i) => around[i][0] >= 0 && around[i][1] >= 0 && !taken.has(cellKey(...around[i]))) ?? 1;
-    const [r, c] = around[side];
-    taken.add(cellKey(r, c));
-    // the underground half stays put with the surface half on `side`, or the
-    // surface half stays put and the underground half goes on `side` of it
-    out.push(
-      h.location === GATE_UNDERGROUND
-        ? { ...h, location: GATE, rotation: (side + 5) % 6 }
-        : { ...h, location: GATE, row: r, col: c, rotation: (side + 2) % 6 },
-    );
+    taken.delete(cellKey(h.row, h.col));
+    const gate = wholeGate(h, free);
+    for (const [r, c] of tokenCells(gate)) taken.add(cellKey(r, c));
+    out.push(gate);
   }
   return out;
 }

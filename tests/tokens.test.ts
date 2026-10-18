@@ -4,6 +4,7 @@ import { cellKey, fieldCell, neighbours } from "../src/lib/hex.ts";
 import { boardTokenOverlays } from "../src/lib/mapdraw.ts";
 import { newTile } from "../src/lib/mapfile.ts";
 import { GATE, GATE_SURFACE, GATE_UNDERGROUND, gateHalves, mergeGateHalves, orientGates, tokenCells } from "../src/lib/tokens.ts";
+import { upgradeScenario } from "../src/model/defaults.ts";
 import type { BoardToken } from "../src/model/types.ts";
 
 const S = GATE_SURFACE;
@@ -104,6 +105,51 @@ test("Gate halves beside the tiles from older projects become whole Gates", () =
   // nothing to merge: the same list comes back
   const plain = [w];
   assert.equal(mergeGateHalves([], plain), plain);
+});
+
+test("old Gate halves beside the tiles pair up like those on tiles, as many Gates as possible", () => {
+  // the underground half at (10, 10) touches both surface halves, the one at (10, 12) only the surface half at (10, 11)
+  const halves: BoardToken[] = [
+    { id: "u1", location: U, row: 10, col: 10, rotation: 0 },
+    { id: "u2", location: U, row: 10, col: 12, rotation: 0 },
+    { id: "s1", location: S, row: 10, col: 11, rotation: 0 },
+    { id: "s2", location: S, row: 11, col: 10, rotation: 0 },
+  ];
+  const merged = mergeGateHalves([], halves);
+  assert.equal(merged.length, 2);
+  assert.deepEqual(merged.map(tokenCells).sort(), [
+    [
+      [10, 10],
+      [11, 10],
+    ],
+    [
+      [10, 12],
+      [10, 11],
+    ],
+  ]);
+});
+
+test("a lone half boxed in on every side moves, made whole, to the nearest free pair of Fields", () => {
+  const around: BoardToken[] = neighbours(10, 10).map(([row, col], i) => ({ id: `w${i}`, location: "whirlpool-plus1", row, col, rotation: 0 }));
+  const merged = mergeGateHalves([], [...around, { id: "s", location: S, row: 10, col: 10, rotation: 0 }]);
+  const gate = merged.find((t) => t.location === GATE);
+  assert.ok(gate);
+  const cells = tokenCells(gate);
+  const taken = new Set(around.map((t) => cellKey(t.row, t.col)));
+  assert.ok(cells.every(([r, c]) => !taken.has(cellKey(r, c))));
+  assert.ok(neighbours(...cells[0]).some(([r, c]) => cellKey(r, c) === cellKey(...cells[1])));
+});
+
+test("opening a project or a map turns its Gate halves to face each other, without changing the input", () => {
+  const surface = newTile("F1", 16, 4);
+  surface.mapLocations[4] = S;
+  const underground = newTile("U1", 16, 7);
+  underground.mapLocations[2] = U;
+  const input = { maps: [{ id: "m", name: "Map", playerCounts: [], caption: "", tiles: [surface, underground], tokens: [] }] };
+  const [layout] = upgradeScenario(input).maps;
+  assert.equal(layout.tiles[0].fieldReplacementRotations[4], 3);
+  assert.equal(layout.tiles[1].fieldReplacementRotations[2], 3);
+  assert.equal(surface.fieldReplacementRotations[4], 0);
 });
 
 test("a lone half is made whole on a side no tile covers", () => {
