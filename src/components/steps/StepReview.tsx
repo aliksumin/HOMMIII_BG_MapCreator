@@ -92,7 +92,7 @@ export function StepReview() {
             <div key={m.file} className="export-map">
               <b>{m.layout.name}</b>
               <button type="button" className="btn small" onClick={() => download(`${m.file}.map`, `${encodeMap(m.layout.tiles)}\n`, "text/plain")}>
-                {breakable(`${m.file}.map`)}
+                <span>{breakable(`${m.file}.map`)}</span>
               </button>
               <button
                 type="button"
@@ -100,7 +100,7 @@ export function StepReview() {
                 disabled={!!busy}
                 onClick={() => run("Rendering...", async () => download(`${m.file}.png`, await renderMapPng(m.layout.tiles, 2, m.layout.tokens)))}
               >
-                {breakable(`${m.file}.png`)}
+                <span>{breakable(`${m.file}.png`)}</span>
               </button>
             </div>
           ))}
