@@ -100,22 +100,54 @@ test("a group may move onto its own old Fields but not onto other tiles", () => 
   assert.equal(canPlaceGroup(tiles, move([0, 9])), false);
 });
 
-test("a Location token sits only on a Field no tile covers and no token holds", () => {
+/** A token beside the tiles over the given Fields, the first being where it stands. */
+const spot = (id: string, cells: [number, number][]) => ({ id, row: cells[0][0], col: cells[0][1], cells });
+
+test("a Location token sits only on Fields no tile covers and no token holds", () => {
   const a = newTile("S0", 8, 12);
-  const token = { id: "t1", row: 8, col: 14 };
-  assert.equal(canPlaceToken([a], [], 8, 13), false);
-  assert.equal(canPlaceToken([a], [], 8, 14), true);
-  assert.equal(canPlaceToken([a], [token], 8, 14), false);
-  assert.equal(canPlaceToken([a], [token], 8, 14, "t1"), true);
-  assert.equal(canPlaceToken([a], [], -1, 3), false);
+  const token = spot("t1", [[8, 14]]);
+  assert.equal(canPlaceToken([a], [], [[8, 13]]), false);
+  assert.equal(canPlaceToken([a], [], [[8, 14]]), true);
+  assert.equal(canPlaceToken([a], [token], [[8, 14]]), false);
+  assert.equal(canPlaceToken([a], [token], [[8, 14]], "t1"), true);
+  assert.equal(canPlaceToken([a], [], [[-1, 3]]), false);
+  // a token over two Fields needs both of them free
+  assert.equal(
+    canPlaceToken(
+      [a],
+      [],
+      [
+        [8, 14],
+        [8, 13],
+      ],
+    ),
+    false,
+  );
+  assert.equal(
+    canPlaceToken(
+      [a],
+      [],
+      [
+        [8, 14],
+        [8, 15],
+      ],
+    ),
+    true,
+  );
   assert.equal(canPlace([a], 8, 15, undefined, [token]), false);
   assert.equal(canPlace([a], 8, 15), true);
+  const gate = spot("g", [
+    [8, 18],
+    [8, 17],
+  ]);
+  assert.equal(canPlace([a], 8, 16, undefined, [gate]), false);
+  assert.equal(canPlace([a], 8, 16), true);
 });
 
 test("tokens move along with a group but block tiles that stay put", () => {
   const a = newTile("S0", 8, 12);
   const b = newTile("F1", 8, 17);
-  const token = { id: "t1", row: 8, col: 14 };
+  const token = spot("t1", [[8, 14]]);
   // the token alone may not move onto a tile
   assert.equal(canPlaceGroup([a, b], [{ id: "t1", row: 8, col: 16 }], [token]), false);
   // tile a moving onto the token's Field is blocked unless the token moves too
@@ -126,10 +158,31 @@ test("tokens move along with a group but block tiles that stay put", () => {
   assert.equal(canPlaceGroup([a, b], [moveA, { id: "t1", row: tr, col: tc }], [token]), true);
 });
 
+test("a token over two Fields moves whole: both Fields must land free", () => {
+  const b = newTile("F1", 8, 17);
+  const gate = spot("g", [
+    [4, 10],
+    [4, 11],
+  ]);
+  assert.equal(canPlaceGroup([b], [{ id: "g", row: 8, col: 14 }], [gate]), true);
+  // its second Field would land on (8, 16), under tile b
+  assert.equal(canPlaceGroup([b], [{ id: "g", row: 8, col: 15 }], [gate]), false);
+});
+
 test("the board box takes in tokens beside the tiles", () => {
   const a = newTile("S0", 8, 12);
   const tilesOnly = boardBounds([a]);
-  const withToken = boardBounds([a], [{ id: "t1", row: 8, col: 15 }]);
+  const withToken = boardBounds([a], [spot("t1", [[8, 15]])]);
+  const withGate = boardBounds(
+    [a],
+    [
+      spot("g", [
+        [8, 15],
+        [8, 16],
+      ]),
+    ],
+  );
+  assert.ok(withGate && withGate.maxX >= cellCenter(8, 16).x + 51 * Math.SQRT2);
   assert.ok(tilesOnly && withToken);
   assert.ok(withToken.maxX > tilesOnly.maxX);
   // room for the token picture turned to any angle
