@@ -1,6 +1,7 @@
 // Game vocabulary the editor offers as choices. Sources: the rewritten rule
 // book (github.com/Heegu-sama/Homm3BG) and the mission book templates and
-// scenario builder (github.com/qwrtln/Homm3BG-mission-book).
+// scenario builder (github.com/qwrtln/Homm3BG-mission-book) (game terms and
+// rule phrases; no code copied from the AGPL Scenario Builder).
 
 import type { Category, ResourceKey, TileGroupKey } from "../model/types.ts";
 
