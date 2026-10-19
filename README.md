@@ -87,7 +87,8 @@ See [NOTICE.md](NOTICE.md) for where the art comes from and its licenses.
 
 - The code is MIT licensed (see [LICENSE](LICENSE)).
 - The Mission Book art under `public/assets/` is CC BY-NC-SA 4.0 (see [public/assets/LICENSE.md](public/assets/LICENSE.md)),
-  so the app with its assets, and the PDFs and map images it exports, are for non-commercial use.
+  so the app with its assets, and the PDFs it exports, are for non-commercial use. The map tile and token art is
+  Archon Studio's game art, used as fan content.
 - Full credits and the other sources are in [NOTICE.md](NOTICE.md).
 
 ## Code map

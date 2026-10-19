@@ -29,8 +29,10 @@ versions of them, are licensed under CC BY-NC-SA 4.0 (https://creativecommons.or
 under the MIT license of the code.
 
 Because of the CC BY-NC-SA 4.0 parts, the app as distributed with these assets is for non-commercial use, and
-changes to those assets must be shared under the same license. Exported PDFs and map images contain this art and
-are for non-commercial use too.
+changes to those assets must be shared under the same license. Exported PDFs contain this CC BY-NC-SA 4.0 art and
+are for non-commercial use too. Exported map images contain only the map tile, token and portrait art described
+above (Archon Studio's art, used as fan content), not the Mission Book art; share them as non-commercial fan
+content.
 
 This is an unofficial fan project. Heroes of Might and Magic is a trademark of Ubisoft Entertainment.
 Heroes of Might & Magic III: The Board Game is published by Archon Studio. Game art belongs to its owners.
