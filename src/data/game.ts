@@ -1,7 +1,7 @@
 // Game vocabulary the editor offers as choices. Sources: the rewritten rule
 // book (github.com/Heegu-sama/Homm3BG) and the mission book templates and
-// scenario builder (github.com/qwrtln/Homm3BG-mission-book) (game terms and
-// rule phrases; no code copied from the AGPL Scenario Builder).
+// scenario builder (github.com/qwrtln/Homm3BG-mission-book): game terms and
+// rule phrases only.
 
 import type { Category, ResourceKey, TileGroupKey } from "../model/types.ts";
 
@@ -128,25 +128,38 @@ export interface Building {
   output: string;
 }
 
+/** A Dwelling prints its star glyph before the word. */
+const dwelling = (star: "bronze" | "silver" | "golden", label: string): Building => ({
+  key: star,
+  label,
+  glyph: star,
+  output: `:${star}: Dwelling`,
+});
+/** A common building prints its name only; the picker shows its glyph. */
+const common = (name: string, label: string): Building => ({
+  key: name,
+  label,
+  glyph: `building_${name}`,
+  output: label,
+});
+/** A faction building prints its glyph before the word; its key is the glyph name. */
+const factionBuilding = (glyph: "building_special_tent" | "building_special_gears", label: string): Building => ({
+  key: glyph,
+  label,
+  glyph,
+  output: `:${glyph}: Building`,
+});
+
+/** The Town Buildings, in the order the line prints them. Keys are stored in project files. */
 export const BUILDINGS: readonly Building[] = [
-  { key: "bronze", label: "Bronze Dwelling", glyph: "bronze", output: ":bronze: Dwelling" },
-  { key: "silver", label: "Silver Dwelling", glyph: "silver", output: ":silver: Dwelling" },
-  { key: "golden", label: "Golden Dwelling", glyph: "golden", output: ":golden: Dwelling" },
-  { key: "city_hall", label: "City Hall", glyph: "building_city_hall", output: "City Hall" },
-  { key: "citadel", label: "Citadel", glyph: "building_citadel", output: "Citadel" },
-  { key: "mage_guild", label: "Mage Guild", glyph: "building_mage_guild", output: "Mage Guild" },
-  {
-    key: "building_special_tent",
-    label: "Faction Building (tent)",
-    glyph: "building_special_tent",
-    output: ":building_special_tent: Building",
-  },
-  {
-    key: "building_special_gears",
-    label: "Faction Building (gears)",
-    glyph: "building_special_gears",
-    output: ":building_special_gears: Building",
-  },
+  dwelling("bronze", "Bronze Dwelling"),
+  dwelling("silver", "Silver Dwelling"),
+  dwelling("golden", "Golden Dwelling"),
+  common("city_hall", "City Hall"),
+  common("citadel", "Citadel"),
+  common("mage_guild", "Mage Guild"),
+  factionBuilding("building_special_tent", "Faction Building (tent)"),
+  factionBuilding("building_special_gears", "Faction Building (gears)"),
 ];
 
 /** One-click starting Unit lines, as the published scenarios word them. */
