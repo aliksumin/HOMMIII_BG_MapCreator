@@ -74,7 +74,9 @@ test("automatic Map Setup lists each layout with different tiles", () => {
 
 test("helpers", () => {
   assert.equal(formatPlayerCount([4, 2]), "2 or 4");
-  assert.equal(formatPlayerCount([1, 2, 4]), "1, 2 or 4");
+  assert.equal(formatPlayerCount([5, 1, 3, 3]), "1, 3 or 5");
+  assert.equal(formatPlayerCount([6, 2, 4, 3]), "2–4 or 6");
+  assert.equal(formatPlayerCount([]), "");
   assert.equal(slugify("Titans\u2019 Stronghold!"), "titans_stronghold");
   assert.equal(escapeLatex("a_b {c}"), "a\\_b \\{c\\}");
   assert.deepEqual(

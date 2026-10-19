@@ -119,18 +119,28 @@ export function parseInline(source: string, base: { b?: boolean; i?: boolean } =
 
 /** Non-empty trimmed lines. */
 export function lines(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const kept: string[] = [];
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed) kept.push(trimmed);
+  }
+  return kept;
 }
 
-/** Paragraphs separated by blank lines, each joined into one line. */
+/** Paragraphs separated by blank lines (spaces and tabs only), each joined into one line. */
 export function paragraphs(text: string): string[] {
-  return text
-    .split(/\r?\n[ \t]*\r?\n/)
-    .map((p) => lines(p).join(" "))
-    .filter(Boolean);
+  const found: string[] = [];
+  let open: string[] = [];
+  const close = () => {
+    if (open.length) found.push(open.join(" "));
+    open = [];
+  };
+  for (const line of text.split("\n")) {
+    if (/^[ \t]*\r?$/.test(line)) close();
+    else if (line.trim()) open.push(line.trim());
+  }
+  close();
+  return found;
 }
 
 /** Plain text of runs, for search and checks. */

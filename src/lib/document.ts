@@ -47,20 +47,21 @@ export function slugify(name: string): string {
   return slug || "untitled";
 }
 
-/** "2", "2-4" (with an en dash), "2 or 3", "1, 2 or 4": a run of three or more becomes a range. */
+/** "2", "2-4" (with an en dash), "2 or 3", "1, 2 or 4": three or more counts in a row print as a range. */
 export function formatPlayerCount(counts: number[]): string {
-  const sorted = [...new Set(counts)].sort((a, b) => a - b);
-  const items: string[] = [];
-  let start = 0;
-  while (start < sorted.length) {
-    let end = start;
-    while (end + 1 < sorted.length && sorted[end + 1] === sorted[end] + 1) end++;
-    if (end - start >= 2) items.push(`${sorted[start]}\u2013${sorted[end]}`);
-    else for (let k = start; k <= end; k++) items.push(`${sorted[k]}`);
-    start = end + 1;
+  // consecutive counts as [from, to], e.g. 1, 2, 3, 6 -> [1, 3], [6, 6]
+  const spans: [number, number][] = [];
+  for (const n of [...new Set(counts)].sort((a, b) => a - b)) {
+    const span = spans.at(-1);
+    if (span && n === span[1] + 1) span[1] = n;
+    else spans.push([n, n]);
   }
-  if (items.length <= 1) return items.join("");
-  return `${items.slice(0, -1).join(", ")} or ${items[items.length - 1]}`;
+  const words = spans.flatMap(([from, to]) =>
+    to - from >= 2 ? [`${from}\u2013${to}`] : Array.from({ length: to - from + 1 }, (_, i) => String(from + i)),
+  );
+  const last = words.pop();
+  if (last === undefined) return "";
+  return words.length ? `${words.join(", ")} or ${last}` : last;
 }
 
 /** The caption the book writes under a map image. */
@@ -123,21 +124,23 @@ function listBlock(items: string[]): Block | null {
   return kept.length ? { k: "list", items: kept.map(md) } : null;
 }
 
-function resourceRuns(values: ResourceValues, unset: ResourceValues, skipZero: boolean): Inline[] {
-  const parts = RESOURCES.map(({ key }) => ({ key, value: values[key] ?? unset[key] ?? 0 })).filter(
-    ({ value }) => !skipZero || value !== 0,
-  );
-  if (!parts.length) return [{ t: "text", s: "None" }];
+/**
+ * "10 :gold:, 2 :building_materials:" for a resource line. Starting Resources
+ * leave 0s out and read None when nothing is left; Starting Income prints
+ * every track, an unset one at its lowest position.
+ */
+function resourceRuns(values: ResourceValues, income: boolean): Inline[] {
   const runs: Inline[] = [];
-  parts.forEach(({ key, value }, i) => {
-    runs.push({ t: "text", s: `${i ? ", " : ""}${value} ` });
-    runs.push({ t: "glyph", name: key });
-  });
-  return runs;
+  for (const { key } of RESOURCES) {
+    const value = values[key] ?? (income ? INCOME_TRACK[key][0] : 0);
+    if (!income && value === 0) continue;
+    runs.push({ t: "text", s: `${runs.length ? ", " : ""}${value} ` }, { t: "glyph", name: key });
+  }
+  return runs.length ? runs : [{ t: "text", s: "None" }];
 }
 
-function anySet(values: ResourceValues): boolean {
-  return Object.values(values).some((v) => typeof v === "number");
+function hasAnyValue(values: ResourceValues): boolean {
+  return RESOURCES.some(({ key }) => typeof values[key] === "number");
 }
 
 function tileLine(count: TileCount, book: string, note: string): Inline[] {
@@ -246,18 +249,8 @@ export function buildDocument(s: Scenario): ScenarioDoc {
   }
   if (s.faction.trim()) push({ k: "field", label: "Faction", runs: md(s.faction.trim()) });
   if (s.factionHero.trim()) push({ k: "field", label: "Faction Hero", runs: md(s.factionHero.trim()) });
-  if (anySet(s.resources)) {
-    const zero: ResourceValues = { gold: 0, building_materials: 0, valuables: 0 };
-    push({ k: "field", label: "Starting Resources", runs: resourceRuns(s.resources, zero, true) });
-  }
-  if (anySet(s.income)) {
-    const min: ResourceValues = {
-      gold: INCOME_TRACK.gold[0],
-      building_materials: INCOME_TRACK.building_materials[0],
-      valuables: INCOME_TRACK.valuables[0],
-    };
-    push({ k: "field", label: "Starting Income", runs: resourceRuns(s.income, min, false) });
-  }
+  if (hasAnyValue(s.resources)) push({ k: "field", label: "Starting Resources", runs: resourceRuns(s.resources, false) });
+  if (hasAnyValue(s.income)) push({ k: "field", label: "Starting Income", runs: resourceRuns(s.income, true) });
   const units = listBlock(s.startingUnits);
   if (units) push({ k: "field", label: "Starting Units", runs: [] }, units);
   const chosen = BUILDINGS.filter((b) => s.buildings.includes(b.key));
@@ -266,13 +259,18 @@ export function buildDocument(s: Scenario): ScenarioDoc {
     label: "Town Buildings",
     runs: chosen.length ? md(chosen.map((b) => b.output).join(", ")) : [{ t: "text", s: "None" }],
   });
-  if (s.tilePool.enabled && (s.tilePool.far > 0 || s.tilePool.near > 0)) {
-    const parts: string[] = [];
-    const plural = (n: number) => (n === 1 ? "" : "s");
-    if (s.tilePool.far > 0) parts.push(`${s.tilePool.far} random Far (II--III) Map Tile${plural(s.tilePool.far)}`);
-    if (s.tilePool.near > 0) parts.push(`${s.tilePool.near} random Near (IV--V) Map Tile${plural(s.tilePool.near)}`);
-    const note = s.tilePool.note.trim() ? ` ${s.tilePool.note.trim()}` : "";
-    push({ k: "field", label: "Map Tile Pool", runs: md(`Each player takes ${parts.join(" and ")}.${note}`) });
+  const pool = s.tilePool;
+  const pooled = (
+    [
+      ["Far (II--III)", pool.far],
+      ["Near (IV--V)", pool.near],
+    ] as const
+  )
+    .filter(([, n]) => n > 0)
+    .map(([band, n]) => `${n} random ${band} Map Tile${n === 1 ? "" : "s"}`);
+  if (pool.enabled && pooled.length) {
+    const note = pool.note.trim();
+    push({ k: "field", label: "Map Tile Pool", runs: md(`Each player takes ${pooled.join(" and ")}.${note ? ` ${note}` : ""}`) });
   }
   const options = s.bonus.options.map((o) => o.trim()).filter(Boolean);
   const bonusLabel = s.bonus.label.trim() || "Additional Bonus";

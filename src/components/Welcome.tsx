@@ -136,6 +136,9 @@ export function Welcome() {
           trademark of Ubisoft, the board game is by Archon Studio.
           <br />
           Exported PDFs and map images contain this art and are for non-commercial use.
+          <br />
+          App code: <a href="https://github.com/aliksumin/HOMMIII_BG_MapCreator">source on GitHub</a>, licensed{" "}
+          <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a>.
         </footer>
       </div>
     </div>
