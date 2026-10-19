@@ -3,7 +3,8 @@
 Copyright (C) 2026 Albert Sumin.
 
 The code of this app is free software, licensed under the GNU Affero General Public License, version 3
-(AGPL-3.0; see `LICENSE`, or https://www.gnu.org/licenses/agpl-3.0.html). It comes with no warranty. If you run a
+or (at your option) any later version (AGPL-3.0-or-later; see `LICENSE`, or
+https://www.gnu.org/licenses/agpl-3.0.html). It comes with no warranty. If you run a
 changed version for other people over a network, the AGPL asks you to offer them its source code. The AGPL covers
 the code only, not the art and data listed below.
 
