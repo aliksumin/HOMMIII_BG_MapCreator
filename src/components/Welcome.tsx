@@ -129,13 +129,14 @@ export function Welcome() {
         </section>
 
         <footer className="welcome-credits">
-          Map tiles from the <a href="https://github.com/zedero/homm3boardgame">community map editor</a> by zedero; icons, fonts and page art from the{" "}
+          Map tiles from the <a href="https://github.com/zedero/homm3boardgame">community map editor</a> by zedero; icons and page art from the{" "}
           <a href="https://github.com/qwrtln/Homm3BG-mission-book">Fan-Made Mission Book</a> (
           <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>) and the{" "}
           <a href="https://github.com/Heegu-sama/Homm3BG">Rewritten Rule Book</a>. Unofficial fan project; Heroes of Might &amp; Magic is a
           trademark of Ubisoft, the board game is by Archon Studio.
           <br />
-          Exported PDFs and map images contain this art and are for non-commercial use.
+          Exported PDFs carry the Mission Book art (CC BY-NC-SA 4.0); map images carry only the map tiles and tokens (Archon
+          Studio&rsquo;s game art). Both are for non-commercial use.
           <br />
           App code: <a href="https://github.com/aliksumin/HOMMIII_BG_MapCreator">source on GitHub</a>, licensed{" "}
           <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a>.

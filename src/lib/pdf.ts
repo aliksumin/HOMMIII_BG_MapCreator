@@ -6,6 +6,7 @@
 import type { jsPDF as JsPDF } from "jspdf";
 import { assetUrl, glyphUrl, titleImageUrl } from "../data/catalog.ts";
 import type { Scenario } from "../model/types.ts";
+import { PDF_CREDIT } from "./credits.ts";
 import { type Block, buildDocument, type ScenarioDoc } from "./document.ts";
 import { loadImage, rasterise } from "./images.ts";
 import { renderMapPng } from "./mapdraw.ts";
@@ -126,6 +127,17 @@ class Writer {
     this.pdf.setFontSize(8);
     this.pdf.setTextColor(110, 90, 70);
     this.pdf.text(String(this.page), PAGE_W / 2, PAGE_H - 26, { align: "center" });
+  }
+
+  /** The art credit, in small type between the last page's text and its page number. */
+  credit(): void {
+    this.pdf.setFont(FONT, "normal");
+    this.pdf.setFontSize(6);
+    this.pdf.setTextColor(110, 90, 70);
+    const lines: string[] = this.pdf.splitTextToSize(PDF_CREDIT, CONTENT_W);
+    lines.forEach((line, i) => {
+      this.pdf.text(line, PAGE_W / 2, PAGE_H - 36 - (lines.length - 1 - i) * 7, { align: "center" });
+    });
   }
 
   newPage(): void {
@@ -396,7 +408,13 @@ export async function scenarioToPdf(scenario: Scenario, onProgress?: (what: stri
     pdf.addFileToVFS(file, await fontBase64(file));
     pdf.addFont(file, FONT, style);
   }
-  pdf.setProperties({ title: doc.title, subject: doc.kind, author: scenario.author || "", creator: "HoMM3 BG Scenario Creator" });
+  pdf.setProperties({
+    title: doc.title,
+    subject: doc.kind,
+    author: scenario.author || "",
+    creator: "HoMM3 BG Scenario Creator",
+    keywords: PDF_CREDIT,
+  });
 
   onProgress?.("Loading images...");
   const assets = await loadAssets(doc);
@@ -416,6 +434,7 @@ export async function scenarioToPdf(scenario: Scenario, onProgress?: (what: stri
     w.newPage();
     w.blocks(doc.story);
   }
+  w.credit();
   onProgress?.("Saving...");
   return pdf.output("blob");
 }
