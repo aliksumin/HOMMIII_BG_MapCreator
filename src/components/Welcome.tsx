@@ -135,8 +135,8 @@ export function Welcome() {
           <a href="https://github.com/Heegu-sama/Homm3BG">Rewritten Rule Book</a>. Unofficial fan project; Heroes of Might &amp; Magic is a
           trademark of Ubisoft, the board game is by Archon Studio.
           <br />
-          Exported PDFs carry the Mission Book art (CC BY-NC-SA 4.0); map images carry only the map tiles and tokens (Archon
-          Studio&rsquo;s game art). Both are for non-commercial use.
+          Exported PDFs carry the Mission Book art (CC BY-NC-SA 4.0); map images carry the map tiles and tokens (Archon
+          Studio&rsquo;s game art; Creature Bank tokens are drawn by this app). Both are for non-commercial use.
           <br />
           App code: <a href="https://github.com/aliksumin/HOMMIII_BG_MapCreator">source on GitHub</a>, licensed{" "}
           <a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a>.

@@ -5,7 +5,7 @@ import { strToU8, zipSync } from "fflate";
 import { categoryInfo } from "../data/game.ts";
 import { upgradeScenario } from "../model/defaults.ts";
 import type { Scenario } from "../model/types.ts";
-import { creditsMarkdown } from "./credits.ts";
+import { artUse, creditsMarkdown } from "./credits.ts";
 import { mapFiles, slugify } from "./document.ts";
 import { dataUrlToBytes } from "./images.ts";
 import { registrationLines, scenarioToLatex } from "./latex.ts";
@@ -123,7 +123,7 @@ export async function buildBundle(s: Scenario, onProgress?: (what: string) => vo
   files[`${root}${slug}.pdf`] = new Uint8Array(await pdf.arrayBuffer());
   files[`${root}${slug}${PROJECT_EXTENSION}`] = strToU8(projectJson(s));
   files[`${root}HOW-TO-SUBMIT.md`] = strToU8(submitGuide(s));
-  files[`${root}CREDITS.md`] = strToU8(creditsMarkdown(slug));
+  files[`${root}CREDITS.md`] = strToU8(creditsMarkdown(slug, artUse(s)));
   onProgress?.("Zipping...");
   return zipSync(files, { level: 6 });
 }
