@@ -5,6 +5,7 @@ import { strToU8, zipSync } from "fflate";
 import { categoryInfo } from "../data/game.ts";
 import { upgradeScenario } from "../model/defaults.ts";
 import type { Scenario } from "../model/types.ts";
+import { artUse, creditsMarkdown } from "./credits.ts";
 import { mapFiles, slugify } from "./document.ts";
 import { dataUrlToBytes } from "./images.ts";
 import { registrationLines, scenarioToLatex } from "./latex.ts";
@@ -80,6 +81,7 @@ export function submitGuide(s: Scenario): string {
     "One scenario per pull request. Attach screenshots of the built pages (or the PDF from this folder).",
     "",
     "The `.scenario.json` file reopens this scenario in the Scenario Creator.",
+    "`CREDITS.md` says where the art in the PDF and map images comes from; keep it with them when you share them.",
     "",
   ];
   return lines.join("\n");
@@ -121,6 +123,7 @@ export async function buildBundle(s: Scenario, onProgress?: (what: string) => vo
   files[`${root}${slug}.pdf`] = new Uint8Array(await pdf.arrayBuffer());
   files[`${root}${slug}${PROJECT_EXTENSION}`] = strToU8(projectJson(s));
   files[`${root}HOW-TO-SUBMIT.md`] = strToU8(submitGuide(s));
+  files[`${root}CREDITS.md`] = strToU8(creditsMarkdown(slug, artUse(s)));
   onProgress?.("Zipping...");
   return zipSync(files, { level: 6 });
 }

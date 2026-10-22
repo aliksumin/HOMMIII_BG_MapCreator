@@ -6,6 +6,7 @@
 import type { jsPDF as JsPDF } from "jspdf";
 import { assetUrl, glyphUrl, titleImageUrl } from "../data/catalog.ts";
 import type { Scenario } from "../model/types.ts";
+import { artUse, pdfCredit } from "./credits.ts";
 import { type Block, buildDocument, type ScenarioDoc } from "./document.ts";
 import { loadImage, rasterise } from "./images.ts";
 import { renderMapPng } from "./mapdraw.ts";
@@ -126,6 +127,26 @@ class Writer {
     this.pdf.setFontSize(8);
     this.pdf.setTextColor(110, 90, 70);
     this.pdf.text(String(this.page), PAGE_W / 2, PAGE_H - 26, { align: "center" });
+  }
+
+  /**
+   * The art credit, in small type between the last page's text and its page
+   * number. It keeps to three lines, the room below the text column.
+   */
+  credit(text: string): void {
+    this.pdf.setFont(FONT, "normal");
+    this.pdf.setTextColor(110, 90, 70);
+    let size = 6;
+    let lines: string[] = [];
+    for (; size >= 4.5; size -= 0.5) {
+      this.pdf.setFontSize(size);
+      lines = this.pdf.splitTextToSize(text, CONTENT_W);
+      if (lines.length <= 3) break;
+    }
+    const leading = size + 1;
+    lines.forEach((line, i) => {
+      this.pdf.text(line, PAGE_W / 2, PAGE_H - 36 - (lines.length - 1 - i) * leading, { align: "center" });
+    });
   }
 
   newPage(): void {
@@ -385,6 +406,7 @@ export async function scenarioToPdf(scenario: Scenario, onProgress?: (what: stri
   onProgress?.("Loading fonts...");
   const { jsPDF } = await import("jspdf");
   const doc = buildDocument(scenario);
+  const credit = pdfCredit(artUse(scenario));
   const pdf = new jsPDF({ unit: "pt", format: "a4", compress: true });
   const files: [string, Style][] = [
     ["LiberationSerif-Regular.ttf", "normal"],
@@ -396,7 +418,13 @@ export async function scenarioToPdf(scenario: Scenario, onProgress?: (what: stri
     pdf.addFileToVFS(file, await fontBase64(file));
     pdf.addFont(file, FONT, style);
   }
-  pdf.setProperties({ title: doc.title, subject: doc.kind, author: scenario.author || "", creator: "HoMM3 BG Scenario Creator" });
+  pdf.setProperties({
+    title: doc.title,
+    subject: doc.kind,
+    author: scenario.author || "",
+    creator: "HoMM3 BG Scenario Creator",
+    keywords: credit,
+  });
 
   onProgress?.("Loading images...");
   const assets = await loadAssets(doc);
@@ -416,6 +444,7 @@ export async function scenarioToPdf(scenario: Scenario, onProgress?: (what: stri
     w.newPage();
     w.blocks(doc.story);
   }
+  w.credit(credit);
   onProgress?.("Saving...");
   return pdf.output("blob");
 }
