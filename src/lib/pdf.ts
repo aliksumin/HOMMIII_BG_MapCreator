@@ -293,6 +293,9 @@ export class Writer {
         break;
       case "table": {
         const t = this.layoutTable(block.table, COL_W);
+        // A table does not split. The right column starts as low as the left
+        // one, under the heading, so check again there and go on to a new page.
+        this.ensure(t.frameH + 3);
         this.ensure(t.frameH + 3);
         this.drawTable(t, this.x0, this.y + 3);
         this.y += t.frameH + 3 + BODY * 0.6;

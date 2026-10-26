@@ -229,12 +229,14 @@ function TableCard({ table, index, count, edit, move, remove, bullets, aiRow }: 
             type="button"
             className="btn small"
             title="Nine rows keyed -1/-1 to +1/+1, for two Attack Dice rolled one after the other"
-            onClick={() =>
+            onClick={() => {
+              // the rows change places, so the toolbar lets go of its cell
+              release();
               edit((t) => {
                 t.rows = diceRows(t.rows, t.columns.length);
                 t.columns[0] = "Roll";
-              })
-            }
+              });
+            }}
           >
             Two Attack Dice
           </button>

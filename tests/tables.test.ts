@@ -325,6 +325,22 @@ test("the PDF draws column tables in the flow and page tables across both column
   assert.ok(header.x > 595.28 / 2);
 });
 
+test("a column table too tall for the space under the heading goes to a new page, not off the right column", () => {
+  const { writer, drawn } = recorder();
+  const tall = presetTable("lookup");
+  tall.rows = Array.from({ length: 18 }, (_, i) => [`${i + 1}`, `Omen number ${i + 1} -- nothing happens.`]);
+  const t = writer.layoutTable(tableDoc(tall), 250);
+  // as after the marble heading: both columns start low, and the left one is nearly full
+  writer.top = 841.89 - 56 - t.frameH + 40;
+  writer.y = 780;
+  writer.block({ k: "table", table: tableDoc(tall) });
+  assert.equal(writer.page, 2);
+  assert.equal(writer.col, 0);
+  // the frame starts at the top of the new page and every row is on it
+  const last = drawn.find((d) => d.text === "18")!;
+  assert.ok(last.y < 841.89 - 56);
+});
+
 test("the PDF sets a long table title on as many lines as it needs, and the frame grows with them", () => {
   const { writer, drawn } = recorder();
   const short = tableDoc(presetTable("lookup"));
