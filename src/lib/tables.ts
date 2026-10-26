@@ -305,14 +305,18 @@ export interface BookTable {
 
 /** A row's cells are all as tall as its tallest; each row adds the array strut's depth and the cell border. */
 const ROW_EXTRA = 0.3 * BASELINESKIP + 1;
-/** \medskip, the title line and \bigskip */
-const TITLE_BLOCK = 6 + BASELINESKIP + 12;
+/** \medskip above the title and \bigskip below it */
+const TITLE_SKIPS = 6 + 12;
 
 /** The table as the mission book macros set it, with cell heights and the frame height worked out. */
 export function bookTable(doc: TableDoc): BookTable {
-  const layout = layoutTable(doc, bookGeometry(doc.wide));
+  const g = bookGeometry(doc.wide);
+  const layout = layoutTable(doc, g);
   const heights = layout.rows.map((row) => cellHeight(Math.max(...row.cells.map((c) => c.lines.length))));
-  const content = heights.reduce((sum, h) => sum + h * CM + ROW_EXTRA, 0) + (doc.title.length && !doc.banner ? TITLE_BLOCK : 0);
+  // The bold title above the table wraps at the frame's inner line width.
+  const titleLines = doc.title.length && !doc.banner ? breakLines(toPieces(doc.title, g.size, g.measure, { b: true }), g.lineWidth).length : 0;
+  const title = titleLines ? TITLE_SKIPS + titleLines * BASELINESKIP : 0;
+  const content = heights.reduce((sum, h) => sum + h * CM + ROW_EXTRA, 0) + title;
   // A line of room above and below, rounded up to half a line.
   const frame = Math.ceil((content / BASELINESKIP + 2) * 2) / 2;
   return { layout, heights, frame };

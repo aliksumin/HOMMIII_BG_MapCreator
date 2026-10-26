@@ -117,8 +117,8 @@ function TableCard({ table, index, count, edit, move, remove, bullets, aiRow }: 
       t.columns.push("");
       t.rows.forEach((r) => r.push(""));
     });
-  // Cells are keyed by position, so after a removal the focused box holds
-  // another cell: the toolbar lets go of it until a cell is clicked again.
+  // Cells are keyed by position, so after a removal or a move the focused box
+  // holds another cell: the toolbar lets go of it until a cell is clicked again.
   const release = () => {
     activeEl.current?.blur();
     activeEl.current = null;
@@ -132,16 +132,20 @@ function TableCard({ table, index, count, edit, move, remove, bullets, aiRow }: 
     release();
     edit((t) => void t.rows.splice(r, 1));
   };
-  const moveColumn = (c: number, d: number) =>
+  const moveColumn = (c: number, d: number) => {
+    release();
     edit((t) => {
       const swap = <T,>(list: T[]) => ([list[c], list[c + d]] = [list[c + d], list[c]]);
       swap(t.columns);
       t.rows.forEach(swap);
     });
-  const moveRow = (r: number, d: number) =>
+  };
+  const moveRow = (r: number, d: number) => {
+    release();
     edit((t) => {
       [t.rows[r], t.rows[r + d]] = [t.rows[r + d], t.rows[r]];
     });
+  };
 
   const aiFill = aiRow?.(n);
   // A table across the page floats below the columns, so only a column table has a place among the bullets.

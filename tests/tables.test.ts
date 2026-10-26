@@ -177,6 +177,17 @@ test("cell heights follow the lines, the frame follows the rows", () => {
   assert.ok(bigger.frame > book.frame);
 });
 
+test("every line of a wrapped title counts toward the .tex frame", () => {
+  const short = bookTable(tableDoc(presetTable("lookup")));
+  const words = "Omens of the sky over the drowned marsh, read at the start of every Round";
+  const long = bookTable(tableDoc({ ...presetTable("lookup"), title: `${words} ${words} ${words}` }));
+  // three times the words take at least three lines in a column frame: two more lines of frame, give or take the rounding
+  assert.ok(long.frame >= short.frame + 1.5, `${long.frame} vs ${short.frame}`);
+  // a banner title sits in its own cell row and adds no title lines
+  const banner = bookTable(tableDoc({ ...presetTable("lookup"), title: `${words} ${words} ${words}`, banner: true }));
+  assert.ok(banner.heights[0] > 0.9);
+});
+
 test("the first column is as wide as its longest line needs, within 12-40%", () => {
   assert.equal(bookTable(tableDoc(presetTable("lookup"))).layout.key, 0.13);
   assert.equal(bookTable(tableDoc(presetTable("difficulty"))).layout.key, 0.17);
