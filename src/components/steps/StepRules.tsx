@@ -13,7 +13,7 @@ export function StepRules() {
         <Field label="Introduction (optional)" hint="e.g. During this Scenario, the following rules apply:">
           <MarkupField multiline rows={2} value={s.rulesIntro} onChange={(v) => update((d) => void (d.rulesIntro = v), "rulesIntro")} />
         </Field>
-        <ListEditor items={s.rules} onChange={(items) => update((d) => void (d.rules = items), "rules")} addLabel="Add a rule" chips={RULE_CHIPS} multiline />
+        <ListEditor items={s.rules} onChange={(items) => update((d) => void (d.rules = items), "rules")} addLabel="Add a rule" chips={RULE_CHIPS} />
       </Panel>
       <Panel
         title="Own sections"
@@ -63,7 +63,7 @@ export function StepRules() {
             <MarkupField multiline rows={3} value={section.text} onChange={(v) => update((d) => void (d.customSections[index].text = v), `sec-text-${section.id}`)} />
           </Field>
           <Field label="Bullets" wide>
-            <ListEditor items={section.items} onChange={(items) => update((d) => void (d.customSections[index].items = items), `sec-items-${section.id}`)} multiline />
+            <ListEditor items={section.items} onChange={(items) => update((d) => void (d.customSections[index].items = items), `sec-items-${section.id}`)} />
           </Field>
         </Panel>
       ))}

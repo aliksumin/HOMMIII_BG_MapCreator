@@ -557,7 +557,7 @@ export const SCENES = [
       await d.click(p.locator(".toggle", { hasText: "Count the tiles from the map" }), { hold: 600 });
       await d.clear();
       await d.say("Notes", "Add a note to any tile line.", 400);
-      await d.type(p.locator(".tile-count-row").nth(3).locator("input[type=text]"), d.demo.centerNote, { delay: 18 });
+      await d.type(p.locator(".tile-count-row").nth(3).locator("textarea"), d.demo.centerNote, { delay: 18 });
       await d.hl(p.locator(".tile-count-row").nth(3), "A note on a tile line");
       await d.finishCue(2200);
       await d.clear();
@@ -633,7 +633,7 @@ export const SCENES = [
       await d.smoothScroll(ev);
       await d.click(ev.locator(".round-picker button", { hasText: exact("2") }));
       await d.click(ev.locator(".round-picker button", { hasText: exact("6") }));
-      await d.type(ev.locator(".list-row input[type=text]").first(), d.demo.floodEvent, { delay: 14 });
+      await d.type(ev.locator(".list-row textarea").first(), d.demo.floodEvent, { delay: 14 });
       await d.hl(ev, "Two events can share a Round");
       await d.finishCue();
       await d.clear();

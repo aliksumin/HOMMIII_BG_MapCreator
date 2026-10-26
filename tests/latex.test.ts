@@ -72,6 +72,32 @@ test("automatic Map Setup lists each layout with different tiles", () => {
   assert.ok(!scenarioToLatex(s).includes("players:}"));
 });
 
+test("Shift+Enter writes \\\\ inside the paragraph, Enter a blank line, and the mission book lint stays clean", () => {
+  const s = sample();
+  s.lore = 'The "old" dwarves --\ngone.\n\nNew paragraph.';
+  s.victory = "Defeat all invading armies.\nHold your Town.\n\nOr survive **until\nthe end**.";
+  s.rules = ["Players gain 2 :experience:\n[once] per Round."];
+  s.aiHero = { ...s.aiHero, enabled: true, special: "*Never retreats.*\n\nAlways moves first." };
+  const tex = scenarioToLatex(s);
+  assert.ok(tex.includes("\\textit{The ``old'' dwarves --}\\\\\n\\textit{gone.}\n\n\\textit{New paragraph.}"));
+  assert.ok(tex.includes("Defeat all invading armies.\\\\\nHold your Town.\n\nOr survive \\textbf{until}\\\\\n\\textbf{the end}."));
+  // a line opening with [ is not read as the optional argument of \\
+  assert.ok(tex.includes("  \\item Players gain 2 \\svg{experience}\\\\\n    {}[once] per Round.\n\\end{itemize}"));
+  assert.ok(tex.includes("\\textbf{Special:} \\textit{Never retreats.}\n\nAlways moves first."));
+  // the lint-files workflow: no tabs, no trailing whitespace, a final newline, book terms capitalised
+  assert.ok(tex.endsWith("\n") && !/[ \t]$/m.test(tex) && !tex.includes("\t"));
+  assert.deepEqual(capsFindings(tex), []);
+  // no \\ ends a paragraph or comes right before a list
+  assert.ok(!/\\\\\n\s*(\n|\\begin|\\end|\\item)/.test(tex));
+});
+
+test("text without line breaks writes as before", () => {
+  const s = sample();
+  s.victory = "Defeat all invading armies.\n\nOr survive.";
+  assert.ok(scenarioToLatex(s).includes("\\subsection*{\\MakeUppercase{Victory Conditions}}\n\nDefeat all invading armies.\n\nOr survive.\n\n"));
+  assert.ok(!scenarioToLatex(sample()).includes("\\\\\n"));
+});
+
 test("helpers", () => {
   assert.equal(formatPlayerCount([4, 2]), "2 or 4");
   assert.equal(formatPlayerCount([5, 1, 3, 3]), "1, 3 or 5");

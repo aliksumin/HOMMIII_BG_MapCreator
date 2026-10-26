@@ -9,11 +9,10 @@ interface Props {
   placeholder?: string;
   /** one-click suggestions */
   chips?: readonly string[];
-  multiline?: boolean;
 }
 
-/** An editable bullet list: each item one markup line. */
-export function ListEditor({ items, onChange, addLabel = "Add item", placeholder, chips, multiline }: Props) {
+/** An editable bullet list: each item one markup paragraph, where Enter breaks the line. */
+export function ListEditor({ items, onChange, addLabel = "Add item", placeholder, chips }: Props) {
   const set = (i: number, value: string) => onChange(items.map((item, k) => (k === i ? value : item)));
   const move = (i: number, d: number) => {
     const j = i + d;
@@ -27,7 +26,7 @@ export function ListEditor({ items, onChange, addLabel = "Add item", placeholder
       {items.map((item, i) => (
         <div className="list-row" key={i}>
           <span className="bullet" aria-hidden />
-          <MarkupField value={item} onChange={(v) => set(i, v)} placeholder={placeholder} multiline={multiline} rows={2} />
+          <MarkupField value={item} onChange={(v) => set(i, v)} placeholder={placeholder} multiline breaks="line" />
           <div className="row-tools">
             <button type="button" className="tool" title="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
               &#9650;

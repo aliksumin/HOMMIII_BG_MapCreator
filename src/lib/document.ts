@@ -6,7 +6,7 @@
 import { CATEGORIES, categoryInfo, RESOURCES, BUILDINGS, TILE_GROUPS, INCOME_TRACK } from "../data/game.ts";
 import { isRandomTile, tileGroup } from "../data/catalog.ts";
 import type { MapLayout, MapTile, ResourceValues, Scenario, TileCount, TileGroupKey, TitleImage, Rating } from "../model/types.ts";
-import { type Inline, lines, paragraphs, parseInline } from "./markup.ts";
+import { type Inline, paragraphs, parseInline } from "./markup.ts";
 
 export type Block =
   | { k: "heading"; text: string }
@@ -115,8 +115,15 @@ function md(text: string): Inline[] {
   return parseInline(text);
 }
 
-function paraBlocks(text: string): Block[] {
-  return paragraphs(text).map((p) => ({ k: "para", runs: md(p) }));
+/** One block per paragraph; line breaks stay inside their paragraph. */
+function paraBlocks(text: string, base: { i?: boolean } = {}): Block[] {
+  return paragraphs(text).map((p) => ({ k: "para", runs: parseInline(p, base) }));
+}
+
+/** "Label: first paragraph", then any further paragraphs on their own. */
+function fieldBlocks(label: string, text: string): Block[] {
+  const [first = "", ...more] = paragraphs(text);
+  return [{ k: "field", label, runs: md(first) }, ...more.map((p): Block => ({ k: "para", runs: md(p) }))];
 }
 
 function listBlock(items: string[]): Block | null {
@@ -203,11 +210,7 @@ function storyBookBlocks(s: Scenario): Block[] {
   const tiles = book.specialTiles.filter((e) => e.title.trim() || e.text.trim());
   if (tiles.length) {
     out.push({ k: "heading", text: "Special Tiles" });
-    for (const e of tiles) {
-      const [first = "", ...more] = paragraphs(e.text);
-      out.push({ k: "field", label: e.title.trim() || "Special Tile", runs: md(first) });
-      out.push(...more.map((p): Block => ({ k: "para", runs: md(p) })));
-    }
+    for (const e of tiles) out.push(...fieldBlocks(e.title.trim() || "Special Tile", e.text));
   }
   if (book.paragraphs.length) {
     out.push({ k: "heading", text: "Paragraphs" });
@@ -235,7 +238,7 @@ export function buildDocument(s: Scenario): ScenarioDoc {
       ...(s.sourceUrl.trim() ? { href: s.sourceUrl.trim() } : {}),
     });
   }
-  if (s.lore.trim()) push({ k: "para", runs: parseInline(lines(s.lore).join(" "), { i: true }) });
+  push(...paraBlocks(s.lore, { i: true }));
 
   if (s.rounds !== null) {
     push({ k: "heading", text: "Scenario Length" });
@@ -292,7 +295,7 @@ export function buildDocument(s: Scenario): ScenarioDoc {
     const filled = fields.filter(([, v]) => v.trim());
     if (filled.length) {
       push({ k: "heading", text: "AI Hero Setup" });
-      for (const [label, value] of filled) push({ k: "field", label, runs: md(lines(value).join(" ")) });
+      for (const [label, value] of filled) push(...fieldBlocks(label, value));
     }
   }
 

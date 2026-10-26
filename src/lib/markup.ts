@@ -4,6 +4,9 @@
 //   **bold**      *italic*      :gold:  (any glyph name between colons)
 //   "quotes"      --  (en dash)
 //
+// Line breaks: a blank line (Enter in the editor) starts a new paragraph,
+// a single newline (Shift+Enter) breaks the line inside the paragraph.
+//
 // parseInline() turns it into Inline runs; the LaTeX, preview and PDF
 // writers each render those runs their own way.
 
@@ -12,7 +15,9 @@ export type Inline =
   | { t: "glyph"; name: string }
   | { t: "ordinal"; n: number }
   /** a short formula such as 2P, set in math italics */
-  | { t: "math"; s: string };
+  | { t: "math"; s: string }
+  /** a line break inside the paragraph */
+  | { t: "br" };
 
 /** Glyph names the markup recognises; set once the catalog loads. */
 let knownGlyphs: ReadonlySet<string> = new Set([
@@ -67,7 +72,7 @@ function typography(text: string): string {
   return out;
 }
 
-/** Splits one line or paragraph of markup into runs. */
+/** Splits one paragraph of markup into runs; each newline in it becomes a line break. */
 export function parseInline(source: string, base: { b?: boolean; i?: boolean } = {}): Inline[] {
   const runs: Inline[] = [];
   const text = (s: string, b: boolean, i: boolean) => {
@@ -110,29 +115,56 @@ export function parseInline(source: string, base: { b?: boolean; i?: boolean } =
       k += glyph[0].length;
       continue;
     }
+    // Bold and italics carry on over a line break, as they do over a space.
+    if (rest[0] === "\n" || rest.startsWith("\r\n")) {
+      text(buffer, bold, italic);
+      buffer = "";
+      runs.push({ t: "br" });
+      k += rest[0] === "\n" ? 1 : 2;
+      continue;
+    }
     buffer += rest[0];
     k += 1;
   }
   text(buffer, bold, italic);
-  return runs;
+  return tidyBreaks(runs);
 }
 
-/** Non-empty trimmed lines. */
-export function lines(text: string): string[] {
-  const kept: string[] = [];
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed) kept.push(trimmed);
+/**
+ * One break wherever several meet (a blank line inside a list item or a
+ * field), none at either end, and no spaces next to a break: the LaTeX `\\`
+ * must not end or open a paragraph, and the lint rejects trailing spaces.
+ */
+function tidyBreaks(runs: Inline[]): Inline[] {
+  const out: Inline[] = [];
+  // set by a break dropped at the very start, whose line still starts afresh
+  let opened = false;
+  for (const run of runs) {
+    if (run.t === "br") {
+      for (let last = out.at(-1); last?.t === "text"; last = out.at(-1)) {
+        last.s = last.s.replace(/[ \t]+$/, "");
+        if (last.s) break;
+        out.pop();
+      }
+      if (!out.length) opened = true;
+      else if (out.at(-1)?.t !== "br") out.push(run);
+    } else if (run.t === "text" && (out.at(-1)?.t === "br" || (opened && !out.length))) {
+      const s = run.s.replace(/^[ \t]+/, "");
+      if (s) out.push({ ...run, s });
+    } else {
+      out.push(run);
+    }
   }
-  return kept;
+  if (out.at(-1)?.t === "br") out.pop();
+  return out;
 }
 
-/** Paragraphs separated by blank lines (spaces and tabs only), each joined into one line. */
+/** Paragraphs separated by blank lines (spaces and tabs only); the lines inside one keep their breaks. */
 export function paragraphs(text: string): string[] {
   const found: string[] = [];
   let open: string[] = [];
   const close = () => {
-    if (open.length) found.push(open.join(" "));
+    if (open.length) found.push(open.join("\n"));
     open = [];
   };
   for (const line of text.split("\n")) {
@@ -145,7 +177,9 @@ export function paragraphs(text: string): string[] {
 
 /** Plain text of runs, for search and checks. */
 export function plain(runs: Inline[]): string {
-  return runs.map((r) => (r.t === "text" ? r.s : r.t === "glyph" ? `:${r.name}:` : r.t === "math" ? r.s : ordinalText(r.n))).join("");
+  return runs
+    .map((r) => (r.t === "text" ? r.s : r.t === "glyph" ? `:${r.name}:` : r.t === "math" ? r.s : r.t === "br" ? "\n" : ordinalText(r.n)))
+    .join("");
 }
 
 /** 1st, 2nd, 3rd, 4th, 11th, 12th, 13th, 21st ... */

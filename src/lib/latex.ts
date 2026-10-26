@@ -32,13 +32,18 @@ export function escapeLatex(text: string): string {
   return out;
 }
 
-/** Renders runs; consecutive runs with the same style share one command. */
+/**
+ * Renders runs; consecutive runs with the same style share one command. A
+ * line break ends the source line with \\; a following line that opens with
+ * [ or * gets {} first, so LaTeX does not read it as an argument of \\.
+ */
 export function inlineToLatex(runs: Inline[]): string {
   let out = "";
   for (const run of runs) {
     if (run.t === "glyph") out += `\\svg{${run.name}}`;
     else if (run.t === "ordinal") out += `\\nth{${run.n}}`;
     else if (run.t === "math") out += `$${run.s}$`;
+    else if (run.t === "br") out += "\\\\\n";
     else {
       let s = escapeLatex(run.s);
       if (run.i) s = `\\textit{${s}}`;
@@ -46,7 +51,7 @@ export function inlineToLatex(runs: Inline[]): string {
       out += s;
     }
   }
-  return out.replace(/[ ]+$/g, "");
+  return out.replace(/\\\\\n(?=[[*])/g, "\\\\\n{}").replace(/[ ]+$/g, "");
 }
 
 function blockToLatex(block: Block): string {
@@ -64,9 +69,12 @@ function blockToLatex(block: Block): string {
       return `\\textbf{${escapeLatex(block.label)}:}${value ? ` ${value}` : ""}`;
     }
     case "list":
-      return ["\\begin{itemize}", ...block.items.map((item) => `  \\item ${inlineToLatex(item)}`), "\\end{itemize}"].join(
-        "\n",
-      );
+      // An item's later lines indent under its first.
+      return [
+        "\\begin{itemize}",
+        ...block.items.map((item) => `  \\item ${inlineToLatex(item).replace(/\n/g, "\n    ")}`),
+        "\\end{itemize}",
+      ].join("\n");
   }
 }
 

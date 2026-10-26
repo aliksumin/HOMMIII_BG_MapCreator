@@ -11,7 +11,7 @@ export function StepConditions() {
   return (
     <>
       <Panel title="Victory Conditions">
-        <Field label="How a player (or the team) wins" hint="Separate paragraphs with a blank line.">
+        <Field label="How a player (or the team) wins">
           <MarkupField multiline rows={5} value={s.victory} onChange={(v) => update((d) => void (d.victory = v), "victory")} />
         </Field>
         <Chips chips={VICTORY_CHIPS} onPick={(chip) => update((d) => void (d.victory = append(d.victory, chip)))} />

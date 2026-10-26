@@ -532,8 +532,26 @@ textarea {
   flex-direction: column;
   align-items: stretch;
 }
-.markup.single > input {
+.markup.single > input,
+.markup.single > textarea {
   flex: 1;
+}
+.markup.lines textarea {
+  resize: none;
+  overflow: hidden;
+}
+.markup-keys {
+  margin-left: auto;
+  align-self: center;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+.markup-keys kbd {
+  padding: 0 3px;
+  font: inherit;
+  border: 1px solid var(--border-in);
+  border-radius: 3px;
+  background: #fffdf8;
 }
 .markup-tools {
   display: flex;

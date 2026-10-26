@@ -1,10 +1,16 @@
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { GlyphPicker } from "./GlyphPicker.tsx";
 
 interface Props {
   value: string;
   onChange: (value: string) => void;
   multiline?: boolean;
+  /**
+   * What Enter does in a multi-line field. "paragraph" (the default) starts a
+   * new paragraph, a blank line in the text. "line" breaks the line, for list
+   * items, whose box grows with its text. Shift+Enter always breaks the line.
+   */
+  breaks?: "paragraph" | "line";
   rows?: number;
   placeholder?: string;
   /** hide the formatting toolbar */
@@ -19,8 +25,16 @@ interface Props {
  * A text input that accepts the editor markup (**bold**, *italic*, :glyph:),
  * with a small toolbar that inserts it for the contributor.
  */
-export function MarkupField({ value, onChange, multiline, rows = 3, placeholder, plain, autoFocus, className, paragraphs }: Props) {
+export function MarkupField({ value, onChange, multiline, breaks = "paragraph", rows = 3, placeholder, plain, autoFocus, className, paragraphs }: Props) {
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const lineBreaks = multiline && breaks === "line";
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!lineBreaks || !el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [lineBreaks, value]);
 
   const wrap = (before: string, after = before) => {
     const el = ref.current;
@@ -50,6 +64,19 @@ export function MarkupField({ value, onChange, multiline, rows = 3, placeholder,
     });
   };
 
+  // Enter starts a paragraph: a blank line, or one more newline after a line
+  // break. Shift+Enter keeps the textarea's own single newline. The input
+  // event lets React see the edit as typing, so its record of the value stays
+  // true and a Backspace that undoes the edit still counts as a change.
+  const newParagraph = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    const el = e.currentTarget;
+    const before = el.value.slice(0, el.selectionStart);
+    el.setRangeText(!before.trim() || before.endsWith("\n") ? "\n" : "\n\n", el.selectionStart, el.selectionEnd, "end");
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
   const common = {
     ref,
     value,
@@ -59,8 +86,14 @@ export function MarkupField({ value, onChange, multiline, rows = 3, placeholder,
   };
 
   return (
-    <div className={`markup ${multiline ? "multi" : "single"} ${className ?? ""}`}>
-      {multiline ? <textarea rows={rows} {...common} /> : <input type="text" {...common} />}
+    <div className={`markup ${multiline && !lineBreaks ? "multi" : "single"} ${lineBreaks ? "lines" : ""} ${className ?? ""}`}>
+      {!multiline ? (
+        <input type="text" {...common} />
+      ) : lineBreaks ? (
+        <textarea rows={1} title="Enter or Shift+Enter breaks the line" {...common} />
+      ) : (
+        <textarea rows={rows} onKeyDown={newParagraph} {...common} />
+      )}
       {!plain && (
         <div className="markup-tools">
           <button type="button" className="tool" title="Bold (**text**)" onClick={() => wrap("**")}>
@@ -84,6 +117,11 @@ export function MarkupField({ value, onChange, multiline, rows = 3, placeholder,
                 </option>
               ))}
             </select>
+          )}
+          {multiline && !lineBreaks && (
+            <span className="markup-keys">
+              <kbd>Enter</kbd> new paragraph · <kbd>Shift</kbd>+<kbd>Enter</kbd> line break
+            </span>
           )}
         </div>
       )}
