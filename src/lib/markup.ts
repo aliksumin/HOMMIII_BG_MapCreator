@@ -119,6 +119,18 @@ function linkTarget(source: string, from: number): string | null {
 
 const WORD = /[\p{L}\p{N}_]/u;
 
+/**
+ * The !! that closes red text whose first character is at `from`: after a
+ * non-space, before no word, and not escaped; at least one character in. -1 if none.
+ */
+function closingRed(source: string, from: number): number {
+  for (let k = from; k < source.length; k++) {
+    if (source[k] === "\\") k++;
+    else if (k > from && source.startsWith("!!", k) && !/\s/.test(source[k - 1]) && !WORD.test(source[k + 2] ?? "")) return k;
+  }
+  return -1;
+}
+
 /** Splits one paragraph of markup into runs; each newline in it becomes a line break. */
 export function parseInline(source: string, base: { b?: boolean; i?: boolean } = {}): Inline[] {
   return tidyBreaks(tieGlyphs(scan(source, base, {})));
@@ -156,8 +168,7 @@ function scan(source: string, base: { b?: boolean; i?: boolean }, nest: Nest): I
     // !!red!!: opens before a non-space where no word or ! precedes it, closes
     // after a non-space where no word follows, so "Stop!!" stays plain text.
     if (!nest.red && rest.startsWith("!!") && rest[2] && !/\s|!/.test(rest[2]) && !WORD.test(prev) && prev !== "!") {
-      let end = k + 3;
-      while ((end = source.indexOf("!!", end)) !== -1 && (/\s/.test(source[end - 1]) || WORD.test(source[end + 2] ?? ""))) end++;
+      const end = closingRed(source, k + 2);
       if (end !== -1) {
         flush();
         runs.push({ t: "red", runs: inner(k + 2, end, { red: true }) });

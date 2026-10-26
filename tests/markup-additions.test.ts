@@ -28,6 +28,11 @@ test("exclamation marks in plain text stay plain", () => {
   for (const s of ["Stop!! Now", "Wow!! Really!!", "!! not red !!", "a!!b!!", "!!!"]) assert.equal(plain(parseInline(s)), s, s);
 });
 
+test("an escaped !! inside red text stays inside it", () => {
+  assert.deepEqual(parseInline("!!Red \\!! literal and more!!"), [{ t: "red", runs: [text("Red !! literal and more")] }]);
+  assert.deepEqual(parseInline("!!\\!!x!!"), [{ t: "red", runs: [text("!!x")] }]);
+});
+
 test("[text](url) is a link; other brackets stay text", () => {
   assert.deepEqual(parseInline("See [the *rulebook*](https://example.org/a_(b)?x=1#p) first"), [
     text("See "),
