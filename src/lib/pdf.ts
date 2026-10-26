@@ -7,10 +7,10 @@ import type { jsPDF as JsPDF } from "jspdf";
 import { assetUrl, glyphUrl, titleImageUrl } from "../data/catalog.ts";
 import type { Scenario } from "../model/types.ts";
 import { artUse, pdfCredit } from "./credits.ts";
-import { type Block, buildDocument, type ScenarioDoc } from "./document.ts";
+import { type Block, buildDocument, type ListItem, type ScenarioDoc } from "./document.ts";
 import { loadImage, rasterise } from "./images.ts";
 import { renderMapPng } from "./mapdraw.ts";
-import { type Inline, ordinalSuffix } from "./markup.ts";
+import { type Inline, LINK, ordinalSuffix, RED } from "./markup.ts";
 import { fitTitle, PAGE_W_PT, TITLE_W_PT } from "./titlefit.ts";
 
 const PAGE_W = PAGE_W_PT;
@@ -34,13 +34,33 @@ const HEAD_SHADOW: [number, number, number] = [20, 15, 10];
 const FONT = "Liberation";
 
 type Style = "normal" | "bold" | "italic" | "bolditalic";
+type Rgb = [number, number, number];
+
+/** What a word or glyph carries besides its shape: red or link ink, a link target, a footnote it marks. */
+interface Mark {
+  color?: Rgb;
+  url?: string;
+  /** set on a footnote number: the note's number and text */
+  note?: { n: number; runs: Inline[] };
+}
 
 export type Piece =
-  | { kind: "word"; text: string; style: Style; size: number; w: number; rise: number }
-  | { kind: "glyph"; name: string; w: number; h: number }
+  | ({ kind: "word"; text: string; style: Style; size: number; w: number; rise: number } & Mark)
+  | ({ kind: "glyph"; name: string; w: number; h: number } & Mark)
   | { kind: "space"; w: number }
   /** a line break the contributor typed */
   | { kind: "break"; w: 0 };
+
+// Footnotes: \footnotesize on the book's 11pt body, hung 1em (footmisc
+// [hang], \footnotemargin 1em) under a rule 0.4 of the text width.
+const NOTE = 9;
+const NOTE_LEADING = 11 / 9;
+const NOTE_GAP = 12;
+
+// Lists: the first level's text 35pt in, each deeper level 15pt further
+// (\setlist{leftmargin=15pt}); a numbered label ends 5.5pt before the text.
+const LIST_INDENT = 35;
+const LIST_STEP = 15;
 
 export interface Assets {
   glyphs: Map<string, { data: string; ratio: number }>;
@@ -48,6 +68,14 @@ export interface Assets {
   heading: string;
   bullet: string;
   icon: { data: string; ratio: number } | null;
+}
+
+/** i, ii, iii... for the third level of a numbered list. */
+function roman(n: number): string {
+  const digits: [number, string][] = [[10, "x"], [9, "ix"], [5, "v"], [4, "iv"], [1, "i"]];
+  let out = "";
+  for (const [value, text] of digits) for (; n >= value; n -= value) out += text;
+  return out;
 }
 
 function styleOf(b?: boolean, i?: boolean): Style {
@@ -74,10 +102,14 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
 
 function glyphNames(doc: ScenarioDoc): Set<string> {
   const names = new Set<string>();
-  const visit = (runs: Inline[]) => runs.forEach((r) => r.t === "glyph" && names.add(r.name));
+  const visit = (runs: Inline[]): void =>
+    runs.forEach((r) => {
+      if (r.t === "glyph") names.add(r.name);
+      else if (r.t === "red" || r.t === "link" || r.t === "note") visit(r.runs);
+    });
   for (const block of [...doc.body, ...doc.story]) {
-    if (block.k === "list") block.items.forEach(visit);
-    else if (block.k !== "heading") visit(block.runs);
+    if (block.k === "list") block.items.forEach((item) => visit(item.runs));
+    else if (block.k !== "heading" && block.k !== "subheading") visit(block.runs);
   }
   // The heading badge draws the rating glyph even when the text never uses it.
   if (doc.rating) names.add(doc.rating);
@@ -163,6 +195,16 @@ export class Writer {
   y = MARGIN_TOP;
   top = MARGIN_TOP;
   page = 1;
+  /** footnotes numbered so far */
+  noteCount = 0;
+  /** this page's footnotes, drawn at its foot when the page is done */
+  notes: { n: number; lines: Piece[][][] }[] = [];
+  /** how much of the page's foot the footnotes take */
+  notesH = 0;
+  /** where the last line of text ended, before any gap after it */
+  textEnd = MARGIN_TOP;
+  /** where the left column's text ended, once the right column is in use */
+  leftEnd = 0;
 
   constructor(pdf: JsPDF, assets: Assets) {
     this.pdf = pdf;
@@ -199,27 +241,79 @@ export class Writer {
   }
 
   newPage(): void {
+    this.drawNotes();
     this.pdf.addPage();
     this.page++;
     this.decorate();
     this.col = 0;
     this.top = MARGIN_TOP;
     this.y = this.top;
+    this.textEnd = this.top;
   }
 
   get x0(): number {
     return MARGIN_X + this.col * (COL_W + GAP);
   }
 
-  /** Room for `h` points, moving to the next column or page when needed. */
-  ensure(h: number): void {
-    if (this.y + h <= PAGE_H - MARGIN_BOTTOM) return;
-    if (this.col === 0) {
-      this.col = 1;
-      this.y = this.top;
-    } else {
-      this.newPage();
+  /** The lowest the text may reach on this page, above its footnotes. */
+  get bottom(): number {
+    return PAGE_H - MARGIN_BOTTOM - this.notesH;
+  }
+
+  /**
+   * Room for `h` points, moving to the next column or page when needed.
+   * `notes` is room the footnotes of the coming line take at the foot of the
+   * page; it has to clear both columns.
+   */
+  ensure(h: number, notes = 0): void {
+    for (let tries = 0; tries < 3; tries++) {
+      const limit = this.bottom - notes;
+      if (this.y + h <= limit && (this.col === 0 || this.leftEnd <= limit)) return;
+      // a fresh page is as good as it gets
+      if (this.col === 0 && this.y === this.top && !this.notes.length) return;
+      if (this.col === 0) {
+        this.leftEnd = Math.min(this.y, this.textEnd);
+        this.col = 1;
+        this.y = this.top;
+      } else {
+        this.newPage();
+      }
     }
+  }
+
+  /** Lays out a footnote's text, hung 1em under its number. */
+  noteLines(runs: Inline[]): Piece[][][] {
+    return breakLines(this.pieces(runs, NOTE), CONTENT_W - NOTE);
+  }
+
+  /** Room a page's next footnotes take, counting the rule above the first. */
+  notesRoom(lines: number): number {
+    return lines * NOTE * NOTE_LEADING + (this.notes.length ? 2 : NOTE_GAP);
+  }
+
+  /** The page's footnotes, under a short rule at the foot of the page. */
+  drawNotes(): void {
+    if (!this.notes.length) return;
+    let y = PAGE_H - MARGIN_BOTTOM - this.notesH + NOTE_GAP - 4;
+    this.pdf.setDrawColor(...INK);
+    this.pdf.setLineWidth(0.4);
+    this.pdf.line(MARGIN_X, y - 4, MARGIN_X + CONTENT_W * 0.4, y - 4);
+    for (const note of this.notes) {
+      note.lines.forEach((line, i) => {
+        const baseline = y + NOTE * 0.9;
+        if (i === 0) {
+          this.pdf.setFont(FONT, "normal");
+          this.pdf.setFontSize(NOTE * 0.62);
+          this.pdf.setTextColor(...INK);
+          this.pdf.text(String(note.n), MARGIN_X, baseline - NOTE * 0.36);
+        }
+        this.drawLine(line, MARGIN_X + NOTE, baseline, NOTE, INK);
+        y += NOTE * NOTE_LEADING;
+      });
+      y += 2;
+    }
+    this.notes = [];
+    this.notesH = 0;
   }
 
   measure(text: string, style: Style, size: number): number {
@@ -228,35 +322,51 @@ export class Writer {
     return this.pdf.getTextWidth(text);
   }
 
-  pieces(runs: Inline[], size: number, force?: { b?: boolean; i?: boolean }): Piece[] {
+  /**
+   * Words and glyphs of runs at one size. Spaces split words; a no-break
+   * space stays inside its word, so a number keeps to its glyph.
+   */
+  pieces(runs: Inline[], size: number, force?: { b?: boolean; i?: boolean }, mark: Mark = {}): Piece[] {
     const out: Piece[] = [];
+    const word = (text: string, style: Style, at = size, rise = 0) =>
+      out.push({ kind: "word", text, style, size: at, w: this.measure(text, style, at), rise, ...mark });
     for (const run of runs) {
       if (run.t === "glyph") {
         const g = this.assets.glyphs.get(run.name);
         const h = size * 1.05;
-        out.push({ kind: "glyph", name: run.name, w: g ? h * g.ratio : h, h });
+        out.push({ kind: "glyph", name: run.name, w: g ? h * g.ratio : h, h, ...mark });
       } else if (run.t === "ordinal") {
         const style = styleOf(force?.b, force?.i);
-        const n = String(run.n);
-        const suffix = ordinalSuffix(run.n);
-        out.push({ kind: "word", text: n, style, size, w: this.measure(n, style, size), rise: 0 });
-        out.push({ kind: "word", text: suffix, style, size: size * 0.62, w: this.measure(suffix, style, size * 0.62), rise: size * 0.36 });
+        word(String(run.n), style);
+        word(ordinalSuffix(run.n), style, size * 0.62, size * 0.36);
       } else if (run.t === "br") {
         out.push({ kind: "break", w: 0 });
+      } else if (run.t === "signed") {
+        // maths: upright, with a true minus sign
+        word(run.s.replace("-", "\u2212"), "normal");
+      } else if (run.t === "red") {
+        out.push(...this.pieces(run.runs, size, force, { ...mark, color: RED }));
+      } else if (run.t === "link") {
+        out.push(...this.pieces(run.runs, size, force, { ...mark, color: LINK, url: run.href }));
+      } else if (run.t === "note") {
+        // The number joins the word before it, as \footnote does.
+        const n = ++this.noteCount;
+        const text = String(n);
+        const style: Style = "normal";
+        out.push({ kind: "word", text, style, size: size * 0.62, w: this.measure(text, style, size * 0.62), rise: size * 0.36, ...mark, note: { n, runs: run.runs } });
       } else {
         const style = run.t === "math" ? styleOf(force?.b, true) : styleOf(run.b || force?.b, run.i || force?.i);
-        const text = run.s;
-        for (const part of text.split(/(\s+)/)) {
+        for (const part of run.s.split(/([ \t]+)/)) {
           if (!part) continue;
-          if (/^\s+$/.test(part)) out.push({ kind: "space", w: this.measure(" ", style, size) });
-          else out.push({ kind: "word", text: part, style, size, w: this.measure(part, style, size), rise: 0 });
+          if (/^[ \t]+$/.test(part)) out.push({ kind: "space", w: this.measure(" ", style, size) });
+          else word(part, style);
         }
       }
     }
     return out;
   }
 
-  drawLine(line: Piece[][], x: number, baseline: number, size: number, color: [number, number, number]): void {
+  drawLine(line: Piece[][], x: number, baseline: number, size: number, color: Rgb): void {
     let cx = x;
     const space = this.measure(" ", "normal", size);
     line.forEach((cluster, i) => {
@@ -265,36 +375,106 @@ export class Writer {
         if (p.kind === "word") {
           this.pdf.setFont(FONT, p.style);
           this.pdf.setFontSize(p.size);
-          this.pdf.setTextColor(...color);
+          this.pdf.setTextColor(...(p.color ?? color));
           this.pdf.text(p.text, cx, baseline - p.rise);
         } else if (p.kind === "glyph") {
           const g = this.assets.glyphs.get(p.name);
           if (g) this.pdf.addImage(g.data, "PNG", cx, baseline - p.h * 0.82, p.w, p.h, `glyph-${p.name}`, "FAST");
         }
+        if ((p.kind === "word" || p.kind === "glyph") && p.url) this.pdf.link(cx, baseline - size * 0.85, p.w, size * 1.1, { url: p.url });
         cx += p.w;
       }
     });
   }
 
-  paragraph(runs: Inline[], opts: { size?: number; indent?: number; bullet?: boolean; force?: { b?: boolean; i?: boolean }; after?: number } = {}): void {
+  paragraph(
+    runs: Inline[],
+    opts: { size?: number; indent?: number; label?: "bullet" | string; force?: { b?: boolean; i?: boolean }; after?: number } = {},
+  ): void {
     const size = opts.size ?? BODY;
     const indent = opts.indent ?? 0;
     const lh = size * LEADING;
     const lines = breakLines(this.pieces(runs, size, opts.force), COL_W - indent);
     lines.forEach((line, i) => {
-      this.ensure(lh);
+      // A footnote goes on the page of the line that marks it.
+      const marked = line.flat().flatMap((p) => (p.kind === "word" && p.note ? [p.note] : []));
+      const notes = marked.map((note) => ({ n: note.n, lines: this.noteLines(note.runs) }));
+      let room = 0;
+      for (const note of notes) room += note.lines.length * NOTE * NOTE_LEADING + 2;
+      this.ensure(lh, notes.length ? room + (this.notes.length ? 0 : NOTE_GAP) : 0);
+      for (const note of notes) {
+        this.notesH += this.notesRoom(note.lines.length);
+        this.notes.push(note);
+      }
       const baseline = this.y + size * 0.9;
-      if (i === 0 && opts.bullet) this.pdf.addImage(this.assets.bullet, "PNG", this.x0 + indent - 16, baseline - size * 0.33 - 3, 6, 6, "bullet", "FAST");
+      if (i === 0 && opts.label === "bullet") {
+        this.pdf.addImage(this.assets.bullet, "PNG", this.x0 + indent - 16, baseline - size * 0.33 - 3, 6, 6, "bullet", "FAST");
+      } else if (i === 0 && opts.label === "triangle") {
+        this.triangle(this.x0 + indent - 12, baseline - size * 0.3, size * 0.32);
+      } else if (i === 0 && opts.label) {
+        const style = styleOf(opts.force?.b, opts.force?.i);
+        this.pdf.setFont(FONT, style);
+        this.pdf.setFontSize(size);
+        this.pdf.setTextColor(...INK);
+        this.pdf.text(opts.label, this.x0 + indent - 5.5 - this.measure(opts.label, style, size), baseline);
+      }
       this.drawLine(line, this.x0 + indent, baseline, size, INK);
       this.y += lh;
+      this.textEnd = this.y;
     });
     this.y += opts.after ?? size * 0.48;
   }
 
+  /** The book's second-level bullet, $\triangleright$: an outlined triangle pointing right. */
+  triangle(x: number, cy: number, r: number): void {
+    this.pdf.setDrawColor(...INK);
+    this.pdf.setLineWidth(0.5);
+    this.pdf.lines(
+      [
+        [r * 1.5, r],
+        [-r * 1.5, r],
+        [0, -r * 2],
+      ],
+      x,
+      cy - r,
+      [1, 1],
+      "S",
+      true,
+    );
+  }
+
+  /** A list item's label: the book's bullet image, a triangle or an asterisk for deeper bullets, 1. (a) i. for numbers. */
+  static itemLabel(numbered: boolean, level: number, n: number): string {
+    if (!numbered) return level === 1 ? "bullet" : level === 2 ? "triangle" : "\u2217";
+    if (level === 1) return `${n}.`;
+    if (level === 2) return `(${String.fromCharCode(96 + n)})`;
+    return `${roman(n)}.`;
+  }
+
+  /** Items in order; each level counts its numbers and knows its kind's level, as LaTeX nests them. */
+  list(items: ListItem[]): void {
+    // per depth: the kind open there, its level among lists of that kind, and its count
+    const open: { numbered: boolean; level: number; n: number }[] = [];
+    items.forEach((item, i) => {
+      open.length = item.depth + 1;
+      const parent = open.slice(0, item.depth).filter((o) => o?.numbered === item.numbered).length;
+      const here = open[item.depth];
+      const entry = here && here.numbered === item.numbered ? here : { numbered: item.numbered, level: parent + 1, n: 0 };
+      entry.n++;
+      open[item.depth] = entry;
+      const last = i === items.length - 1;
+      this.paragraph(item.runs, {
+        indent: LIST_INDENT + LIST_STEP * item.depth,
+        label: Writer.itemLabel(item.numbered, entry.level, entry.n),
+        after: last ? BODY * 0.48 : 2.7,
+      });
+    });
+  }
+
   /** Section heading: 32.7pt cap to cap after the text above, 19.3pt to the text below. */
-  heading(text: string): void {
+  heading(text: string, keep = 2): void {
     const size = 13;
-    this.ensure(size * 1.6 + BODY * LEADING * 2);
+    this.ensure(size * 1.6 + BODY * LEADING * keep);
     if (this.y > this.top + 1) this.y += 13;
     this.pdf.setFont(FONT, "bold");
     this.pdf.setFontSize(size);
@@ -303,10 +483,18 @@ export class Writer {
     this.y += size * 1.52;
   }
 
+  /** \subsubsection*: bold at body size, 3.25ex above and 1.5ex below as in the article class. */
+  subheading(text: string): void {
+    this.ensure(BODY * LEADING * 3);
+    if (this.y > this.top + 1) this.y += 6;
+    this.paragraph([{ t: "text", s: text, b: true }], { after: 3 });
+  }
+
   block(block: Block, next?: Block): void {
     switch (block.k) {
       case "heading":
-        this.heading(block.text);
+        // a sub-heading right below keeps its first lines with it
+        this.heading(block.text, next?.k === "subheading" ? 4 : 2);
         break;
       case "para":
         this.paragraph(block.runs);
@@ -319,8 +507,11 @@ export class Writer {
           after: next?.k === "list" ? 1.5 : undefined,
         });
         break;
+      case "subheading":
+        this.subheading(block.text);
+        break;
       case "list":
-        block.items.forEach((item, i) => this.paragraph(item, { indent: 35, bullet: true, after: i === block.items.length - 1 ? BODY * 0.48 : 2.7 }));
+        this.list(block.items);
         break;
     }
   }
@@ -391,7 +582,7 @@ export class Writer {
     let startY = this.y + 14;
     let w = CONTENT_W * 0.92;
     let h = w * ratio;
-    const avail = PAGE_H - MARGIN_BOTTOM - startY - 20;
+    const avail = this.bottom - startY - 20;
     if (h > avail) {
       if (avail >= 250) {
         h = avail;
@@ -459,6 +650,7 @@ export async function scenarioToPdf(scenario: Scenario, onProgress?: (what: stri
     w.newPage();
     w.blocks(doc.story);
   }
+  w.drawNotes();
   w.credit(credit);
   onProgress?.("Saving...");
   return pdf.output("blob");

@@ -4,9 +4,9 @@
 import { strToU8, zipSync } from "fflate";
 import { categoryInfo } from "../data/game.ts";
 import { upgradeScenario } from "../model/defaults.ts";
-import type { Scenario } from "../model/types.ts";
+import type { Category, Scenario } from "../model/types.ts";
 import { artUse, creditsMarkdown } from "./credits.ts";
-import { mapFiles, slugify } from "./document.ts";
+import { formatPlayerCount, mapFiles, scenarioTitle, slugify } from "./document.ts";
 import { dataUrlToBytes } from "./images.ts";
 import { registrationLines, scenarioToLatex } from "./latex.ts";
 import { encodeMap } from "./mapfile.ts";
@@ -65,6 +65,7 @@ export function submitGuide(s: Scenario): string {
     registrationLines(s, info.pathMacro).trimEnd(),
     "```",
     "",
+    ...registrationSteps(s),
     "## 3. Build and check",
     "",
     "Build only your scenario with the repository's container script:",
@@ -85,6 +86,79 @@ export function submitGuide(s: Scenario): string {
     "",
   ];
   return lines.join("\n");
+}
+
+/** The README Legend's mark for each kind of scenario (🤝 ⚔️ 🗺️ 🍻); it has none for solo yet. */
+const README_MARKS: Partial<Record<Category, string>> = { coops: "\ud83e\udd1d", clash: "\u2694\ufe0f", campaigns: "\ud83d\uddfa\ufe0f", alliances: "\ud83c\udf7b" };
+
+const ARTIFACTS = "https://raw.githubusercontent.com/qwrtln/Homm3BG-mission-book-build-artifacts";
+
+/** Player counts as the README writes them: "2-4", "2-4 or 6", "1, 2, or 4", or "-" for none. */
+export function readmePlayers(counts: number[]): string {
+  const text = formatPlayerCount(counts).replace(/\u2013/g, "-");
+  return text ? text.replace(/^(.*, [^,]*) or /, "$1, or ") : "-";
+}
+
+/** The README Draft Scenarios row: its name with the kind's mark, and the color and mono PDFs CI builds per scenario. */
+export function readmeRow(s: Scenario): string {
+  const slug = slugify(s.name);
+  const name = s.category === "campaigns" && s.faction ? `${s.faction}: ${s.name}` : s.name || "Untitled Scenario";
+  const mark = README_MARKS[s.category];
+  return [
+    "        <tr>",
+    `            <td>${mark ? `${mark} ` : ""}${name} (${readmePlayers(s.playerCounts)})</td>`,
+    `            <td align="center"><a href="${ARTIFACTS}/en-${slug}-color/${slug}_en.pdf">click</a></td>`,
+    `            <td align="center"><a href="${ARTIFACTS}/en-${slug}-mono/${slug}_en_mono.pdf"><em>click</em></a></td>`,
+    "        </tr>",
+  ].join("\n");
+}
+
+/**
+ * The title scenario-authors.json lists: the \addscenariosection title, or
+ * for a campaign "Campaign: Name" as the existing campaign entries write it.
+ * The feedback form matches responses to authors by it.
+ */
+export function authorsTitle(s: Scenario): string {
+  return s.category === "campaigns" && s.campaignName.trim() ? `${s.campaignName.trim()}: ${s.name.trim()}` : scenarioTitle(s);
+}
+
+/** The README row, scenario-authors.json, and po4a.cfg for when the scenario leaves the drafts. */
+function registrationSteps(s: Scenario): string[] {
+  const slug = slugify(s.name);
+  const title = JSON.stringify(authorsTitle(s));
+  const key = JSON.stringify(s.author.trim().toLowerCase().replace(/\s+/g, "") || "your-github-name");
+  return [
+    "Add a row to the **Draft Scenarios** table in `README.md`, after the last row of its kind (the rows follow the order of the `main.tex` files):",
+    "",
+    "```html",
+    readmeRow(s),
+    "```",
+    ...(README_MARKS[s.category] ? [] : ["", "The README legend has no mark for this kind of scenario yet; ask the maintainers which to use."]),
+    "",
+    "Add the title to `.github/scripts/scenario-authors.json`, so feedback-form answers reach you. If you already have scenarios there, append it to your `scenarios` list:",
+    "",
+    "```json",
+    `      ${title}`,
+    "```",
+    "",
+    `Otherwise add yourself as a new entry before the closing \`}\` (put a comma after the entry above it). The key is your name as the maintainers know you; ${key} is a guess. Set \`"on_discord": true\` and add your \`"discord_id"\` if you want feedback pings on Discord:`,
+    "",
+    "```json",
+    `  ${key}: {`,
+    '    "scenarios": [',
+    `      ${title}`,
+    "    ],",
+    '    "on_discord": false',
+    "  }",
+    "```",
+    "",
+    "Drafts need no `po4a.cfg` entry: the po4a check skips `draft-scenarios/`. When the maintainers move the scenario into the book, its category block in `po4a.cfg` gets:",
+    "",
+    "```",
+    `[type: latex] ${s.category}/${slug}.tex $lang:${s.category}/translated/$lang/${slug}.tex`,
+    "```",
+    "",
+  ];
 }
 
 /** The book has no solo section yet: what the first Solo Scenario adds before it registers. */

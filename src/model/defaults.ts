@@ -94,6 +94,7 @@ export function upgradeScenario(input: Partial<Scenario>): Scenario {
       counts: { ...base.mapSetup.counts, ...input.mapSetup?.counts },
       notes: { ...base.mapSetup.notes, ...input.mapSetup?.notes },
     },
+    customSections: (input.customSections ?? base.customSections).map((section) => ({ ...section, subsections: section.subsections ?? [] })),
     maps: input.maps?.length ? input.maps.map(upgradeLayout) : base.maps,
     version: 1,
   };

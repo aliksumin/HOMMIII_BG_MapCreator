@@ -6,14 +6,23 @@
 import { CATEGORIES, categoryInfo, RESOURCES, BUILDINGS, TILE_GROUPS, INCOME_TRACK } from "../data/game.ts";
 import { isRandomTile, tileGroup } from "../data/catalog.ts";
 import type { MapLayout, MapTile, ResourceValues, Scenario, TileCount, TileGroupKey, TitleImage, Rating } from "../model/types.ts";
-import { type Inline, paragraphs, parseInline } from "./markup.ts";
+import { type Inline, paragraphs, parseInline, parseItem } from "./markup.ts";
+
+export interface ListItem {
+  runs: Inline[];
+  /** 0 for a top-level item; never more than one deeper than the item before */
+  depth: number;
+  numbered: boolean;
+}
 
 export type Block =
   | { k: "heading"; text: string }
+  /** a heading inside a section, the book's subsubsection* */
+  | { k: "subheading"; text: string }
   | { k: "para"; runs: Inline[] }
   | { k: "label"; runs: Inline[] }
   | { k: "field"; label: string; runs: Inline[]; href?: string }
-  | { k: "list"; items: Inline[][] };
+  | { k: "list"; items: ListItem[] };
 
 export interface DocMap {
   layout: MapLayout;
@@ -126,9 +135,26 @@ function fieldBlocks(label: string, text: string): Block[] {
   return [{ k: "field", label, runs: md(first) }, ...more.map((p): Block => ({ k: "para", runs: md(p) }))];
 }
 
+/** Top-level bullets, as the writers of Map Setup and other generated lists need them. */
+function bullets(items: Inline[][]): ListItem[] {
+  return items.map((runs) => ({ runs, depth: 0, numbered: false }));
+}
+
+/** List items from item fields; each item's indent and marker set its depth and numbering. */
+function listItems(items: string[]): ListItem[] {
+  const out: ListItem[] = [];
+  for (const item of items) {
+    const line = parseItem(item);
+    if (!line.text.trim()) continue;
+    const depth = Math.min(line.depth, out.length ? out[out.length - 1].depth + 1 : 0);
+    out.push({ runs: md(line.text.trim()), depth, numbered: line.numbered });
+  }
+  return out;
+}
+
 function listBlock(items: string[]): Block | null {
-  const kept = items.map((item) => item.trim()).filter(Boolean);
-  return kept.length ? { k: "list", items: kept.map(md) } : null;
+  const out = listItems(items);
+  return out.length ? { k: "list", items: out } : null;
 }
 
 /**
@@ -141,7 +167,7 @@ function resourceRuns(values: ResourceValues, income: boolean): Inline[] {
   for (const { key } of RESOURCES) {
     const value = values[key] ?? (income ? INCOME_TRACK[key][0] : 0);
     if (!income && value === 0) continue;
-    runs.push({ t: "text", s: `${runs.length ? ", " : ""}${value} ` }, { t: "glyph", name: key });
+    runs.push({ t: "text", s: `${runs.length ? ", " : ""}${value}\u00a0` }, { t: "glyph", name: key });
   }
   return runs.length ? runs : [{ t: "text", s: "None" }];
 }
@@ -275,9 +301,9 @@ export function buildDocument(s: Scenario): ScenarioDoc {
     const note = pool.note.trim();
     push({ k: "field", label: "Map Tile Pool", runs: md(`Each player takes ${pooled.join(" and ")}.${note ? ` ${note}` : ""}`) });
   }
-  const options = s.bonus.options.map((o) => o.trim()).filter(Boolean);
+  const options = s.bonus.options.filter((o) => o.trim());
   const bonusLabel = s.bonus.label.trim() || "Additional Bonus";
-  if (options.length === 1) push({ k: "field", label: bonusLabel, runs: md(options[0]) });
+  if (options.length === 1) push({ k: "field", label: bonusLabel, runs: md(parseItem(options[0]).text.trim()) });
   if (options.length > 1) {
     push({ k: "field", label: bonusLabel, runs: md("Choose one of the following options:") }, listBlock(options));
   }
@@ -332,7 +358,7 @@ export function buildDocument(s: Scenario): ScenarioDoc {
     }
     if (items.length) lists.push({ label: "", items });
   }
-  const extra = s.mapSetup.extra.map((e) => e.trim()).filter(Boolean).map(md);
+  const extra = listItems(s.mapSetup.extra);
   if (lists.length || extra.length) {
     push({ k: "heading", text: "Map Setup" });
     const intro: Inline[] = [{ t: "text", s: "Take the following Map Tiles and arrange them as shown in the Scenario map layout" }];
@@ -340,9 +366,9 @@ export function buildDocument(s: Scenario): ScenarioDoc {
     intro.push({ t: "text", s: ":" });
     push({ k: "para", runs: intro });
     if (lists.length === 1 && !lists[0].label) {
-      push({ k: "list", items: [...lists[0].items, ...extra] });
+      push({ k: "list", items: [...bullets(lists[0].items), ...extra] });
     } else {
-      for (const list of lists) push({ k: "label", runs: [{ t: "text", s: `${list.label}:` }] }, { k: "list", items: list.items });
+      for (const list of lists) push({ k: "label", runs: [{ t: "text", s: `${list.label}:` }] }, { k: "list", items: bullets(list.items) });
       if (extra.length) push({ k: "list", items: extra });
     }
   }
@@ -366,6 +392,11 @@ export function buildDocument(s: Scenario): ScenarioDoc {
   for (const section of s.customSections) {
     if (!section.title.trim()) continue;
     push({ k: "heading", text: section.title.trim() }, ...paraBlocks(section.text), listBlock(section.items));
+    for (const sub of section.subsections) {
+      if (!sub.title.trim() && !sub.text.trim() && !sub.items.some((i) => i.trim())) continue;
+      if (sub.title.trim()) push({ k: "subheading", text: sub.title.trim() });
+      push(...paraBlocks(sub.text), listBlock(sub.items));
+    }
   }
 
   const story = s.story.trim() ? [{ k: "heading", text: "The Story" } as Block, ...paraBlocks(s.story)] : [];

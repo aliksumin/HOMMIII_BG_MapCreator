@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { assetUrl, titleImageUrl } from "../../data/catalog.ts";
-import type { Block, ScenarioDoc } from "../../lib/document.ts";
+import type { Block, ListItem, ScenarioDoc } from "../../lib/document.ts";
+import type { Inline } from "../../lib/markup.ts";
 import { fitTitle, PAGE_W_PT, TITLE_W_PT } from "../../lib/titlefit.ts";
 import { MapView } from "../map/MapLayers.tsx";
-import { Glyph, Runs } from "../ui/Runs.tsx";
+import { Glyph, NoteNumbers, Runs } from "../ui/Runs.tsx";
 
 const TITLE_FONT = '700 100px "Liberation Serif"';
 let titleCanvas: CanvasRenderingContext2D | null = null;
@@ -31,10 +32,72 @@ function useFittedTitle(title: string, lines: 1 | 2): { size: number; lines: str
   return useMemo(() => fitTitle(title, lines, TITLE_W_PT, measureTitle), [title, lines, fontReady]);
 }
 
+/** The footnotes in blocks, in reading order. */
+function notesIn(blocks: Block[]): (Inline & { t: "note" })[] {
+  const found: (Inline & { t: "note" })[] = [];
+  const visit = (runs: Inline[]): void =>
+    runs.forEach((r) => {
+      if (r.t === "note") found.push(r);
+      else if (r.t === "red" || r.t === "link") visit(r.runs);
+    });
+  for (const block of blocks) {
+    if (block.k === "list") block.items.forEach((item) => visit(item.runs));
+    else if (block.k !== "heading" && block.k !== "subheading") visit(block.runs);
+  }
+  return found;
+}
+
+/**
+ * Nested lists as LaTeX builds them: items of one kind at one depth share a
+ * list, and an item's deeper items nest inside it.
+ */
+function ListView({ items, depth = 0 }: { items: ListItem[]; depth?: number }) {
+  const groups: { numbered: boolean; entries: { item: ListItem; children: ListItem[] }[] }[] = [];
+  for (const item of items) {
+    const group = groups.at(-1);
+    const entry = group?.entries.at(-1);
+    if (item.depth > depth && entry) entry.children.push(item);
+    else if (group && group.numbered === item.numbered) group.entries.push({ item, children: [] });
+    else groups.push({ numbered: item.numbered, entries: [{ item, children: [] }] });
+  }
+  return (
+    <>
+      {groups.map((group, g) => {
+        const List = group.numbered ? "ol" : "ul";
+        return (
+          <List key={g}>
+            {group.entries.map(({ item, children }, i) => (
+              <li key={i}>
+                <Runs runs={item.runs} />
+                {children.length > 0 && <ListView items={children} depth={depth + 1} />}
+              </li>
+            ))}
+          </List>
+        );
+      })}
+    </>
+  );
+}
+
+function Notes({ notes, numbers }: { notes: (Inline & { t: "note" })[]; numbers: ReadonlyMap<Inline, number> }) {
+  if (!notes.length) return null;
+  return (
+    <ol className="bk-notes">
+      {notes.map((note, i) => (
+        <li key={i} value={numbers.get(note)}>
+          <Runs runs={note.runs} />
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function BlockView({ block }: { block: Block }) {
   switch (block.k) {
     case "heading":
       return <h3 className="bk-h">{block.text}</h3>;
+    case "subheading":
+      return <h4 className="bk-h4">{block.text}</h4>;
     case "para":
       return (
         <p>
@@ -63,15 +126,7 @@ function BlockView({ block }: { block: Block }) {
         </p>
       );
     case "list":
-      return (
-        <ul>
-          {block.items.map((item, i) => (
-            <li key={i}>
-              <Runs runs={item} />
-            </li>
-          ))}
-        </ul>
-      );
+      return <ListView items={block.items} />;
   }
 }
 
@@ -80,7 +135,12 @@ export function BookPage({ doc, showMaps = true }: { doc: ScenarioDoc; showMaps?
   const icon =
     doc.image?.kind === "upload" ? doc.image.dataUrl : doc.image?.kind === "library" ? titleImageUrl(doc.image.name) : undefined;
   const title = useFittedTitle(doc.title, doc.titleLines === 2 ? 2 : 1);
+  // Footnotes number on through the scenario, as \footnote does.
+  const bodyNotes = notesIn(doc.body);
+  const storyNotes = notesIn(doc.story);
+  const numbers = new Map<Inline, number>([...bodyNotes, ...storyNotes].map((note, i) => [note, i + 1]));
   return (
+    <NoteNumbers.Provider value={numbers}>
     <div className="book">
       <article className="book-page" style={{ backgroundImage: `url(${assetUrl("assets/layout/tausta.webp")})` }}>
         <header className={`bk-header lines-${doc.titleLines}`} style={{ backgroundImage: `url(${assetUrl("assets/layout/section_heading.webp")})` }}>
@@ -116,6 +176,7 @@ export function BookPage({ doc, showMaps = true }: { doc: ScenarioDoc; showMaps?
               <figcaption>{m.caption}</figcaption>
             </figure>
           ))}
+        <Notes notes={bodyNotes} numbers={numbers} />
       </article>
       {doc.story.length > 0 && (
         <article className="book-page" style={{ backgroundImage: `url(${assetUrl("assets/layout/tausta.webp")})` }}>
@@ -124,8 +185,10 @@ export function BookPage({ doc, showMaps = true }: { doc: ScenarioDoc; showMaps?
               <BlockView key={i} block={block} />
             ))}
           </div>
+          <Notes notes={storyNotes} numbers={numbers} />
         </article>
       )}
     </div>
+    </NoteNumbers.Provider>
   );
 }

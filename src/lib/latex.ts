@@ -3,7 +3,7 @@
 // drops into draft-scenarios/<category>/ as is.
 
 import type { Scenario } from "../model/types.ts";
-import { type Block, buildDocument, type ScenarioDoc, slugify } from "./document.ts";
+import { type Block, buildDocument, type ListItem, type ScenarioDoc, slugify } from "./document.ts";
 import type { Inline } from "./markup.ts";
 
 const ESCAPES: Record<string, string> = {
@@ -22,6 +22,7 @@ const ESCAPES: Record<string, string> = {
   "\u2013": "--",
   "\u2014": "---",
   "\u00a7": "\\S{}",
+  "\u00a0": "~",
   "\t": " ",
 };
 
@@ -38,12 +39,24 @@ export function escapeLatex(text: string): string {
  * [ or * gets {} first, so LaTeX does not read it as an argument of \\.
  */
 export function inlineToLatex(runs: Inline[]): string {
+  return runsToLatex(runs).replace(/\\\\\n(?=[[*])/g, "\\\\\n{}").replace(/[ ]+$/g, "");
+}
+
+/** A URL as the first argument of \href. */
+function hrefTarget(url: string): string {
+  return url.replace(/[\\{}%#]/g, (c) => `\\${c}`);
+}
+
+function runsToLatex(runs: Inline[]): string {
   let out = "";
   for (const run of runs) {
     if (run.t === "glyph") out += `\\svg{${run.name}}`;
     else if (run.t === "ordinal") out += `\\nth{${run.n}}`;
-    else if (run.t === "math") out += `$${run.s}$`;
+    else if (run.t === "math" || run.t === "signed") out += `$${run.s}$`;
     else if (run.t === "br") out += "\\\\\n";
+    else if (run.t === "red") out += `\\textcolor{darkcandyapplered}{${runsToLatex(run.runs)}}`;
+    else if (run.t === "link") out += `\\href{${hrefTarget(run.href)}}{${runsToLatex(run.runs)}}`;
+    else if (run.t === "note") out += `\\footnote{${runsToLatex(run.runs)}}`;
     else {
       let s = escapeLatex(run.s);
       if (run.i) s = `\\textit{${s}}`;
@@ -51,30 +64,52 @@ export function inlineToLatex(runs: Inline[]): string {
       out += s;
     }
   }
-  return out.replace(/\\\\\n(?=[[*])/g, "\\\\\n{}").replace(/[ ]+$/g, "");
+  return out;
+}
+
+/**
+ * A list as nested itemize and enumerate environments. Items of one kind at
+ * one depth share an environment; an item's deeper items nest inside it. A
+ * list nested in the other kind starts that kind's first level, which the
+ * book narrows to 15pt as its own second levels are.
+ */
+function listToLatex(items: ListItem[]): string {
+  const lines: string[] = [];
+  let k = 0;
+  const env = (depth: number, levels: { itemize: number; enumerate: number }) => {
+    const numbered = items[k].numbered;
+    const name = numbered ? "enumerate" : "itemize";
+    const level = levels[name] + 1;
+    const pad = "  ".repeat(depth);
+    lines.push(`${pad}\\begin{${name}}${depth > 0 && level === 1 ? "[leftmargin=15pt]" : ""}`);
+    while (k < items.length && items[k].depth === depth && items[k].numbered === numbered) {
+      // An item's later lines indent under its first; a leading [ would read as \item's label.
+      const text = inlineToLatex(items[k++].runs).replace(/^\[/, "{}[").replace(/\n/g, `\n${pad}    `);
+      lines.push(`${pad}  \\item ${text}`);
+      while (k < items.length && items[k].depth > depth) env(depth + 1, { ...levels, [name]: level });
+    }
+    lines.push(`${pad}\\end{${name}}`);
+  };
+  while (k < items.length) env(0, { itemize: 0, enumerate: 0 });
+  return lines.join("\n");
 }
 
 function blockToLatex(block: Block): string {
   switch (block.k) {
     case "heading":
       return `\\subsection*{\\MakeUppercase{${escapeLatex(block.text)}}}`;
+    case "subheading":
+      return `\\subsubsection*{${escapeLatex(block.text)}}`;
     case "para":
       return inlineToLatex(block.runs);
     case "label":
       return `\\textbf{${inlineToLatex(block.runs)}}`;
     case "field": {
-      const value = block.href
-        ? `\\href{${block.href.replace(/[\\{}%#]/g, (c) => `\\${c}`)}}{${inlineToLatex(block.runs)}}`
-        : inlineToLatex(block.runs);
+      const value = block.href ? `\\href{${hrefTarget(block.href)}}{${inlineToLatex(block.runs)}}` : inlineToLatex(block.runs);
       return `\\textbf{${escapeLatex(block.label)}:}${value ? ` ${value}` : ""}`;
     }
     case "list":
-      // An item's later lines indent under its first.
-      return [
-        "\\begin{itemize}",
-        ...block.items.map((item) => `  \\item ${inlineToLatex(item).replace(/\n/g, "\n    ")}`),
-        "\\end{itemize}",
-      ].join("\n");
+      return listToLatex(block.items);
   }
 }
 
@@ -84,7 +119,7 @@ function blocksToLatex(blocks: Block[]): string {
   blocks.forEach((block, i) => {
     if (i > 0) {
       const prev = blocks[i - 1];
-      out += block.k === "list" && prev.k !== "heading" && prev.k !== "list" ? "\n" : "\n\n";
+      out += block.k === "list" && prev.k !== "heading" && prev.k !== "subheading" && prev.k !== "list" ? "\n" : "\n\n";
     }
     out += blockToLatex(block);
   });

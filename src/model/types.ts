@@ -80,6 +80,16 @@ export interface CustomSection {
   text: string;
   /** bullets (markup) */
   items: string[];
+  /** sub-headed parts after the bullets, the book's \subsubsection* */
+  subsections: CustomSubsection[];
+}
+
+/** A part of an own section under its own small heading. */
+export interface CustomSubsection {
+  id: string;
+  title: string;
+  text: string;
+  items: string[];
 }
 
 /** A Story Location or Special Tile entry: a bold name and what happens there (markup). */

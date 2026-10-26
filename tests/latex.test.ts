@@ -41,7 +41,7 @@ test("writes the heading and sections in template order", () => {
   assert.ok(tex.includes("\\textbf{Town Buildings:} \\svg{bronze} Dwelling, Citadel"));
   assert.ok(tex.includes("  \\item 2 \u00d7 Starting (I) Map Tiles\n  \\item 1 \u00d7 Far (II--III) Map Tile\n"));
   assert.ok(tex.includes("\\textbf{\\nth{7} and \\nth{8} Rounds:}\n\\begin{itemize}"));
-  assert.ok(tex.includes("2 \\svg{experience} \\& 5\\% more."));
+  assert.ok(tex.includes("2~\\svg{experience} \\& 5\\% more."));
   assert.ok(tex.includes("\\includegraphics[width=0.6\\paperwidth]{\\maps/dances_with_dwarves.png}"));
   assert.ok(tex.endsWith("\n") && !/[ \t]$/m.test(tex));
 });
@@ -82,7 +82,7 @@ test("Shift+Enter writes \\\\ inside the paragraph, Enter a blank line, and the 
   assert.ok(tex.includes("\\textit{The ``old'' dwarves --}\\\\\n\\textit{gone.}\n\n\\textit{New paragraph.}"));
   assert.ok(tex.includes("Defeat all invading armies.\\\\\nHold your Town.\n\nOr survive \\textbf{until}\\\\\n\\textbf{the end}."));
   // a line opening with [ is not read as the optional argument of \\
-  assert.ok(tex.includes("  \\item Players gain 2 \\svg{experience}\\\\\n    {}[once] per Round.\n\\end{itemize}"));
+  assert.ok(tex.includes("  \\item Players gain 2~\\svg{experience}\\\\\n    {}[once] per Round.\n\\end{itemize}"));
   assert.ok(tex.includes("\\textbf{Special:} \\textit{Never retreats.}\n\nAlways moves first."));
   // the lint-files workflow: no tabs, no trailing whitespace, a final newline, book terms capitalised
   assert.ok(tex.endsWith("\n") && !/[ \t]$/m.test(tex) && !tex.includes("\t"));
