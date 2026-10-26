@@ -29,6 +29,7 @@ export function Runs({ runs }: { runs: Inline[] }) {
             </span>
           );
         if (run.t === "math") return <i key={i}>{run.s}</i>;
+        if (run.t === "br") return <br key={i} />;
         let node = <>{run.s}</>;
         if (run.i) node = <i>{node}</i>;
         if (run.b) node = <b>{node}</b>;

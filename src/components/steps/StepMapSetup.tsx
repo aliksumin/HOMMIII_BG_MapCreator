@@ -55,6 +55,8 @@ export function StepMapSetup() {
                   </>
                 )}
                 <MarkupField
+                  multiline
+                  breaks="line"
                   value={s.mapSetup.notes[key]}
                   placeholder="note, e.g. with the Obelisk Field"
                   onChange={(v) => update((d) => void (d.mapSetup.notes[key] = v), `note-${key}`)}

@@ -26,7 +26,7 @@ export function StepStory() {
           <code>§12</code>, or pick from the <b>§ Read</b> menu, to point to paragraph 12. Moving or removing a paragraph renumbers every
           reference.
         </p>
-        <Field label="Long story" hint="Separate paragraphs with a blank line.">
+        <Field label="Long story">
           <MarkupField
             multiline
             rows={10}

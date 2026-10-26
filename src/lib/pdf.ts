@@ -35,12 +35,14 @@ const FONT = "Liberation";
 
 type Style = "normal" | "bold" | "italic" | "bolditalic";
 
-type Piece =
+export type Piece =
   | { kind: "word"; text: string; style: Style; size: number; w: number; rise: number }
   | { kind: "glyph"; name: string; w: number; h: number }
-  | { kind: "space"; w: number };
+  | { kind: "space"; w: number }
+  /** a line break the contributor typed */
+  | { kind: "break"; w: 0 };
 
-interface Assets {
+export interface Assets {
   glyphs: Map<string, { data: string; ratio: number }>;
   background: string;
   heading: string;
@@ -107,7 +109,54 @@ async function loadAssets(doc: ScenarioDoc): Promise<Assets> {
   };
 }
 
-class Writer {
+/**
+ * Breaks pieces into lines no wider than `width`: at spaces when the line is
+ * full, and always at a break the contributor typed.
+ */
+export function breakLines(pieces: Piece[], width: number): Piece[][][] {
+  const clusters: { parts: Piece[]; w: number; space: number; newLine: boolean }[] = [];
+  let current: Piece[] = [];
+  let space = 0;
+  let newLine = false;
+  const flush = () => {
+    if (!current.length) return;
+    clusters.push({ parts: current, w: current.reduce((s, p) => s + p.w, 0), space, newLine });
+    current = [];
+    newLine = false;
+  };
+  for (const p of pieces) {
+    if (p.kind === "break") {
+      flush();
+      newLine = true;
+      space = 0;
+    } else if (p.kind === "space") {
+      flush();
+      space = p.w;
+    } else {
+      if (!current.length && clusters.length === 0) space = 0;
+      current.push(p);
+    }
+  }
+  flush();
+  const lines: Piece[][][] = [];
+  let line: Piece[][] = [];
+  let w = 0;
+  for (const c of clusters) {
+    const add = (line.length ? c.space : 0) + c.w;
+    if (line.length && (c.newLine || w + add > width)) {
+      lines.push(line);
+      line = [];
+      w = 0;
+    }
+    line.push(c.parts);
+    w += line.length > 1 ? c.space + c.w : c.w;
+  }
+  if (line.length) lines.push(line);
+  return lines;
+}
+
+/** Sets the pages; exported for the layout tests. */
+export class Writer {
   pdf: JsPDF;
   assets: Assets;
   col = 0;
@@ -192,6 +241,8 @@ class Writer {
         const suffix = ordinalSuffix(run.n);
         out.push({ kind: "word", text: n, style, size, w: this.measure(n, style, size), rise: 0 });
         out.push({ kind: "word", text: suffix, style, size: size * 0.62, w: this.measure(suffix, style, size * 0.62), rise: size * 0.36 });
+      } else if (run.t === "br") {
+        out.push({ kind: "break", w: 0 });
       } else {
         const style = run.t === "math" ? styleOf(force?.b, true) : styleOf(run.b || force?.b, run.i || force?.i);
         const text = run.s;
@@ -203,42 +254,6 @@ class Writer {
       }
     }
     return out;
-  }
-
-  /** Breaks pieces into lines no wider than `width`; breaks only at spaces. */
-  lines(pieces: Piece[], width: number): Piece[][][] {
-    const clusters: { parts: Piece[]; w: number; space: number }[] = [];
-    let current: Piece[] = [];
-    let space = 0;
-    const flush = () => {
-      if (current.length) clusters.push({ parts: current, w: current.reduce((s, p) => s + p.w, 0), space });
-      current = [];
-    };
-    for (const p of pieces) {
-      if (p.kind === "space") {
-        flush();
-        space = p.w;
-      } else {
-        if (!current.length && clusters.length === 0) space = 0;
-        current.push(p);
-      }
-    }
-    flush();
-    const lines: Piece[][][] = [];
-    let line: Piece[][] = [];
-    let w = 0;
-    for (const c of clusters) {
-      const add = (line.length ? c.space : 0) + c.w;
-      if (line.length && w + add > width) {
-        lines.push(line);
-        line = [];
-        w = 0;
-      }
-      line.push(c.parts);
-      w += line.length > 1 ? c.space + c.w : c.w;
-    }
-    if (line.length) lines.push(line);
-    return lines;
   }
 
   drawLine(line: Piece[][], x: number, baseline: number, size: number, color: [number, number, number]): void {
@@ -265,7 +280,7 @@ class Writer {
     const size = opts.size ?? BODY;
     const indent = opts.indent ?? 0;
     const lh = size * LEADING;
-    const lines = this.lines(this.pieces(runs, size, opts.force), COL_W - indent);
+    const lines = breakLines(this.pieces(runs, size, opts.force), COL_W - indent);
     lines.forEach((line, i) => {
       this.ensure(lh);
       const baseline = this.y + size * 0.9;
