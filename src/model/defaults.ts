@@ -1,6 +1,6 @@
 import { uid } from "../lib/id.ts";
 import { mergeGateHalves, orientGates } from "../lib/tokens.ts";
-import type { Category, MapLayout, Scenario } from "./types.ts";
+import type { Category, MapLayout, RulesTable, Scenario } from "./types.ts";
 
 export function newMapLayout(name = "Scenario map", playerCounts: number[] = []): MapLayout {
   return { id: uid(), name, playerCounts, caption: "", tiles: [], tokens: [] };
@@ -34,7 +34,7 @@ export function newScenario(category: Category = "clash"): Scenario {
     buildings: ["bronze"],
     tilePool: { enabled: false, far: 1, near: 1, note: "" },
     bonus: { label: "Additional Bonus", options: [] },
-    aiHero: { enabled: category === "campaigns", faction: "", army: "", deck: "", spellDeck: "", skills: "", special: "" },
+    aiHero: { enabled: category === "campaigns", faction: "", army: "", deck: "", spellDeck: "", skills: "", special: "", tables: [] },
     mapSetup: {
       auto: true,
       counts: {
@@ -52,6 +52,7 @@ export function newScenario(category: Category = "clash"): Scenario {
     timedEvents: [],
     rulesIntro: "",
     rules: [],
+    rulesTables: [],
     customSections: [],
     story: "",
     storyBook: { locations: [], locationsNote: "", specialTiles: [], paragraphs: [] },
@@ -76,6 +77,24 @@ function upgradeLayout(m: MapLayout): MapLayout {
   return { ...m, tiles, tokens: mergeGateHalves(tiles, m.tokens ?? []) };
 }
 
+/** A table as a project file holds it, made rectangular: one cell per column in every row. */
+function upgradeTable(t: RulesTable): RulesTable {
+  const columns = t.columns?.length ? [...t.columns] : ["", ""];
+  const rows = (t.rows ?? []).map((row) => columns.map((_, i) => row[i] ?? ""));
+  return {
+    id: t.id,
+    preset: t.preset ?? "grid",
+    title: t.title ?? "",
+    banner: !!t.banner,
+    width: t.width === "page" ? "page" : "column",
+    align: t.align === "left" ? "left" : "center",
+    columns,
+    showHeader: t.showHeader ?? true,
+    rows,
+    after: typeof t.after === "number" ? t.after : null,
+  };
+}
+
 /** Fills fields a project file from an older version lacks. */
 export function upgradeScenario(input: Partial<Scenario>): Scenario {
   const base = newScenario(input.category ?? "clash");
@@ -86,7 +105,9 @@ export function upgradeScenario(input: Partial<Scenario>): Scenario {
     income: { ...base.income, ...input.income },
     tilePool: { ...base.tilePool, ...input.tilePool },
     bonus: { ...base.bonus, ...input.bonus },
-    aiHero: { ...base.aiHero, ...input.aiHero },
+    aiHero: { ...base.aiHero, ...input.aiHero, tables: (input.aiHero?.tables ?? []).map(upgradeTable) },
+    rulesTables: (input.rulesTables ?? []).map(upgradeTable),
+    customSections: (input.customSections ?? []).map((c) => ({ ...c, tables: (c.tables ?? []).map(upgradeTable) })),
     storyBook: { ...base.storyBook, ...input.storyBook },
     mapSetup: {
       ...base.mapSetup,

@@ -73,6 +73,35 @@ export interface TimedEvent {
   items: string[];
 }
 
+/** The kinds of table published scenarios use; each preset starts the table off and adds its own helpers. */
+export type TablePreset = "difficulty" | "lookup" | "settings" | "aiSetup" | "grid";
+
+/**
+ * A table in the mission book's framed style. The first column and the
+ * header row are dark cells, the rest light cells. Every row has one cell
+ * per column; cells hold markup.
+ */
+export interface RulesTable {
+  id: string;
+  preset: TablePreset;
+  /** bold line above the table, or the merged header row when `banner` is set; may be empty */
+  title: string;
+  /** draw the title as a merged dark row across the table instead of a line above it */
+  banner: boolean;
+  /** "column": inside the text column; "page": across both columns, below them */
+  width: "column" | "page";
+  /** text alignment of the body cells; the header row is always centred */
+  align: "center" | "left";
+  /** column labels, the first column's included */
+  columns: string[];
+  /** print the column labels as a header row */
+  showHeader: boolean;
+  /** body rows: the first column's cell, then one cell per further column */
+  rows: string[][];
+  /** how many of the section's bullets come before the table; null = after all of them */
+  after: number | null;
+}
+
 export interface CustomSection {
   id: string;
   title: string;
@@ -80,6 +109,7 @@ export interface CustomSection {
   text: string;
   /** bullets (markup) */
   items: string[];
+  tables: RulesTable[];
 }
 
 /** A Story Location or Special Tile entry: a bold name and what happens there (markup). */
@@ -162,6 +192,8 @@ export interface Scenario {
     spellDeck: string;
     skills: string;
     special: string;
+    /** tables after the AI Hero Setup lines */
+    tables: RulesTable[];
   };
 
   mapSetup: {
@@ -180,6 +212,8 @@ export interface Scenario {
   timedEvents: TimedEvent[];
   rulesIntro: string;
   rules: string[];
+  /** tables in the Additional Rules */
+  rulesTables: RulesTable[];
   customSections: CustomSection[];
   /** campaigns: The Story, on its own page */
   story: string;

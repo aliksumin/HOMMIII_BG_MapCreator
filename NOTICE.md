@@ -18,6 +18,11 @@ Code from other projects:
   (https://github.com/qwrtln/Homm3BG-mission-book/tree/main/web, AGPL-3.0). That code has been rewritten; the app's
   AGPL-3.0 license also covers the earlier versions.
 - Game terms and rule phrases follow the Rewritten Rule Book and the Mission Book templates (see below).
+- The rules tables (`src/lib/tables.ts`, `src/lib/latex.ts`) write the Mission Book's table macros from its
+  `metadata.tex` (`\hommtable`, `\hommtablemulticol`, `\darkcell`, `\lightcell` and their `left`
+  variants), as its published scenarios use them. Only the macro names, their arguments and the colours they draw
+  with were taken (CC BY-NC-SA 4.0 source, read for facts); the code and the test fixtures are this project's own.
+- `src/data/fontmetrics.ts` holds advance widths read from the Liberation Serif fonts by `tools/font-metrics.mjs`.
 
 The art and data under `public/assets/` and `src/data/catalog.json` come from other community projects and keep
 their own licenses (see also `public/assets/LICENSE.md`):

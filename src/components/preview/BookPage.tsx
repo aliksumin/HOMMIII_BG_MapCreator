@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { assetUrl, titleImageUrl } from "../../data/catalog.ts";
 import type { Block, ScenarioDoc } from "../../lib/document.ts";
+import { bookTable, columnCount, type TableDoc } from "../../lib/tables.ts";
 import { fitTitle, PAGE_W_PT, TITLE_W_PT } from "../../lib/titlefit.ts";
 import { MapView } from "../map/MapLayers.tsx";
 import { Glyph, Runs } from "../ui/Runs.tsx";
@@ -31,8 +32,73 @@ function useFittedTitle(title: string, lines: 1 | 2): { size: number; lines: str
   return useMemo(() => fitTitle(title, lines, TITLE_W_PT, measureTitle), [title, lines, fontReady]);
 }
 
+/** A rules table in the book's frame: dark header row and first column, light cells, yellow icons. */
+export function TableView({ table }: { table: TableDoc }) {
+  const n = columnCount(table);
+  // The first column takes the share of the width it takes in the .tex, plus
+  // the room the cell padding and spacing take here.
+  const key = useMemo(() => bookTable(table).layout.key / 0.95 + 0.03, [table]);
+  const align = table.align === "left" ? "left" : "center";
+  return (
+    <div className={`bk-table ${table.wide ? "wide" : ""}`} style={{ backgroundImage: `url(${assetUrl("assets/layout/table-background.webp")})` }}>
+      {table.title.length > 0 && !table.banner && (
+        <p className="bk-table-title">
+          <Runs runs={table.title} />
+        </p>
+      )}
+      <table>
+        <colgroup>
+          <col style={{ width: `${(key * 100).toFixed(1)}%` }} />
+          {Array.from({ length: n - 1 }, (_, i) => (
+            <col key={i} />
+          ))}
+        </colgroup>
+        <tbody>
+          {table.banner && (
+            <tr>
+              <th colSpan={n} className="dark">
+                <Runs runs={table.title} />
+              </th>
+            </tr>
+          )}
+          {table.header && (
+            <tr>
+              {table.header.map((cell, c) =>
+                c === 0 && !cell.length ? (
+                  <td key={c} className="corner" />
+                ) : (
+                  <th key={c} className="dark">
+                    <Runs runs={cell} />
+                  </th>
+                ),
+              )}
+            </tr>
+          )}
+          {table.rows.map((row, r) => (
+            <tr key={r}>
+              {Array.from({ length: n }, (_, c) =>
+                c === 0 ? (
+                  <th key={c} className="dark" style={{ textAlign: align }}>
+                    <Runs runs={row[c] ?? []} />
+                  </th>
+                ) : (
+                  <td key={c} className="light" style={{ textAlign: align }}>
+                    <Runs runs={row[c] ?? []} />
+                  </td>
+                ),
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function BlockView({ block }: { block: Block }) {
   switch (block.k) {
+    case "table":
+      return <TableView table={block.table} />;
     case "heading":
       return <h3 className="bk-h">{block.text}</h3>;
     case "para":
@@ -109,6 +175,9 @@ export function BookPage({ doc, showMaps = true }: { doc: ScenarioDoc; showMaps?
             <BlockView key={i} block={block} />
           ))}
         </div>
+        {doc.wide.map((table, i) => (
+          <TableView key={i} table={table} />
+        ))}
         {showMaps &&
           doc.maps.map((m) => (
             <figure key={m.layout.id} className="bk-figure">

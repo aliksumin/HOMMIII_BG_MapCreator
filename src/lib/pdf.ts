@@ -10,7 +10,9 @@ import { artUse, pdfCredit } from "./credits.ts";
 import { type Block, buildDocument, type ScenarioDoc } from "./document.ts";
 import { loadImage, rasterise } from "./images.ts";
 import { renderMapPng } from "./mapdraw.ts";
-import { type Inline, ordinalSuffix } from "./markup.ts";
+import type { Inline } from "./markup.ts";
+import { bookTable, layoutTable, TABLE_SHARE, type TableDoc, type TableLayout } from "./tables.ts";
+import { breakLines, lineWidth, type Measure, type Piece, type Style, toPieces } from "./textlayout.ts";
 import { fitTitle, PAGE_W_PT, TITLE_W_PT } from "./titlefit.ts";
 
 const PAGE_W = PAGE_W_PT;
@@ -33,14 +35,7 @@ const KIND_INK: [number, number, number] = [203, 181, 116];
 const HEAD_SHADOW: [number, number, number] = [20, 15, 10];
 const FONT = "Liberation";
 
-type Style = "normal" | "bold" | "italic" | "bolditalic";
-
-export type Piece =
-  | { kind: "word"; text: string; style: Style; size: number; w: number; rise: number }
-  | { kind: "glyph"; name: string; w: number; h: number }
-  | { kind: "space"; w: number }
-  /** a line break the contributor typed */
-  | { kind: "break"; w: 0 };
+export { breakLines, type Piece };
 
 export interface Assets {
   glyphs: Map<string, { data: string; ratio: number }>;
@@ -48,10 +43,33 @@ export interface Assets {
   heading: string;
   bullet: string;
   icon: { data: string; ratio: number } | null;
+  /** the rules tables' dark background, when the scenario has tables */
+  table?: string;
 }
 
-function styleOf(b?: boolean, i?: boolean): Style {
-  return b && i ? "bolditalic" : b ? "bold" : i ? "italic" : "normal";
+// Rules tables, in the colours of the book's table macros.
+const TABLE_SIZE = 10;
+const TABLE_LEADING = 1.22;
+const CELL_PAD = 4.5;
+const ROW_GAP = 2.5;
+const TITLE_INK: [number, number, number] = [245, 227, 148];
+const CELL_INK: [number, number, number] = [255, 255, 255];
+const FRAME_OUT: [number, number, number] = [219, 202, 134];
+const FRAME_MID: [number, number, number] = [111, 103, 73];
+const FRAME_IN: [number, number, number] = [176, 158, 105];
+const CELL_FILL: [number, number, number] = [32, 22, 12];
+const DARK_BORDER: [number, number, number] = [99, 72, 49];
+const LIGHT_BORDER: [number, number, number] = [119, 84, 62];
+
+/** A table laid out for the PDF, ready to draw. */
+interface PdfTable {
+  doc: TableDoc;
+  layout: TableLayout;
+  /** height of each row's cells */
+  heights: number[];
+  frameW: number;
+  frameH: number;
+  titleH: number;
 }
 
 async function fontBase64(file: string): Promise<string> {
@@ -75,10 +93,13 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
 function glyphNames(doc: ScenarioDoc): Set<string> {
   const names = new Set<string>();
   const visit = (runs: Inline[]) => runs.forEach((r) => r.t === "glyph" && names.add(r.name));
+  const visitTable = (t: TableDoc) => [t.title, ...(t.header ?? []), ...t.rows.flat()].forEach(visit);
   for (const block of [...doc.body, ...doc.story]) {
     if (block.k === "list") block.items.forEach(visit);
+    else if (block.k === "table") visitTable(block.table);
     else if (block.k !== "heading") visit(block.runs);
   }
+  doc.wide.forEach(visitTable);
   // The heading badge draws the rating glyph even when the text never uses it.
   if (doc.rating) names.add(doc.rating);
   return names;
@@ -106,53 +127,11 @@ async function loadAssets(doc: ScenarioDoc): Promise<Assets> {
     heading: await rasterise(assetUrl("assets/pdf/section_heading.png"), 1200),
     bullet: await rasterise(assetUrl("assets/pdf/listdot.png"), 60),
     icon,
+    table:
+      doc.wide.length || doc.body.some((b) => b.k === "table")
+        ? await rasterise(assetUrl("assets/layout/table-background.webp"), 1000, undefined, "image/jpeg")
+        : undefined,
   };
-}
-
-/**
- * Breaks pieces into lines no wider than `width`: at spaces when the line is
- * full, and always at a break the contributor typed.
- */
-export function breakLines(pieces: Piece[], width: number): Piece[][][] {
-  const clusters: { parts: Piece[]; w: number; space: number; newLine: boolean }[] = [];
-  let current: Piece[] = [];
-  let space = 0;
-  let newLine = false;
-  const flush = () => {
-    if (!current.length) return;
-    clusters.push({ parts: current, w: current.reduce((s, p) => s + p.w, 0), space, newLine });
-    current = [];
-    newLine = false;
-  };
-  for (const p of pieces) {
-    if (p.kind === "break") {
-      flush();
-      newLine = true;
-      space = 0;
-    } else if (p.kind === "space") {
-      flush();
-      space = p.w;
-    } else {
-      if (!current.length && clusters.length === 0) space = 0;
-      current.push(p);
-    }
-  }
-  flush();
-  const lines: Piece[][][] = [];
-  let line: Piece[][] = [];
-  let w = 0;
-  for (const c of clusters) {
-    const add = (line.length ? c.space : 0) + c.w;
-    if (line.length && (c.newLine || w + add > width)) {
-      lines.push(line);
-      line = [];
-      w = 0;
-    }
-    line.push(c.parts);
-    w += line.length > 1 ? c.space + c.w : c.w;
-  }
-  if (line.length) lines.push(line);
-  return lines;
 }
 
 /** Sets the pages; exported for the layout tests. */
@@ -229,31 +208,19 @@ export class Writer {
   }
 
   pieces(runs: Inline[], size: number, force?: { b?: boolean; i?: boolean }): Piece[] {
-    const out: Piece[] = [];
-    for (const run of runs) {
-      if (run.t === "glyph") {
-        const g = this.assets.glyphs.get(run.name);
-        const h = size * 1.05;
-        out.push({ kind: "glyph", name: run.name, w: g ? h * g.ratio : h, h });
-      } else if (run.t === "ordinal") {
-        const style = styleOf(force?.b, force?.i);
-        const n = String(run.n);
-        const suffix = ordinalSuffix(run.n);
-        out.push({ kind: "word", text: n, style, size, w: this.measure(n, style, size), rise: 0 });
-        out.push({ kind: "word", text: suffix, style, size: size * 0.62, w: this.measure(suffix, style, size * 0.62), rise: size * 0.36 });
-      } else if (run.t === "br") {
-        out.push({ kind: "break", w: 0 });
-      } else {
-        const style = run.t === "math" ? styleOf(force?.b, true) : styleOf(run.b || force?.b, run.i || force?.i);
-        const text = run.s;
-        for (const part of text.split(/(\s+)/)) {
-          if (!part) continue;
-          if (/^\s+$/.test(part)) out.push({ kind: "space", w: this.measure(" ", style, size) });
-          else out.push({ kind: "word", text: part, style, size, w: this.measure(part, style, size), rise: 0 });
-        }
-      }
-    }
-    return out;
+    return toPieces(
+      runs,
+      size,
+      {
+        text: (text, style, at) => this.measure(text, style, at),
+        glyph: (name, at) => {
+          const g = this.assets.glyphs.get(name);
+          const h = at * 1.05;
+          return { w: g ? h * g.ratio : h, h };
+        },
+      },
+      force,
+    );
   }
 
   drawLine(line: Piece[][], x: number, baseline: number, size: number, color: [number, number, number]): void {
@@ -322,6 +289,110 @@ export class Writer {
       case "list":
         block.items.forEach((item, i) => this.paragraph(item, { indent: 35, bullet: true, after: i === block.items.length - 1 ? BODY * 0.48 : 2.7 }));
         break;
+      case "table": {
+        const t = this.layoutTable(block.table, COL_W);
+        this.ensure(t.frameH + 3);
+        this.drawTable(t, this.x0, this.y + 3);
+        this.y += t.frameH + 3 + BODY * 0.6;
+        break;
+      }
+    }
+  }
+
+  /**
+   * Sizes a table for the PDF with the column proportions of its .tex, so the
+   * two read alike: cells grow with their lines, a row with its tallest cell.
+   */
+  layoutTable(doc: TableDoc, frameW: number): PdfTable {
+    const measure: Measure = {
+      text: (text, style, size) => this.measure(text, style, size),
+      glyph: (name, size) => {
+        const g = this.assets.glyphs.get(name);
+        const h = size * 1.05;
+        return { w: g ? h * g.ratio : h, h };
+      },
+    };
+    const layout = layoutTable(doc, {
+      lineWidth: 0.95 * frameW,
+      size: TABLE_SIZE,
+      tabcolsep: 3,
+      leftskip: 4,
+      inset: 2 * CELL_PAD,
+      measure,
+      key: bookTable(doc).layout.key,
+    });
+    const lh = TABLE_SIZE * TABLE_LEADING;
+    const heights = layout.rows.map((row) => Math.max(...row.cells.map((c) => Math.max(1, c.lines.length))) * lh + 2 * CELL_PAD);
+    const titleH = doc.title.length && !doc.banner ? lh + 8 : 0;
+    const frameH = 2 * 12 + titleH + heights.reduce((sum, h) => sum + h + ROW_GAP, -ROW_GAP);
+    return { doc, layout, heights, frameW, frameH, titleH };
+  }
+
+  /** Draws a table's frame, background and cells with its top left corner at (x, y). */
+  drawTable(t: PdfTable, x: number, y: number): void {
+    const { pdf } = this;
+    const { doc, layout, frameW, frameH } = t;
+    if (this.assets.table) pdf.addImage(this.assets.table, "JPEG", x, y, frameW, frameH, "table-bg", "FAST");
+    pdf.setLineWidth(0.8);
+    const frame = (inset: number, color: [number, number, number]) => {
+      pdf.setDrawColor(...color);
+      pdf.rect(x + inset, y + inset, frameW - 2 * inset, frameH - 2 * inset, "S");
+    };
+    frame(0, FRAME_OUT);
+    frame(1, FRAME_MID);
+    frame(3, FRAME_IN);
+
+    const lh = TABLE_SIZE * TABLE_LEADING;
+    const space = this.measure(" ", "normal", TABLE_SIZE);
+    let cy = y + 12;
+    if (t.titleH) {
+      const line = breakLines(this.pieces(doc.title, TABLE_SIZE, { b: true }), frameW * 0.9)[0] ?? [];
+      this.drawLine(line, x + (frameW - lineWidth(line, space)) / 2, cy + TABLE_SIZE * 0.9, TABLE_SIZE, TITLE_INK);
+      cy += t.titleH;
+    }
+    const tableW = TABLE_SHARE * 0.95 * frameW;
+    const sep = 3;
+    // Cell fills are translucent, as in the book; without graphics states only the borders are drawn.
+    const GState = (pdf as unknown as { GState?: new (o: { opacity: number }) => unknown }).GState;
+    const translucent = typeof GState === "function" && !!GState.prototype;
+    layout.rows.forEach((row, r) => {
+      const h = t.heights[r];
+      let cx = x + (frameW - tableW) / 2;
+      row.cells.forEach((cell, c) => {
+        const width = row.kind === "banner" ? tableW - 2 * sep : layout.widths[c];
+        const cellX = cx + sep;
+        cx += width + 2 * sep;
+        // The book leaves an empty corner cell above the row names out.
+        if (row.kind === "header" && c === 0 && !cell.runs.length) return;
+        if (translucent) {
+          pdf.setGState(new GState({ opacity: cell.dark ? 0.5 : 0.25 }) as never);
+          pdf.setFillColor(...CELL_FILL);
+          pdf.rect(cellX, cy, width, h, "F");
+          pdf.setGState(new GState({ opacity: 1 }) as never);
+        }
+        pdf.setLineWidth(0.8);
+        pdf.setDrawColor(...(cell.dark ? DARK_BORDER : LIGHT_BORDER));
+        pdf.rect(cellX, cy, width, h, "S");
+        const left = doc.align === "left" && row.kind === "body";
+        const top = cy + (h - cell.lines.length * lh) / 2;
+        cell.lines.forEach((line, i) => {
+          const lx = left ? cellX + CELL_PAD + 4 : cellX + (width - lineWidth(line, space)) / 2;
+          this.drawLine(line, lx, top + i * lh + TABLE_SIZE * 0.9, TABLE_SIZE, cell.dark ? TITLE_INK : CELL_INK);
+        });
+      });
+      cy += h + ROW_GAP;
+    });
+  }
+
+  /** Tables across both columns, below the text: on a new page when the right column has text or the table does not fit. */
+  wideTables(tables: TableDoc[]): void {
+    for (const table of tables) {
+      const t = this.layoutTable(table, CONTENT_W);
+      if (this.col === 1 || this.y + 14 + t.frameH > PAGE_H - MARGIN_BOTTOM) this.newPage();
+      const y = this.y + (this.y > this.top + 1 ? 14 : 0);
+      this.drawTable(t, MARGIN_X, y);
+      this.col = 0;
+      this.y = y + t.frameH + 14;
     }
   }
 
@@ -448,6 +519,7 @@ export async function scenarioToPdf(scenario: Scenario, onProgress?: (what: stri
 
   onProgress?.("Setting the text...");
   w.blocks(doc.body);
+  w.wideTables(doc.wide);
 
   for (const map of doc.maps) {
     onProgress?.(`Drawing the map ${map.layout.name}...`);
