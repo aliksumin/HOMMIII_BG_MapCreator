@@ -9,7 +9,7 @@ import { scenarioToLatex, tableToLatex } from "../src/lib/latex.ts";
 import { capsFindings, lintScenario, tableFindings } from "../src/lib/lint.ts";
 import { setKnownGlyphs } from "../src/lib/markup.ts";
 import { Writer } from "../src/lib/pdf.ts";
-import { aiSetupRow, bookTable, cellHeight, cellRuns, DICE_KEYS, diceRows, newTable, parseUnits, tableDoc, unitString } from "../src/lib/tables.ts";
+import { aiSetupRow, bookTable, cellHeight, cellRuns, DICE_KEYS, diceRows, newTable, removeTableColumn, setTableCell, parseUnits, tableDoc, unitString } from "../src/lib/tables.ts";
 import { newScenario, upgradeScenario } from "../src/model/defaults.ts";
 import type { RulesTable, Scenario, TablePreset } from "../src/model/types.ts";
 
@@ -248,6 +248,27 @@ test("the dice keys keep a row on its own result and fill the rest in order", ()
   assert.deepEqual(rows.slice(0, 5).map((r) => r[1]), ["Low Clouds", "Hailstorm", "", "", "Calm"]);
 });
 
+test("a cell write after its column went leaves the table rectangular", () => {
+  const t = presetTable("grid");
+  // the toolbar still points at the last column when it is removed
+  const stale = { row: 0, col: t.columns.length - 1 };
+  removeTableColumn(t, stale.col);
+  setTableCell(t, stale.row, stale.col, "2 :bronze:");
+  setTableCell(t, 99, 0, "x");
+  assert.ok(t.rows.every((r) => r.length === t.columns.length));
+  assert.ok(!t.rows.flat().includes("2 :bronze:"));
+  // what is in the table is what a reopened project holds
+  const s = newScenario("coops");
+  s.rulesTables = [t];
+  assert.deepEqual(parseProject(projectJson(s)).rulesTables[0], t);
+  // a table keeps at least two columns
+  removeTableColumn(t, 0);
+  removeTableColumn(t, 0);
+  assert.equal(t.columns.length, 2);
+  setTableCell(t, -1, 1, "Solo");
+  assert.equal(t.columns[1], "Solo");
+});
+
 test("an AI Hero setup row comes from the AI Opponent step", () => {
   const s = newScenario("campaigns");
   s.aiHero = { ...s.aiHero, faction: "Inferno", army: "2 :bronze:", deck: "Might AI Deck", spellDeck: "Fire Spells", skills: "Offense", special: "" };
@@ -291,4 +312,19 @@ test("the PDF draws column tables in the flow and page tables across both column
   // the wide difficulty matrix spans more than one column: Impossible sits right of the page middle
   const header = drawn.filter((d) => d.text === "Impossible").at(-1)!;
   assert.ok(header.x > 595.28 / 2);
+});
+
+test("the PDF sets a long table title on as many lines as it needs, and the frame grows with them", () => {
+  const { writer, drawn } = recorder();
+  const short = tableDoc(presetTable("lookup"));
+  const long = tableDoc({ ...presetTable("lookup"), title: "Omens of the sky over the drowned marsh, read at the start of every Round" });
+  const one = writer.layoutTable(short, 250);
+  const many = writer.layoutTable(long, 250);
+  assert.equal(one.title.length, 1);
+  assert.ok(many.title.length > 1);
+  assert.ok(Math.abs(many.frameH - one.frameH - (many.title.length - 1) * 10 * 1.22) < 1e-9);
+  writer.drawTable(many, 0, 0);
+  const at = (text: string) => drawn.find((d) => d.text === text)!;
+  // the last word is drawn, a line below the first
+  assert.ok(at("Round") && at("Round").y > at("Omens").y);
 });

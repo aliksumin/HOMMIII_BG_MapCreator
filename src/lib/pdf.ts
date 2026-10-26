@@ -69,6 +69,8 @@ interface PdfTable {
   heights: number[];
   frameW: number;
   frameH: number;
+  /** the title above the table, broken into lines; empty for none or a banner */
+  title: Piece[][][];
   titleH: number;
 }
 
@@ -323,9 +325,10 @@ export class Writer {
     });
     const lh = TABLE_SIZE * TABLE_LEADING;
     const heights = layout.rows.map((row) => Math.max(...row.cells.map((c) => Math.max(1, c.lines.length))) * lh + 2 * CELL_PAD);
-    const titleH = doc.title.length && !doc.banner ? lh + 8 : 0;
+    const title = doc.title.length && !doc.banner ? breakLines(this.pieces(doc.title, TABLE_SIZE, { b: true }), frameW * 0.9) : [];
+    const titleH = title.length ? title.length * lh + 8 : 0;
     const frameH = 2 * 12 + titleH + heights.reduce((sum, h) => sum + h + ROW_GAP, -ROW_GAP);
-    return { doc, layout, heights, frameW, frameH, titleH };
+    return { doc, layout, heights, frameW, frameH, title, titleH };
   }
 
   /** Draws a table's frame, background and cells with its top left corner at (x, y). */
@@ -345,11 +348,10 @@ export class Writer {
     const lh = TABLE_SIZE * TABLE_LEADING;
     const space = this.measure(" ", "normal", TABLE_SIZE);
     let cy = y + 12;
-    if (t.titleH) {
-      const line = breakLines(this.pieces(doc.title, TABLE_SIZE, { b: true }), frameW * 0.9)[0] ?? [];
-      this.drawLine(line, x + (frameW - lineWidth(line, space)) / 2, cy + TABLE_SIZE * 0.9, TABLE_SIZE, TITLE_INK);
-      cy += t.titleH;
-    }
+    t.title.forEach((line, i) => {
+      this.drawLine(line, x + (frameW - lineWidth(line, space)) / 2, cy + i * lh + TABLE_SIZE * 0.9, TABLE_SIZE, TITLE_INK);
+    });
+    cy += t.titleH;
     const tableW = TABLE_SHARE * 0.95 * frameW;
     const sep = 3;
     // Cell fills are translucent, as in the book; without graphics states only the borders are drawn.

@@ -1,5 +1,16 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { diceRows, newTable, parseUnits, PRESETS, tableDoc, UNIT_TIERS, type UnitTier, unitString } from "../../lib/tables.ts";
+import {
+  diceRows,
+  newTable,
+  parseUnits,
+  PRESETS,
+  removeTableColumn,
+  setTableCell,
+  tableDoc,
+  UNIT_TIERS,
+  type UnitTier,
+  unitString,
+} from "../../lib/tables.ts";
 import type { RulesTable } from "../../model/types.ts";
 import { TableView } from "../preview/BookPage.tsx";
 import { Segmented, Toggle } from "./Form.tsx";
@@ -77,11 +88,7 @@ function TableCard({ table, index, count, edit, move, remove, bullets, aiRow }: 
   const doc = useMemo(() => tableDoc(table), [table]);
 
   const cellValue = (a: Active) => (a.row < 0 ? table.columns[a.col] : table.rows[a.row]?.[a.col]) ?? "";
-  const setCell = (a: Active, value: string) =>
-    edit((t) => {
-      if (a.row < 0) t.columns[a.col] = value;
-      else if (t.rows[a.row]) t.rows[a.row][a.col] = value;
-    }, `cell-${a.row}-${a.col}`);
+  const setCell = (a: Active, value: string) => edit((t) => setTableCell(t, a.row, a.col, value), `cell-${a.row}-${a.col}`);
 
   /** Inserts markup at the caret of the active cell, or wraps its selection. */
   const insert = (before: string, after = "") => {
@@ -110,11 +117,21 @@ function TableCard({ table, index, count, edit, move, remove, bullets, aiRow }: 
       t.columns.push("");
       t.rows.forEach((r) => r.push(""));
     });
-  const removeColumn = (c: number) =>
-    edit((t) => {
-      t.columns.splice(c, 1);
-      t.rows.forEach((r) => r.splice(c, 1));
-    });
+  // Cells are keyed by position, so after a removal the focused box holds
+  // another cell: the toolbar lets go of it until a cell is clicked again.
+  const release = () => {
+    activeEl.current?.blur();
+    activeEl.current = null;
+    setActive(null);
+  };
+  const removeColumn = (c: number) => {
+    release();
+    edit((t) => removeTableColumn(t, c));
+  };
+  const removeRow = (r: number) => {
+    release();
+    edit((t) => void t.rows.splice(r, 1));
+  };
   const moveColumn = (c: number, d: number) =>
     edit((t) => {
       const swap = <T,>(list: T[]) => ([list[c], list[c + d]] = [list[c + d], list[c]]);
@@ -272,7 +289,7 @@ function TableCard({ table, index, count, edit, move, remove, bullets, aiRow }: 
                       <button type="button" className="tool" title="Move row down" disabled={r === table.rows.length - 1} onClick={() => moveRow(r, 1)}>
                         &#9660;
                       </button>
-                      <button type="button" className="tool danger" title="Remove row" onClick={() => edit((t) => void t.rows.splice(r, 1))}>
+                      <button type="button" className="tool danger" title="Remove row" onClick={() => removeRow(r)}>
                         &#10005;
                       </button>
                     </div>

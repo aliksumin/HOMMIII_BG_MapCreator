@@ -77,6 +77,24 @@ export function diceRows(rows: string[][], columns: number): string[][] {
   });
 }
 
+/**
+ * Sets one cell; row -1 is the column labels. A cell outside the table (a
+ * stale position after a row or column went) is left alone, so the table
+ * stays rectangular.
+ */
+export function setTableCell(t: RulesTable, row: number, col: number, value: string): void {
+  if (col < 0 || col >= t.columns.length) return;
+  if (row < 0) t.columns[col] = value;
+  else if (row < t.rows.length) t.rows[row][col] = value;
+}
+
+/** Removes a column from the labels and from every row; a table keeps at least two. */
+export function removeTableColumn(t: RulesTable, col: number): void {
+  if (t.columns.length <= 2 || col < 0 || col >= t.columns.length) return;
+  t.columns.splice(col, 1);
+  t.rows.forEach((r) => r.splice(col, 1));
+}
+
 /** "3 :bronze: 2 :silver:" for unit counts per tier; tiers at 0 are left out. */
 export function unitString(counts: Partial<Record<UnitTier, number>>): string {
   return UNIT_TIERS.filter((tier) => (counts[tier] ?? 0) > 0)
