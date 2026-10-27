@@ -398,6 +398,24 @@ test("a footnote in the right column keeps clear of a table that ends the left o
   assert.ok(writer.page > page || writer.bottom >= tableEnd, `footnotes at ${writer.bottom} over the table ending at ${tableEnd}`);
 });
 
+test("footnotes never cover their text: with no room below it they go to the next page", () => {
+  for (const reps of [19, 21, 23]) {
+    const { writer, drawn } = recorder();
+    writer.paragraph(parseInline("A note^[Short.]"));
+    const table = newTable("lookup");
+    table.title = `Omens^[${"A footnote on the title that runs over many lines. ".repeat(reps)}]`;
+    table.rows = Array.from({ length: 24 }, (_, i) => [String(i + 1), "An omen."]);
+    writer.block({ k: "table", table: tableDoc(table) });
+    // the area for this page's footnotes, rule included, starts below the table
+    assert.ok(writer.textEnd <= writer.bottom, `${reps}: table ends at ${writer.textEnd}, footnotes start at ${writer.bottom}`);
+    const page = writer.page;
+    writer.newPage();
+    writer.drawNotes();
+    assert.ok(drawn.some((d) => d.text === "Omens"), `${reps}: the table is drawn`);
+    assert.ok(drawn.some((d) => d.text === "runs"), `${reps}: its footnote is drawn, on page ${page} or the next`);
+  }
+});
+
 test("the preview and PDF number table footnotes in reading order with the text around them", () => {
   const s = newScenario("clash");
   s.rules = ["Before^[One.]"];

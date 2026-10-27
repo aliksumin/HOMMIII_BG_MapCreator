@@ -183,6 +183,8 @@ export class Writer {
   notes: { n: number; lines: Piece[][][] }[] = [];
   /** how much of the page's foot the footnotes take */
   notesH = 0;
+  /** footnotes with no room left below their text, for the foot of the next page */
+  carried: { n: number; lines: Piece[][][] }[] = [];
   /** where the last line of text ended, before any gap after it */
   textEnd = MARGIN_TOP;
   /** where the left column's text ended, once the right column is in use */
@@ -231,6 +233,9 @@ export class Writer {
     this.top = MARGIN_TOP;
     this.y = this.top;
     this.textEnd = this.top;
+    const carried = this.carried;
+    this.carried = [];
+    this.addNotes(carried);
   }
 
   get x0(): number {
@@ -245,11 +250,12 @@ export class Writer {
   /**
    * Room for `h` points, moving to the next column or page when needed.
    * `notes` is room the footnotes of the coming line take at the foot of the
-   * page; it has to clear both columns.
+   * page (see notesOf); it has to clear both columns. On a page with no
+   * footnotes yet, the rule above the first takes its gap too.
    */
   ensure(h: number, notes = 0): void {
     for (let tries = 0; tries < 3; tries++) {
-      const limit = this.bottom - notes;
+      const limit = this.bottom - this.footRoom(notes);
       if (this.y + h <= limit && (this.col === 0 || this.leftEnd <= limit)) return;
       // a fresh page is as good as it gets
       if (this.col === 0 && this.y === this.top && !this.notes.length) return;
@@ -271,6 +277,11 @@ export class Writer {
   /** Room a page's next footnotes take, counting the rule above the first. */
   notesRoom(lines: number): number {
     return lines * NOTE * NOTE_LEADING + (this.notes.length ? 2 : NOTE_GAP);
+  }
+
+  /** Room for footnotes needing `notes` points of lines on this page: on a page without any yet, plus the rule's gap. */
+  footRoom(notes: number): number {
+    return notes && !this.notes.length ? notes + NOTE_GAP - 2 : notes;
   }
 
   /** The page's footnotes, under a short rule at the foot of the page. */
@@ -323,12 +334,29 @@ export class Writer {
     return out;
   }
 
-  /** The footnotes marked among pieces, laid out for the foot of the page, and the room they need there. */
+  /**
+   * The footnotes marked among pieces, laid out for the foot of the page, and
+   * the room their lines need there; footRoom adds the rule's gap for the
+   * page they land on, which may not be this one.
+   */
   notesOf(pieces: Iterable<Piece>): { notes: { n: number; lines: Piece[][][] }[]; room: number } {
     const notes = [...pieces].flatMap((p) => (p.kind === "word" && p.note ? [{ n: p.note.n, lines: this.noteLines(p.note.runs) }] : []));
-    let room = notes.length && !this.notes.length ? NOTE_GAP : 0;
+    let room = 0;
     for (const note of notes) room += note.lines.length * NOTE * NOTE_LEADING + 2;
     return { notes, room };
+  }
+
+  /**
+   * Puts the footnotes of content `h` tall, about to be set at y, on this
+   * page when they fit below it, else on the next page, as LaTeX carries
+   * over a footnote that has no room. They only miss here when the content
+   * and its notes are too tall for any page (ensure gave up on a fresh one).
+   */
+  placeNotes(notes: { n: number; lines: Piece[][][] }[], room: number, h: number): void {
+    if (!notes.length) return;
+    const limit = this.bottom - this.footRoom(room);
+    if (this.y + h <= limit && (this.col === 0 || this.leftEnd <= limit)) this.addNotes(notes);
+    else this.carried.push(...notes);
   }
 
   /** Puts footnotes on this page. */
@@ -372,7 +400,7 @@ export class Writer {
       // A footnote goes on the page of the line that marks it.
       const { notes, room } = this.notesOf(line.flat());
       this.ensure(lh, room);
-      this.addNotes(notes);
+      this.placeNotes(notes, room, lh);
       const baseline = this.y + size * 0.9;
       if (i === 0 && opts.label === "bullet") {
         this.pdf.addImage(this.assets.bullet, "PNG", this.x0 + indent - 16, baseline - size * 0.33 - 3, 6, 6, "bullet", "FAST");
@@ -488,7 +516,7 @@ export class Writer {
         // one, under the heading, so check again there and go on to a new page.
         this.ensure(t.frameH + 3, room);
         this.ensure(t.frameH + 3, room);
-        this.addNotes(notes);
+        this.placeNotes(notes, room, t.frameH + 3);
         this.drawTable(t, this.x0, this.y + 3);
         this.y += t.frameH + 3;
         // the table's foot is where the column's content ends, for footnotes that come later
@@ -584,8 +612,8 @@ export class Writer {
     for (const table of tables) {
       const t = this.layoutTable(table, CONTENT_W);
       const { notes, room } = this.notesOf(tablePieces(t));
-      if (this.col === 1 || this.y + 14 + t.frameH > this.bottom - room) this.newPage();
-      this.addNotes(notes);
+      if (this.col === 1 || this.y + 14 + t.frameH > this.bottom - this.footRoom(room)) this.newPage();
+      this.placeNotes(notes, room, (this.y > this.top + 1 ? 14 : 0) + t.frameH);
       const y = this.y + (this.y > this.top + 1 ? 14 : 0);
       this.drawTable(t, MARGIN_X, y);
       this.col = 0;
@@ -728,6 +756,8 @@ export async function scenarioToPdf(scenario: Scenario, onProgress?: (what: stri
     w.newPage();
     w.blocks(doc.story);
   }
+  // footnotes carried past the last page get one of their own
+  if (w.carried.length) w.newPage();
   w.drawNotes();
   w.credit(credit);
   onProgress?.("Saving...");
