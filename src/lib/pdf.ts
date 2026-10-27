@@ -448,6 +448,7 @@ export class Writer {
     this.pdf.setTextColor(...INK);
     this.pdf.text(text.toUpperCase(), this.x0, this.y + size * 0.9);
     this.y += size * 1.52;
+    this.textEnd = this.y;
   }
 
   /** \subsubsection*: bold at body size, 3.25ex above and 1.5ex below as in the article class. */
@@ -489,7 +490,10 @@ export class Writer {
         this.ensure(t.frameH + 3, room);
         this.addNotes(notes);
         this.drawTable(t, this.x0, this.y + 3);
-        this.y += t.frameH + 3 + BODY * 0.6;
+        this.y += t.frameH + 3;
+        // the table's foot is where the column's content ends, for footnotes that come later
+        this.textEnd = this.y;
+        this.y += BODY * 0.6;
         break;
       }
     }

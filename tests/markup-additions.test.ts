@@ -383,6 +383,21 @@ test("table cells write red, links, signed numbers and footnotes the Mission Boo
   assert.deepEqual(capsFindings(tex), []);
 });
 
+test("a footnote in the right column keeps clear of a table that ends the left one", () => {
+  const { writer } = recorder();
+  const table = newTable("lookup");
+  table.rows = Array.from({ length: 25 }, (_, i) => [String(i + 1), "An omen."]);
+  writer.block({ k: "table", table: tableDoc(table) });
+  const page = writer.page;
+  // the table's foot: where the text goes on, less the gap after a table
+  const tableEnd = writer.y - 11 * 0.6;
+  writer.ensure(writer.bottom - writer.y + 1); // on to the right column
+  assert.equal(writer.col, 1);
+  writer.paragraph(parseInline(`A note^[${"A long footnote that takes several lines at the foot of the page. ".repeat(20)}]`));
+  // either the footnotes clear the table's foot, or the paragraph went to a new page
+  assert.ok(writer.page > page || writer.bottom >= tableEnd, `footnotes at ${writer.bottom} over the table ending at ${tableEnd}`);
+});
+
 test("the preview and PDF number table footnotes in reading order with the text around them", () => {
   const s = newScenario("clash");
   s.rules = ["Before^[One.]"];
