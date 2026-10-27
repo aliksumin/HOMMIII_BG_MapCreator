@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MapEditor } from "./components/map/MapEditor.tsx";
 import { BookPage } from "./components/preview/BookPage.tsx";
+import { PageViewer, useCompact, usePageView } from "./components/preview/PageViewer.tsx";
 import { StepBasics } from "./components/steps/StepBasics.tsx";
 import { StepConditions } from "./components/steps/StepConditions.tsx";
 import { StepEvents } from "./components/steps/StepEvents.tsx";
@@ -16,6 +17,7 @@ import { PROJECT_EXTENSION, projectJson } from "./lib/bundle.ts";
 import { buildDocument, slugify } from "./lib/document.ts";
 import { download } from "./lib/images.ts";
 import { lintScenario } from "./lib/lint.ts";
+import { pageButton } from "./lib/pageview.ts";
 import { STEPS, type StepId, useStore } from "./model/store.ts";
 
 const ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
@@ -80,6 +82,8 @@ function Editor() {
   const home = useStore((s) => s.home);
   const saveFailed = useStore((s) => s.saveFailed);
   const [showPreview, setShowPreview] = useState(true);
+  const compact = useCompact();
+  const openPage = usePageView((s) => s.show);
   const doc = useMemo(() => buildDocument(scenario), [scenario]);
   const findings = useMemo(() => lintScenario(scenario), [scenario]);
   useUndoKeys();
@@ -88,6 +92,7 @@ function Editor() {
   const index = STEPS.findIndex((s) => s.id === step);
   const View = VIEWS[step];
   const wide = step === "map" || step === "review";
+  const pageAction = pageButton(compact, wide, showPreview);
   const problems = (id: StepId) => findings.filter((f) => f.step === id && f.level === "error").length;
 
   return (
@@ -121,9 +126,9 @@ function Editor() {
           >
             Save file
           </button>
-          {!wide && (
-            <button type="button" className="btn small preview-toggle" onClick={() => setShowPreview(!showPreview)}>
-              {showPreview ? "Hide page" : "Show page"}
+          {pageAction && (
+            <button type="button" className="btn small" onClick={pageAction.action === "open" ? openPage : () => setShowPreview(!showPreview)}>
+              {pageAction.label}
             </button>
           )}
         </div>
@@ -164,13 +169,14 @@ function Editor() {
           </div>
         </main>
 
-        {showPreview && !wide && (
+        {showPreview && !wide && !compact && (
           <aside className="preview">
             <div className="preview-label">Mission book page &middot; live</div>
             <BookPage doc={doc} />
           </aside>
         )}
       </div>
+      <PageViewer doc={doc} />
     </div>
   );
 }

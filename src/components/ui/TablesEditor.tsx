@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  columnCount,
   diceRows,
   insertMarkup,
   newTable,
@@ -319,7 +320,7 @@ function TableCard({ table, index, count, edit, move, remove, bullets, aiRow }: 
         </div>
       )}
 
-      <div className="table-preview">
+      <div className="table-preview" style={{ "--cols": columnCount(doc) } as React.CSSProperties}>
         <TableView table={doc} />
       </div>
     </div>

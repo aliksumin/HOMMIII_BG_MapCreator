@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { sameAgain, selectionName } from "../../lib/actionbar.ts";
 import { countTiles, duplicateTiles, mapFiles } from "../../lib/document.ts";
 import { canPlaceToken, connectedGroups, normalise } from "../../lib/hex.ts";
 import { guid, uid } from "../../lib/id.ts";
@@ -10,6 +11,7 @@ import { newMapLayout } from "../../model/defaults.ts";
 import { useScenario } from "../../model/store.ts";
 import type { BoardToken, MapLayout, MapTile } from "../../model/types.ts";
 import { Modal } from "../ui/Modal.tsx";
+import { ActionBar, useTouch } from "./ActionBar.tsx";
 import { type Armed, Board } from "./Board.tsx";
 import { Inspector, TokenInspector } from "./Inspector.tsx";
 import { Palette } from "./Palette.tsx";
@@ -27,6 +29,9 @@ export function MapEditor() {
   const [importError, setImportError] = useState("");
   const [busy, setBusy] = useState("");
   const [fitCount, setFitCount] = useState(0);
+  const [adding, setAdding] = useState(false);
+  const [full, setFull] = useState(false);
+  const touch = useTouch();
 
   const index = Math.min(layoutIndex, s.maps.length - 1);
   const layout = s.maps[index];
@@ -37,6 +42,7 @@ export function MapEditor() {
   const tile = picked.length === 1 && !pickedTokens.length ? picked[0] : null;
   const token = pickedTokens.length === 1 && !picked.length ? pickedTokens[0] : null;
   const pickedCount = picked.length + pickedTokens.length;
+  const again = sameAgain(picked, pickedTokens);
   const counts = countTiles(tiles);
   const dupes = duplicateTiles(tiles);
   const parts = tiles.length ? connectedGroups(tiles).length : 0;
@@ -97,14 +103,34 @@ export function MapEditor() {
     setField(null);
   };
 
+  const unselect = () => {
+    setArmed(null);
+    setSelected([]);
+    setField(null);
+  };
+
+  // "More" ends with the selection
+  useEffect(() => {
+    if (!pickedCount) setAdding(false);
+  }, [pickedCount]);
+
+  // The page behind a full-screen map holds still.
+  useEffect(() => {
+    document.documentElement.classList.toggle("map-full", full);
+    return () => document.documentElement.classList.remove("map-full");
+  }, [full]);
+
+  const toggleFull = (on: boolean) => {
+    setFull(on);
+    setFitCount((n) => n + 1);
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (el.closest("input, textarea, select, [contenteditable]")) return;
       if (e.key === "Escape") {
-        setArmed(null);
-        setSelected([]);
-        setField(null);
+        unselect();
       } else if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && armed?.kind === "token") {
         // turn the token before it is placed
         e.preventDefault();
@@ -264,7 +290,7 @@ export function MapEditor() {
         )}
       </div>
 
-      <div className="map-body">
+      <div className={`map-body ${full ? "full" : ""}`}>
         <Palette armed={armed} onArm={setArmed} />
         <div className="board-col">
           <Board
@@ -273,10 +299,13 @@ export function MapEditor() {
             selectedIds={selected}
             selectedField={field}
             armed={armed}
+            onArm={setArmed}
+            full={full}
+            onFull={toggleFull}
             layoutKey={`${layout.id}-${fitCount}`}
             onPlace={(a, row, col) => {
               if (a.kind === "tile") {
-                const t = newTile(a.id, row, col);
+                const t = { ...newTile(a.id, row, col), rotation: a.turn ?? 0 };
                 setTiles((list) => void list.push(t));
                 setSelected([t.id]);
               } else {
@@ -301,6 +330,31 @@ export function MapEditor() {
               setSelected(ids);
               setField(f);
             }}
+            adding={adding}
+            actions={
+              pickedCount > 0 && (
+                <ActionBar
+                  name={selectionName(picked.length, pickedTokens.length)}
+                  onRotate={rotateSelected}
+                  onAgain={
+                    again
+                      ? () => {
+                          setAdding(false);
+                          setArmed(again);
+                        }
+                      : undefined
+                  }
+                  adding={adding}
+                  onAdding={(on) => {
+                    // a tap can't both place and pick: More stops placing, Same again stops More
+                    if (on) setArmed(null);
+                    setAdding(on);
+                  }}
+                  onDelete={removeSelected}
+                  onDone={unselect}
+                />
+              )
+            }
           />
           <div className="map-status">
             <span>
@@ -331,10 +385,17 @@ export function MapEditor() {
                 {gates.unpaired.length === 1 ? "it" : "them"}
               </span>
             )}
-            <span className="keys">
-              Click: place/select &middot; Shift+click: add to selection &middot; Ctrl+drag: select with a frame &middot; Drag: move or pan &middot;
-              Wheel: zoom &middot; R: rotate &middot; Del: remove &middot; Esc: unselect
-            </span>
+            {touch ? (
+              <span className="keys">
+                Tap: place/select &middot; Hold a tile, then drag: move it &middot; Swipe: pan &middot; Two fingers: zoom &middot; The bar over the map: rotate,
+                select more, delete
+              </span>
+            ) : (
+              <span className="keys">
+                Click: place/select &middot; Shift+click: add to selection &middot; Ctrl+drag: select with a frame &middot; Drag: move or pan &middot;
+                Wheel: zoom &middot; R: rotate &middot; Del: remove &middot; Esc: unselect
+              </span>
+            )}
           </div>
         </div>
         {tile ? (
@@ -352,12 +413,18 @@ export function MapEditor() {
           <TokenInspector token={token} onChange={changeToken} onRotate={rotateSelected} onDelete={removeSelected} />
         ) : pickedCount > 1 ? (
           <aside className="inspector empty">
-            <h4>
-              {[picked.length && plural(picked.length, "tile"), pickedTokens.length && plural(pickedTokens.length, "token")].filter(Boolean).join(" and ")}{" "}
-              selected
-            </h4>
-            <p className="hint">Drag any of them to move them all together. R rotates each one in place, Del removes them.</p>
-            <p className="hint">Shift+click a tile or token to add it or drop it from the selection. Esc or a click on the empty board clears it.</p>
+            <h4>{selectionName(picked.length, pickedTokens.length)} selected</h4>
+            {touch ? (
+              <>
+                <p className="hint">Drag any of them to move them all together. The bar over the map rotates each one in place or removes them.</p>
+                <p className="hint">With More on, tap a tile or token to add it or drop it, or swipe over the empty board to frame several. Done clears the selection.</p>
+              </>
+            ) : (
+              <>
+                <p className="hint">Drag any of them to move them all together. R rotates each one in place, Del removes them.</p>
+                <p className="hint">Shift+click a tile or token to add it or drop it from the selection. Esc or a click on the empty board clears it.</p>
+              </>
+            )}
             <button type="button" className="btn small danger" onClick={removeSelected}>
               Remove {pickedCount}
             </button>
