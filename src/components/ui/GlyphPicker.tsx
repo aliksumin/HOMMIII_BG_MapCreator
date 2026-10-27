@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../../data/catalog.ts";
 import { COMMON_GLYPHS } from "../../data/game.ts";
+import { PopHead } from "./Modal.tsx";
 import { Glyph } from "./Runs.tsx";
 
 /** A button that opens a grid of game icons; picking one calls onPick with its name. */
@@ -24,6 +25,7 @@ export function GlyphPicker({ onPick }: { onPick: (name: string) => void }) {
       </button>
       {open && (
         <div className="glyph-pop">
+          <PopHead title="Game icons" onClose={() => setOpen(false)} />
           <div className="glyph-grid">
             {names.map((name) => (
               <button

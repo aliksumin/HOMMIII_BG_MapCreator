@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MapEditor } from "./components/map/MapEditor.tsx";
 import { BookPage } from "./components/preview/BookPage.tsx";
 import { PageViewer, useCompact, usePageView } from "./components/preview/PageViewer.tsx";
@@ -55,6 +55,22 @@ function useUndoKeys() {
   }, [undo, redo]);
 }
 
+/**
+ * Keeps the current step in view where the step bar is a row that scrolls
+ * sideways (narrow screens). Only the bar scrolls, never the page.
+ */
+function useActiveStepInView(step: StepId) {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const bar = ref.current;
+    const on = bar?.querySelector<HTMLElement>(".step.on");
+    if (!bar || !on || bar.scrollWidth <= bar.clientWidth) return;
+    const left = on.getBoundingClientRect().left - bar.getBoundingClientRect().left + bar.scrollLeft;
+    bar.scrollTo({ left: left - (bar.clientWidth - on.offsetWidth) / 2, behavior: "smooth" });
+  }, [step]);
+  return ref;
+}
+
 function Editor() {
   const scenario = useStore((s) => s.scenario);
   const step = useStore((s) => s.step);
@@ -71,6 +87,7 @@ function Editor() {
   const doc = useMemo(() => buildDocument(scenario), [scenario]);
   const findings = useMemo(() => lintScenario(scenario), [scenario]);
   useUndoKeys();
+  const stepBar = useActiveStepInView(step);
 
   const index = STEPS.findIndex((s) => s.id === step);
   const View = VIEWS[step];
@@ -118,7 +135,7 @@ function Editor() {
       </header>
 
       <div className={`workspace ${wide ? "wide" : ""} ${showPreview && !wide ? "with-preview" : ""}`}>
-        <nav className="steps" aria-label="Steps">
+        <nav className="steps" aria-label="Steps" ref={stepBar}>
           {STEPS.map((s, i) => (
             <button type="button" key={s.id} className={`step ${s.id === step ? "on" : ""} ${i < index ? "past" : ""}`} onClick={() => setStep(s.id)}>
               <span className="step-num">{ROMAN[i]}</span>

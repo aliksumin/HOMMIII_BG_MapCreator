@@ -358,6 +358,32 @@ export function itemPrefix(depth: number, numbered: boolean): string {
   return `${"  ".repeat(depth)}${numbered ? "1." : "-"} `;
 }
 
+/** Each item's depth as the list prints it: never more than one level below the item before. */
+export function itemDepths(items: string[]): number[] {
+  const out: number[] = [];
+  items.forEach((item, i) => out.push(Math.min(parseItem(item).depth, i ? out[i - 1] + 1 : 0)));
+  return out;
+}
+
+/**
+ * The depth item i moves to when nested one level deeper (+1) or shallower
+ * (-1), or null where it can't go: below 0, past MAX_DEPTH, or more than one
+ * level below the item before it.
+ */
+export function nestedDepth(depths: number[], i: number, step: 1 | -1): number | null {
+  const to = depths[i] + step;
+  return to < 0 || to > Math.min(MAX_DEPTH, i ? depths[i - 1] + 1 : 0) ? null : to;
+}
+
+/**
+ * Replaces the selection start..end with a line break, the newline that
+ * Shift+Enter types in a paragraph field. Returns the text and where the
+ * caret goes.
+ */
+export function breakLine(value: string, start: number, end = start): { value: string; caret: number } {
+  return { value: value.slice(0, start) + "\n" + value.slice(end), caret: start + 1 };
+}
+
 /** 1st, 2nd, 3rd, 4th, 11th, 12th, 13th, 21st ... */
 export function ordinalSuffix(n: number): string {
   const mod100 = n % 100;

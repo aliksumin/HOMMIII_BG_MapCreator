@@ -2794,3 +2794,230 @@ html.map-full body {
   min-height: 0;
   overflow-y: auto;
 }
+
+/* ---- phones and touch screens ---- */
+
+/* Buttons and hints for one kind of device: a touch screen has no Shift+Enter
+   or Tab, a mouse has tooltips. */
+@media not all and (pointer: coarse) {
+  .touch-only {
+    display: none !important;
+  }
+}
+@media (pointer: coarse) {
+  .fine-only {
+    display: none !important;
+  }
+}
+/* a popover's name and Close button, for the sheet it becomes on a phone */
+.pop-head {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .tile-count-row .markup {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A text field keeps the whole width: its toolbar, and a list item's row
+   buttons, wrap onto lines of their own instead of squeezing it. */
+@media (max-width: 640px), (pointer: coarse) {
+  .markup {
+    flex-wrap: wrap;
+  }
+  .markup.single > input,
+  .markup.single > textarea {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .markup-tools {
+    flex-wrap: wrap;
+  }
+  .list-row {
+    flex-wrap: wrap;
+  }
+  .list-row .markup {
+    flex: 1 1 calc(100% - 52px);
+  }
+  .list-row .row-tools {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  /* a slimmer top bar, and the step bar stuck below it */
+  .topbar {
+    height: 58px;
+    gap: 8px;
+    padding: 6px 10px;
+  }
+  .brand {
+    flex: 0 1 auto;
+    min-width: 0;
+    gap: 6px;
+    padding: 0;
+    font-size: 13px;
+    line-height: 1.15;
+  }
+  .brand img {
+    width: 28px;
+    height: 28px;
+  }
+  .brand small {
+    display: none;
+  }
+  .topbar-actions {
+    flex: none;
+    margin-left: auto;
+    gap: 6px;
+  }
+  .topbar-actions .btn {
+    white-space: nowrap;
+  }
+  .steps,
+  .workspace.wide .steps {
+    position: sticky;
+    top: 58px;
+    z-index: 15;
+    padding: 5px 8px;
+  }
+  .step,
+  .workspace.wide .step {
+    padding: 3px;
+    margin-bottom: 0;
+  }
+  .step-flag {
+    top: 0;
+    left: 30px;
+  }
+  /* While the keyboard is up the step bar scrolls away, leaving room for the text. */
+  .app:has(.content :is(input, textarea, select):focus) .steps {
+    position: static;
+  }
+
+  .list-row.depth-1 {
+    padding-left: 12px;
+  }
+  .list-row.depth-2 {
+    padding-left: 24px;
+  }
+
+  /* Popovers open as a sheet across the top of the screen, over a dimmed page. */
+  .glyph-pop,
+  .glyph-pop.unit-pop,
+  .markup.multi .glyph-pop,
+  .markup-help-pop,
+  .markup.multi .markup-help-pop {
+    position: fixed;
+    z-index: 60;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55), 0 8px 22px rgba(0, 0, 0, 0.6);
+  }
+  .glyph-grid {
+    max-height: none;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  }
+  .pop-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .markup-help-tools {
+    flex-wrap: wrap;
+  }
+
+  /* nothing smaller than 12px */
+  .step-flag,
+  .icon-grid button,
+  .finding-level,
+  .story-number small {
+    font-size: 12px;
+  }
+  .markup-keys,
+  .markup-help-pop th {
+    font-size: 12.5px;
+  }
+  /* file names in the hints break anywhere rather than push the page sideways */
+  .content code {
+    font-size: max(0.86em, 12px);
+    overflow-wrap: anywhere;
+  }
+}
+
+/* The smallest phones show only the logo, leaving room for four buttons
+   (with the page view's Show page). It still goes back to the start screen. */
+@media (max-width: 420px) {
+  .brand {
+    min-width: 44px;
+    justify-content: center;
+  }
+  .brand span {
+    display: none;
+  }
+}
+
+/* Fingers need about 44px: the buttons grow on touch screens, the mouse look
+   stays. The map editor sizes its own controls. */
+@media (pointer: coarse) {
+  .tool:not(.map-editor *),
+  .col-tools .tool:not(.map-editor *) {
+    min-width: 44px;
+    height: 44px;
+  }
+  .col-tools .tool:not(.map-editor *) {
+    font-size: 13px;
+  }
+  .btn:not(.map-editor *),
+  .chip:not(.map-editor *),
+  .segmented button:not(.map-editor *),
+  .link:not(.map-editor *),
+  .brand:not(.map-editor *) {
+    min-height: 44px;
+  }
+  .stepper button:not(.map-editor *) {
+    width: 44px;
+  }
+  .stepper input:not(.map-editor *),
+  .panel select:not(.map-editor *),
+  .panel input[type="text"]:not(.map-editor *),
+  .panel input:not([type]):not(.map-editor *),
+  .markup.lines textarea:not(.map-editor *) {
+    min-height: 44px;
+  }
+  .item-marker:not(.map-editor *) {
+    width: 44px;
+    height: 44px;
+    margin-top: 0;
+    line-height: 42px;
+  }
+  .toggle:not(.map-editor *) {
+    min-height: 44px;
+    margin-top: 0;
+    margin-bottom: 0;
+  }
+  .toggle-box:not(.map-editor *) {
+    width: 22px;
+    height: 22px;
+  }
+  .glyph-grid button:not(.map-editor *) {
+    height: 44px;
+  }
+  .count-picker button:not(.map-editor *),
+  .round-picker button:not(.map-editor *) {
+    width: 44px;
+    height: 44px;
+  }
+}

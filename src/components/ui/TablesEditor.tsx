@@ -18,6 +18,7 @@ import { TableView } from "../preview/BookPage.tsx";
 import { Segmented, Toggle } from "./Form.tsx";
 import { GlyphPicker } from "./GlyphPicker.tsx";
 import { MarkupField } from "./MarkupField.tsx";
+import { PopHead } from "./Modal.tsx";
 import { Glyph } from "./Runs.tsx";
 
 /** Changes a section's tables in the scenario draft; `tag` merges typing into one undo step. */
@@ -175,6 +176,9 @@ function TableCard({ table, index, count, edit, move, remove, bullets, aiRow }: 
           </button>
         </div>
       </div>
+
+      {/* the kind badge explains itself in a tooltip, which a touch screen never shows */}
+      {preset && <span className="hint touch-only">{preset.hint}</span>}
 
       <div className="table-options">
         <Segmented
@@ -369,6 +373,7 @@ function UnitPicker({ value, onSet, disabled }: { value: string; onSet: (text: s
       </button>
       {open && (
         <div className="glyph-pop unit-pop">
+          <PopHead title="Unit counts" onClose={() => setOpen(false)} />
           {UNIT_TIERS.map((tier) => (
             <div key={tier} className="unit-row">
               <Glyph name={tier} size={22} />
