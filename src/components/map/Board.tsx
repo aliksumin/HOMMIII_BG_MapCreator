@@ -79,6 +79,8 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
   const wrapRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const [edge, setEdge] = useState<"bottom" | "top">("bottom");
+  /** the bar's height; on a narrow board it wraps onto two rows */
+  const [barHeight, setBarHeight] = useState(0);
   const [view, setView] = useState({ x: 40, y: 30, k: 0.55 });
   const [hover, setHover] = useState<[number, number] | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -313,13 +315,15 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
   // Keep the bar off the selection: after each render, move it to the top when it would cover the selection at the bottom.
   useLayoutEffect(() => {
     const el = wrapRef.current;
-    const bar = barRef.current;
+    // the toolbar itself, not its full-width holder
+    const bar = barRef.current?.firstElementChild as HTMLElement | null | undefined;
     if (!el || !bar) return;
     const box = boardBounds(
       tiles.filter((t) => selectedIds.includes(t.id)),
       spots.filter((t) => selectedIds.includes(t.id)),
     );
     setEdge(barEdge(box && screenBox(box, view), { width: el.clientWidth, height: el.clientHeight }, { width: bar.offsetWidth, height: bar.offsetHeight }, BAR_MARGIN));
+    setBarHeight(bar.offsetHeight);
   });
 
   return (
@@ -425,7 +429,12 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
           {actions}
         </div>
       )}
-      <div className="board-zoom" onPointerDown={(e) => e.stopPropagation()}>
+      <div
+        className="board-zoom"
+        // step down below a bar at the top
+        style={showBar && edge === "top" ? { top: BAR_MARGIN * 2 + barHeight } : undefined}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <button type="button" title="Zoom in" onClick={() => zoom(1.25)}>
           +
         </button>

@@ -1729,8 +1729,8 @@ textarea {
 /* the action bar for the selection, over the board's bottom edge (or top, off the selection) */
 .board-actions {
   position: absolute;
-  left: 10px;
-  right: 10px;
+  left: 8px;
+  right: 8px;
   bottom: 10px;
   display: flex;
   justify-content: center;
@@ -1740,13 +1740,12 @@ textarea {
   top: 10px;
   bottom: auto;
 }
-/* the zoom buttons step down below a bar at the top */
-.board-actions.top ~ .board-zoom {
-  top: 76px;
-}
 .action-bar {
   display: flex;
-  gap: 3px;
+  /* two rows on a narrow board, e.g. a 320 px phone */
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
   max-width: 100%;
   padding: 3px;
   background: rgba(18, 12, 7, 0.88);
