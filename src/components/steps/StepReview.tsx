@@ -10,6 +10,7 @@ import { renderMapPng } from "../../lib/mapdraw.ts";
 import { scenarioToPdf } from "../../lib/pdf.ts";
 import { STEPS, useScenario, useStore } from "../../model/store.ts";
 import { BookPage } from "../preview/BookPage.tsx";
+import { useCompact, usePageView } from "../preview/PageViewer.tsx";
 import { Panel } from "../ui/Form.tsx";
 
 /** Lets long paths and file names wrap after "/" and "_" instead of spilling out of their button. */
@@ -23,6 +24,8 @@ export function StepReview() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"page" | "tex" | "guide">("page");
+  const compact = useCompact();
+  const openPage = usePageView((st) => st.show);
   const findings = useMemo(() => lintScenario(s), [s]);
   const tex = useMemo(() => scenarioToLatex(s), [s]);
   const doc = useMemo(() => buildDocument(s), [s]);
@@ -126,7 +129,24 @@ export function StepReview() {
           </div>
         }
       >
-        {tab === "page" && <BookPage doc={doc} />}
+        {tab === "page" && !compact && <BookPage doc={doc} />}
+        {tab === "page" && compact && (
+          // Phones and tablets get a thumbnail that opens the page full screen, where it can be read and zoomed.
+          <div className="page-thumb">
+            <div className="page-thumb-page">
+              <div inert>
+                <BookPage doc={doc} showMaps={false} />
+              </div>
+              <button type="button" className="page-thumb-open" onClick={openPage} aria-label="Open page" />
+            </div>
+            <div className="page-thumb-text">
+              <button type="button" className="btn primary" onClick={openPage}>
+                Open page
+              </button>
+              <p className="hint">The page opens full screen. Zoom with the buttons or pinch with two fingers.</p>
+            </div>
+          </div>
+        )}
         {tab === "tex" && (
           <>
             <div className="code-actions">
