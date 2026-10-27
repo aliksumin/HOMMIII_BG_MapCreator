@@ -1726,6 +1726,81 @@ textarea {
   border-radius: 3px;
   cursor: pointer;
 }
+/* the action bar for the selection, over the board's bottom edge (or top, off the selection) */
+.board-actions {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.board-actions.top {
+  top: 10px;
+  bottom: auto;
+}
+/* the zoom buttons step down below a bar at the top */
+.board-actions.top ~ .board-zoom {
+  top: 76px;
+}
+.action-bar {
+  display: flex;
+  gap: 3px;
+  max-width: 100%;
+  padding: 3px;
+  background: rgba(18, 12, 7, 0.88);
+  border: 1px solid var(--gold-700);
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+  pointer-events: auto;
+}
+.action-bar button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 46px;
+  min-height: 48px;
+  padding: 3px 5px;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.1;
+  white-space: nowrap;
+  color: var(--gold-300);
+  background: linear-gradient(#6b4b20, #3a2610 55%, #2a1b0b);
+  border: 1px solid var(--gold-600);
+  border-radius: var(--radius);
+  box-shadow: var(--bevel);
+  text-shadow: 0 1px 0 #000;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.action-bar button span {
+  font-size: 19px;
+  line-height: 1;
+}
+.action-bar button:hover {
+  filter: brightness(1.18);
+  border-color: var(--gold-500);
+}
+.action-bar button:active {
+  transform: translateY(1px);
+}
+.action-bar button:focus-visible {
+  outline: 2px solid var(--gold-300);
+  outline-offset: 1px;
+}
+.action-bar button.on {
+  background: linear-gradient(#b9913e, #7a5718 55%, #5a3f10);
+  border-color: var(--gold-400);
+  color: #fff6dc;
+}
+.action-bar button.danger {
+  background: linear-gradient(#7d2a1f, #4a140e);
+  border-color: #b5503f;
+}
 .board-empty {
   position: absolute;
   inset: auto 0 40% 0;

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { barEdge, screenBox } from "../../lib/actionbar.ts";
 import { duplicateTiles } from "../../lib/document.ts";
 import {
   boardBounds,
@@ -41,6 +42,10 @@ interface Props {
   onSelect: (ids: string[], field: number | null) => void;
   /** changes when another layout is shown, to refit the view */
   layoutKey: string;
+  /** taps add to the selection or drop from it, as Shift+click does */
+  adding?: boolean;
+  /** the action bar for the selection, shown over the board while nothing is dragged */
+  actions?: ReactNode;
 }
 
 type Drag =
@@ -62,14 +67,18 @@ type Drag =
 
 const MIN_K = 0.15;
 const MAX_K = 2.5;
+/** gap between the action bar and the board's edge, in screen pixels */
+const BAR_MARGIN = 10;
 
 const toggled = (ids: string[], id: string) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
 
 /** A token about to be placed from the palette, at a board Field. */
 const armedToken = (a: Armed, row: number, col: number): BoardToken => ({ id: "armed", location: a.id, row, col, rotation: a.turn ?? 0 });
 
-export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlace, onMove, onSelect, layoutKey }: Props) {
+export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlace, onMove, onSelect, layoutKey, adding = false, actions }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState<"bottom" | "top">("bottom");
   const [view, setView] = useState({ x: 40, y: 30, k: 0.55 });
   const [hover, setHover] = useState<[number, number] | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -208,20 +217,21 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
     const target = (e.target as Element).closest("[data-tile], [data-token]");
     const id = target ? (target.getAttribute("data-tile") ?? target.getAttribute("data-token")) : null;
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    const shift = e.shiftKey || adding;
     if (!armed && e.button === 0 && (e.ctrlKey || e.metaKey)) {
       const p = toBoard(e.clientX, e.clientY);
-      setDrag({ mode: "frame", sx: e.clientX, sy: e.clientY, start: p, end: p, moved: false, base: e.shiftKey ? selectedIds : [], pieceId: id });
+      setDrag({ mode: "frame", sx: e.clientX, sy: e.clientY, start: p, end: p, moved: false, base: shift ? selectedIds : [], pieceId: id });
     } else if (id && !armed && e.button === 0) {
       const piece = pieceById.get(id);
       if (!piece) return;
-      const group = selectedIds.includes(id) ? selectedIds : e.shiftKey ? [...selectedIds, id] : [id];
+      const group = selectedIds.includes(id) ? selectedIds : shift ? [...selectedIds, id] : [id];
       const p = toBoard(e.clientX, e.clientY);
       const c = cellCenter(piece.row, piece.col);
       setDrag({
         mode: "piece",
         id,
         group,
-        toggle: e.shiftKey,
+        toggle: shift,
         sx: e.clientX,
         sy: e.clientY,
         grab: { x: p.x - c.x, y: p.y - c.y },
@@ -273,7 +283,7 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
       if (armed) {
         const [row, col] = pixelToCell(p.x, p.y);
         place(armed, row, col);
-      } else if (!e.shiftKey) {
+      } else if (!e.shiftKey && !adding) {
         onSelect([], null);
       }
     }
@@ -298,6 +308,19 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
   const unpaired = gateHalves(shown).unpaired;
   const single = !framing && outlinedTiles.length === 1 && !outlinedTokens.length ? outlinedTiles[0] : null;
   const ghostUrl = armed?.kind === "tile" ? tileImageUrl(armed.id) : null;
+  const showBar = !!actions && !dragging && !framing;
+
+  // Keep the bar off the selection: after each render, move it to the top when it would cover the selection at the bottom.
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    const bar = barRef.current;
+    if (!el || !bar) return;
+    const box = boardBounds(
+      tiles.filter((t) => selectedIds.includes(t.id)),
+      spots.filter((t) => selectedIds.includes(t.id)),
+    );
+    setEdge(barEdge(box && screenBox(box, view), { width: el.clientWidth, height: el.clientHeight }, { width: bar.offsetWidth, height: bar.offsetHeight }, BAR_MARGIN));
+  });
 
   return (
     <div
@@ -397,6 +420,11 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
           )}
         </g>
       </svg>
+      {showBar && (
+        <div ref={barRef} className={`board-actions ${edge}`} onPointerDown={(e) => e.stopPropagation()}>
+          {actions}
+        </div>
+      )}
       <div className="board-zoom" onPointerDown={(e) => e.stopPropagation()}>
         <button type="button" title="Zoom in" onClick={() => zoom(1.25)}>
           +
