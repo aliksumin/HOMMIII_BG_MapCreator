@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { assetUrl, EXPANSIONS, MAP_LOCATIONS, TILES, type TileInfo, tileGroup, tileName } from "../../data/catalog.ts";
 import { TILE_GROUPS } from "../../data/game.ts";
 import { boardTokenName, GATE, GATE_NAME, isGateHalf } from "../../lib/tokens.ts";
@@ -15,6 +15,9 @@ function tileNumber(id: string): number {
 export function Palette({ armed, onArm }: { armed: Armed | null; onArm: (armed: Armed | null) => void }) {
   const [expansion, setExpansion] = useState("ALL");
   const [query, setQuery] = useState("");
+  /** the kind of tile a phone shows in its one row; a wide screen shows every kind */
+  const [shelf, setShelf] = useState("random");
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const groups = useMemo(() => {
     const all = Object.values(TILES);
@@ -26,10 +29,11 @@ export function Palette({ armed, onArm }: { armed: Armed | null; onArm: (armed: 
         (!query.trim() || `${t.id} ${t.desc} ${t.ground}`.toLowerCase().includes(query.trim().toLowerCase())),
     );
     return [
-      { key: "random", label: "Face-down (random)", tiles: random },
+      { key: "random", label: "Face-down (random)", short: "Face-down", tiles: random },
       ...TILE_GROUPS.map((g) => ({
         key: g.key,
         label: `${g.label}${g.roman ? ` (${g.roman})` : ""}`,
+        short: g.label,
         tiles: shown
           .filter((t) => tileGroup(t.id) === g.key)
           .sort((a, b) => Number(a.id.startsWith("#")) - Number(b.id.startsWith("#")) || tileNumber(a.id) - tileNumber(b.id)),
@@ -47,7 +51,8 @@ export function Palette({ armed, onArm }: { armed: Armed | null; onArm: (armed: 
   );
 
   const isArmed = (kind: Armed["kind"], id: string) => armed?.kind === kind && armed.id === id;
-  const armedName = !armed ? "" : armed.kind === "tile" ? tileName(armed.id) : boardTokenName(armed.id);
+  const shelves = [...groups.map((g) => ({ key: g.key, label: g.short })), ...(locations.length ? [{ key: "tokens", label: "Tokens" }] : [])];
+  const current = shelves.some((g) => g.key === shelf) ? shelf : (shelves[0]?.key ?? "");
 
   return (
     <aside className="palette">
@@ -64,17 +69,26 @@ export function Palette({ armed, onArm }: { armed: Armed | null; onArm: (armed: 
         </select>
         <input type="search" placeholder="Find a tile (F12, lava...)" value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
-      {armed && (
-        <div className="armed-note">
-          Placing <b>{armedName}</b>. Click {armed.kind === "token" ? (armed.id === GATE ? "two empty Fields side by side; R turns it" : "an empty Field; R turns it") : "the board"}.{" "}
-          <button type="button" className="link" onClick={() => onArm(null)}>
-            Stop (Esc)
+      <div className="palette-shelves" role="tablist" aria-label="Kind of tile">
+        {shelves.map((g) => (
+          <button
+            type="button"
+            role="tab"
+            key={g.key}
+            aria-selected={g.key === current}
+            className={g.key === current ? "on" : ""}
+            onClick={() => {
+              setShelf(g.key);
+              scrollRef.current?.scrollTo({ left: 0 });
+            }}
+          >
+            {g.label}
           </button>
-        </div>
-      )}
-      <div className="palette-scroll">
+        ))}
+      </div>
+      <div className="palette-scroll" ref={scrollRef}>
         {groups.map((g) => (
-          <div key={g.key} className="palette-group">
+          <div key={g.key} className={`palette-group ${g.key === current ? "current" : ""}`}>
             <h3>{g.label}</h3>
             <div className="palette-grid">
               {g.tiles.map((t) => (
@@ -98,7 +112,7 @@ export function Palette({ armed, onArm }: { armed: Armed | null; onArm: (armed: 
           </div>
         ))}
         {locations.length > 0 && (
-          <div className="palette-group">
+          <div className={`palette-group ${current === "tokens" ? "current" : ""}`}>
             <h3>Location tokens (beside the tiles)</h3>
             <div className="palette-grid">
               {locations.map((k) => (
