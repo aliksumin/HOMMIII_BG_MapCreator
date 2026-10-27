@@ -56,8 +56,8 @@ test("a list item holds no paragraphs: every break in it is one line break", () 
     {
       k: "list",
       items: [
-        [text("One rule"), br, text("with a second line")],
-        [text("Blank"), br, text("lines fold into one break")],
+        { runs: [text("One rule"), br, text("with a second line")], depth: 0, numbered: false },
+        { runs: [text("Blank"), br, text("lines fold into one break")], depth: 0, numbered: false },
       ],
     },
   ]);

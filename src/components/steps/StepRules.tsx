@@ -27,7 +27,7 @@ export function StepRules() {
           <button
             type="button"
             className="btn small"
-            onClick={() => update((d) => void d.customSections.push({ id: uid(), title: "", text: "", items: [], tables: [] }))}
+            onClick={() => update((d) => void d.customSections.push({ id: uid(), title: "", text: "", items: [], tables: [], subsections: [] }))}
           >
             + Add section
           </button>
@@ -79,6 +79,36 @@ export function StepRules() {
               edit={(recipe, tag) => update((d) => recipe(d.customSections[index].tables), tag && `sec-table-${tag}`)}
             />
           </Field>
+          {section.subsections.map((sub, k) => {
+            const edit = (fn: (target: (typeof section.subsections)[number]) => void, tag: string) =>
+              update((d) => fn(d.customSections[index].subsections[k]), `${tag}-${sub.id}`);
+            return (
+              <div className="subsection" key={sub.id}>
+                <Field label="Sub-heading">
+                  <div className="subsection-title">
+                    <TextInput value={sub.title} placeholder="e.g. Setup Changes" onChange={(v) => edit((t) => void (t.title = v), "sub-title")} />
+                    <button type="button" className="btn small danger" onClick={() => update((d) => void d.customSections[index].subsections.splice(k, 1))}>
+                      Remove
+                    </button>
+                  </div>
+                </Field>
+                <Field label="Text">
+                  <MarkupField multiline rows={2} value={sub.text} onChange={(v) => edit((t) => void (t.text = v), "sub-text")} />
+                </Field>
+                <Field label="Bullets" wide>
+                  <ListEditor items={sub.items} onChange={(items) => edit((t) => void (t.items = items), "sub-items")} />
+                </Field>
+              </div>
+            );
+          })}
+          <button
+            type="button"
+            className="btn small"
+            title="A smaller heading inside this section, with its own text and bullets"
+            onClick={() => update((d) => void d.customSections[index].subsections.push({ id: uid(), title: "", text: "", items: [] }))}
+          >
+            + Add a sub-heading
+          </button>
         </Panel>
       ))}
     </>

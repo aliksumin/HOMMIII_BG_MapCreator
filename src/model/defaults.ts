@@ -107,7 +107,7 @@ export function upgradeScenario(input: Partial<Scenario>): Scenario {
     bonus: { ...base.bonus, ...input.bonus },
     aiHero: { ...base.aiHero, ...input.aiHero, tables: (input.aiHero?.tables ?? []).map(upgradeTable) },
     rulesTables: (input.rulesTables ?? []).map(upgradeTable),
-    customSections: (input.customSections ?? []).map((c) => ({ ...c, tables: (c.tables ?? []).map(upgradeTable) })),
+    customSections: (input.customSections ?? []).map((c) => ({ ...c, tables: (c.tables ?? []).map(upgradeTable), subsections: c.subsections ?? [] })),
     storyBook: { ...base.storyBook, ...input.storyBook },
     mapSetup: {
       ...base.mapSetup,

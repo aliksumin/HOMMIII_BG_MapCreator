@@ -3,13 +3,22 @@
 // font metrics.
 
 import type { Inline } from "./markup.ts";
-import { ordinalSuffix } from "./markup.ts";
+import { LINK, ordinalSuffix, RED } from "./markup.ts";
 
 export type Style = "normal" | "bold" | "italic" | "bolditalic";
+export type Rgb = [number, number, number];
+
+/** What a word or glyph carries besides its shape: red or link ink, a link target, a footnote it marks. */
+export interface Mark {
+  color?: Rgb;
+  url?: string;
+  /** set on a footnote number: its number (0 until the writer counts it) and the note's text */
+  note?: { n: number; runs: Inline[] };
+}
 
 export type Piece =
-  | { kind: "word"; text: string; style: Style; size: number; w: number; rise: number }
-  | { kind: "glyph"; name: string; w: number; h: number }
+  | ({ kind: "word"; text: string; style: Style; size: number; w: number; rise: number } & Mark)
+  | ({ kind: "glyph"; name: string; w: number; h: number } & Mark)
   | { kind: "space"; w: number }
   /** a line break the contributor typed */
   | { kind: "break"; w: 0 };
@@ -24,30 +33,57 @@ export function styleOf(b?: boolean, i?: boolean): Style {
   return b && i ? "bolditalic" : b ? "bold" : i ? "italic" : "normal";
 }
 
-/** Splits runs into words, spaces, icons and breaks. A no-break space keeps its neighbours in one word. */
-export function toPieces(runs: Inline[], size: number, measure: Measure, force?: { b?: boolean; i?: boolean }): Piece[] {
+/**
+ * Splits runs into words, spaces, icons and breaks. A no-break space keeps
+ * its neighbours in one word. Red and link text carry their ink (and target);
+ * a footnote becomes its superscript number, set to 1 until the writer that
+ * places it counts it (see numberNotes).
+ */
+export function toPieces(runs: Inline[], size: number, measure: Measure, force?: { b?: boolean; i?: boolean }, mark: Mark = {}): Piece[] {
   const out: Piece[] = [];
+  const word = (text: string, style: Style, at = size, rise = 0) =>
+    out.push({ kind: "word", text, style, size: at, w: measure.text(text, style, at), rise, ...mark });
   for (const run of runs) {
     if (run.t === "glyph") {
-      out.push({ kind: "glyph", name: run.name, ...measure.glyph(run.name, size) });
+      out.push({ kind: "glyph", name: run.name, ...measure.glyph(run.name, size), ...mark });
     } else if (run.t === "ordinal") {
       const style = styleOf(force?.b, force?.i);
-      const n = String(run.n);
-      const suffix = ordinalSuffix(run.n);
-      out.push({ kind: "word", text: n, style, size, w: measure.text(n, style, size), rise: 0 });
-      out.push({ kind: "word", text: suffix, style, size: size * 0.62, w: measure.text(suffix, style, size * 0.62), rise: size * 0.36 });
+      word(String(run.n), style);
+      word(ordinalSuffix(run.n), style, size * 0.62, size * 0.36);
     } else if (run.t === "br") {
       out.push({ kind: "break", w: 0 });
+    } else if (run.t === "signed") {
+      // maths: upright, with a true minus sign
+      word(run.s.replace("-", "\u2212"), "normal");
+    } else if (run.t === "red") {
+      out.push(...toPieces(run.runs, size, measure, force, { ...mark, color: RED }));
+    } else if (run.t === "link") {
+      out.push(...toPieces(run.runs, size, measure, force, { ...mark, color: LINK, url: run.href }));
+    } else if (run.t === "note") {
+      // The number joins the word before it, as \footnote does.
+      const at = size * 0.62;
+      out.push({ kind: "word", text: "1", style: "normal", size: at, w: measure.text("1", "normal", at), rise: size * 0.36, ...mark, note: { n: 0, runs: run.runs } });
     } else {
       const style = run.t === "math" ? styleOf(force?.b, true) : styleOf(run.b || force?.b, run.i || force?.i);
       for (const part of run.s.split(/([^\S\u00a0]+)/)) {
         if (!part) continue;
         if (/^[^\S\u00a0]+$/.test(part)) out.push({ kind: "space", w: measure.text(" ", style, size) });
-        else out.push({ kind: "word", text: part, style, size, w: measure.text(part, style, size), rise: 0 });
+        else word(part, style);
       }
     }
   }
   return out;
+}
+
+/** Numbers the footnote marks among pieces in reading order, from `next`; returns the number after the last. */
+export function numberNotes(pieces: Iterable<Piece>, next: number, measure: Measure): number {
+  for (const p of pieces) {
+    if (p.kind !== "word" || !p.note) continue;
+    p.note.n = next++;
+    p.text = String(p.note.n);
+    p.w = measure.text(p.text, p.style, p.size);
+  }
+  return next;
 }
 
 /**

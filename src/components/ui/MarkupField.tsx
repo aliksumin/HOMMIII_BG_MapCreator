@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { GlyphPicker } from "./GlyphPicker.tsx";
+import { MarkupHelp } from "./MarkupHelp.tsx";
 
 interface Props {
   value: string;
@@ -19,13 +20,15 @@ interface Props {
   className?: string;
   /** how many story book paragraphs there are; when set, a § menu inserts a reference to one */
   paragraphs?: number;
+  /** extra keys for a multi-line field, such as Tab in a list item */
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 }
 
 /**
  * A text input that accepts the editor markup (**bold**, *italic*, :glyph:),
  * with a small toolbar that inserts it for the contributor.
  */
-export function MarkupField({ value, onChange, multiline, breaks = "paragraph", rows = 3, placeholder, plain, autoFocus, className, paragraphs }: Props) {
+export function MarkupField({ value, onChange, multiline, breaks = "paragraph", rows = 3, placeholder, plain, autoFocus, className, paragraphs, onKeyDown }: Props) {
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const lineBreaks = multiline && breaks === "line";
 
@@ -69,7 +72,8 @@ export function MarkupField({ value, onChange, multiline, breaks = "paragraph", 
   // event lets React see the edit as typing, so its record of the value stays
   // true and a Backspace that undoes the edit still counts as a change.
   const newParagraph = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.nativeEvent.isComposing) return;
+    onKeyDown?.(e);
+    if (e.defaultPrevented || e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || e.nativeEvent.isComposing) return;
     e.preventDefault();
     const el = e.currentTarget;
     const before = el.value.slice(0, el.selectionStart);
@@ -90,7 +94,7 @@ export function MarkupField({ value, onChange, multiline, breaks = "paragraph", 
       {!multiline ? (
         <input type="text" {...common} />
       ) : lineBreaks ? (
-        <textarea rows={1} title="Enter or Shift+Enter breaks the line" {...common} />
+        <textarea rows={1} title="Enter or Shift+Enter breaks the line" onKeyDown={onKeyDown} {...common} />
       ) : (
         <textarea rows={rows} onKeyDown={newParagraph} {...common} />
       )}
@@ -103,6 +107,7 @@ export function MarkupField({ value, onChange, multiline, breaks = "paragraph", 
             <i>I</i>
           </button>
           <GlyphPicker onPick={(name) => insert(`:${name}:`)} />
+          <MarkupHelp onWrap={wrap} />
           {!!paragraphs && (
             <select
               className="ref-picker"

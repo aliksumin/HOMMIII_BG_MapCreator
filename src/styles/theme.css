@@ -610,12 +610,118 @@ textarea {
   flex: 1;
   min-width: 0;
 }
-.bullet {
+/* The item's marker: the book's bullet, a triangle one level down, or its number. */
+.item-marker {
   flex: none;
-  width: 14px;
-  height: 14px;
-  margin-top: 9px;
-  background: url("/assets/layout/listdot.webp") center / contain no-repeat;
+  width: 22px;
+  height: 22px;
+  margin-top: 5px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.item-marker:hover {
+  border-color: var(--border-in);
+}
+.item-marker.bullet {
+  background: url("/assets/layout/listdot.webp") center / 14px no-repeat;
+}
+.item-marker.sub::before {
+  content: "\25B9";
+  font-size: 15px;
+}
+.list-row.depth-1 {
+  padding-left: 24px;
+}
+.list-row.depth-2 {
+  padding-left: 48px;
+}
+.subsection {
+  margin: 12px 0 0 14px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border-in);
+}
+.subsection-title {
+  display: flex;
+  gap: 8px;
+}
+.subsection-title > input {
+  flex: 1;
+}
+.markup-help {
+  position: relative;
+}
+.markup-help-pop {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  top: 32px;
+  width: 330px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  background: var(--parchment);
+  border: 2px solid var(--border-out);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6);
+}
+.markup.multi .markup-help-pop {
+  left: 0;
+  right: auto;
+}
+.markup-help-tools {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.markup-help-pop table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.markup-help-pop td,
+.markup-help-pop th {
+  padding: 3px 4px;
+  text-align: left;
+  vertical-align: top;
+}
+.markup-help-pop th {
+  padding-top: 8px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+.markup-help-pop code {
+  white-space: pre;
+}
+/* the book's cyan is unreadable on the editor's parchment */
+.markup-help-pop .mk-link {
+  color: inherit;
+  text-decoration: underline;
+}
+.markup-help-pop .glyph {
+  height: 1.1em;
+  vertical-align: -0.2em;
+}
+/* Red emphasis is the book's darkcandyapplered; links are hyperref's urlcolor=cyan. */
+.mk-red,
+.tool.mk-red {
+  color: #a30000;
+}
+.mk-link {
+  color: #00ffff;
+  text-decoration: none;
+}
+.mk-num {
+  font-style: normal;
+  font-weight: normal;
+}
+.mk-note {
+  font-size: 0.62em;
+  font-style: normal;
+  font-weight: normal;
 }
 .row-tools {
   display: flex;
@@ -1222,6 +1328,69 @@ textarea {
   width: 0.55em;
   height: 0.55em;
   background: url("/assets/layout/listdot.webp") center / contain no-repeat;
+}
+/* Nested lists sit 15pt in (\setlist{leftmargin=15pt}). LaTeX counts levels per
+   kind: a second itemize gets a triangle, a third an asterisk; enumerate
+   numbers 1. (a) i. */
+.bk-columns li > ul,
+.bk-columns li > ol {
+  margin: 0.25em 0 0;
+  padding-left: 1.36em;
+}
+.bk-columns ul ul > li::before,
+.bk-columns ol > li::before {
+  top: 0;
+  left: auto;
+  right: calc(100% + 0.5em);
+  width: auto;
+  height: auto;
+  background: none;
+  white-space: nowrap;
+}
+.bk-columns ul ul > li::before {
+  content: "\25B9";
+}
+.bk-columns ul ul ul > li::before {
+  content: "\2217";
+}
+.bk-columns ol {
+  margin: 0 0 0.48em;
+  padding-left: 3.18em;
+  list-style: none;
+  counter-reset: bk-item;
+}
+.bk-columns ol > li {
+  counter-increment: bk-item;
+}
+.bk-columns ol > li::before {
+  content: counter(bk-item) ".";
+}
+.bk-columns ol ol > li::before {
+  content: "(" counter(bk-item, lower-alpha) ")";
+}
+.bk-columns ol ol ol > li::before {
+  content: counter(bk-item, lower-roman) ".";
+}
+/* \subsubsection*: bold at body size. */
+.bk-h4 {
+  margin: 0.9em 0 0.25em;
+  font-size: 1em;
+  break-after: avoid;
+}
+.bk-columns > .bk-h4:first-child {
+  margin-top: 0;
+}
+/* Footnotes at the foot of the page, 9pt under a rule 0.4 of the text width. */
+.bk-notes {
+  margin-top: 1.2em;
+  margin-bottom: 0;
+  padding: 0.4em 0 0 1.4em;
+  font-size: max(7px, 1.51cqi);
+  line-height: 1.22;
+  background: linear-gradient(currentColor, currentColor) 0 0 / 40% 0.5px no-repeat;
+}
+.bk-notes li::marker {
+  font-size: 0.7em;
 }
 .bk-figure {
   margin-top: 18px;

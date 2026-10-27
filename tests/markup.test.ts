@@ -39,7 +39,7 @@ test("a newline breaks the line, and bold and italics carry on over it", () => {
 
 test("glyphs, quotes and dashes work on both sides of a line break", () => {
   assert.deepEqual(parseInline('Gain 2 :gold:\n"Run" -- now'), [
-    { t: "text", s: "Gain 2 " },
+    { t: "text", s: "Gain 2\u00a0" },
     { t: "glyph", name: "gold" },
     { t: "br" },
     { t: "text", s: "\u201cRun\u201d \u2013 now" },

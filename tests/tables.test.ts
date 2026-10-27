@@ -74,7 +74,7 @@ function withTables(): Scenario {
   s.author = "Tester";
   s.rules = ["Marauders march on the closest Town.", "A new raid begins at the start of every third Round."];
   s.rulesTables = [presetTable("difficulty"), { ...presetTable("lookup"), after: 1 }, presetTable("settings")];
-  s.customSections = [{ id: "c", title: "Tribute", text: "Players pay tribute at the start of these Rounds:", items: [], tables: [presetTable("grid")] }];
+  s.customSections = [{ id: "c", title: "Tribute", text: "Players pay tribute at the start of these Rounds:", items: [], tables: [presetTable("grid")], subsections: [] }];
   s.aiHero = { ...s.aiHero, enabled: true, faction: "Fortress", army: "2 :bronze:", tables: [presetTable("aiSetup")] };
   return s;
 }
@@ -103,6 +103,7 @@ test("projects from before tables open with none, and ragged rows are squared up
   assert.deepEqual(s.rulesTables, []);
   assert.deepEqual(s.aiHero.tables, []);
   assert.deepEqual(s.customSections[0].tables, []);
+  assert.deepEqual(s.customSections[0].subsections, []);
 
   const ragged = upgradeScenario({ ...old, rulesTables: [{ id: "r", preset: "grid", columns: ["A", "B", "C"], rows: [["1"], ["1", "2", "3", "4"]] }] });
   assert.deepEqual(ragged.rulesTables[0].rows, [["1", "", ""], ["1", "2", "3"]]);
@@ -189,7 +190,8 @@ test("every line of a wrapped title counts toward the .tex frame", () => {
 });
 
 test("the first column is as wide as its longest line needs, within 12-40%", () => {
-  assert.equal(bookTable(tableDoc(presetTable("lookup"))).layout.key, 0.13);
+  // its -1/+1 cells are maths, whose minus sign is wider than a hyphen
+  assert.equal(bookTable(tableDoc(presetTable("lookup"))).layout.key, 0.14);
   assert.equal(bookTable(tableDoc(presetTable("difficulty"))).layout.key, 0.17);
   const long = presetTable("lookup");
   long.rows[0][0] = "A very long first column label";

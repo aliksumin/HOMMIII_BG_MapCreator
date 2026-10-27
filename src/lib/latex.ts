@@ -3,7 +3,7 @@
 // drops into draft-scenarios/<category>/ as is.
 
 import type { Scenario } from "../model/types.ts";
-import { type Block, buildDocument, type ScenarioDoc, slugify } from "./document.ts";
+import { type Block, buildDocument, type ListItem, type ScenarioDoc, slugify } from "./document.ts";
 import type { Inline } from "./markup.ts";
 import { bookTable, columnCount, type TableDoc, UNIT_TIERS } from "./tables.ts";
 
@@ -40,7 +40,27 @@ export function escapeLatex(text: string): string {
  * line break ends the source line with \\; a following line that opens with
  * [ or * gets {} first, so LaTeX does not read it as an argument of \\.
  */
-export function inlineToLatex(runs: Inline[], opts: { unitSize?: number } = {}): string {
+export function inlineToLatex(runs: Inline[], opts: LatexOptions = {}): string {
+  return runsToLatex(runs, opts).replace(/\\\\\n(?=[[*])/g, "\\\\\n{}").replace(/[ ]+$/g, "");
+}
+
+interface LatexOptions {
+  /** size of the unit-tier icons, which table cells set larger */
+  unitSize?: number;
+  /**
+   * Where a footnote's text goes when it cannot be set in place: inside a
+   * table cell \footnote is lost, so the cell gets \footnotemark and the
+   * text is collected for \footnotetext after the table.
+   */
+  notes?: Inline[][];
+}
+
+/** A URL as the first argument of \href. */
+function hrefTarget(url: string): string {
+  return url.replace(/[\\{}%#]/g, (c) => `\\${c}`);
+}
+
+function runsToLatex(runs: Inline[], opts: LatexOptions): string {
   let out = "";
   for (const run of runs) {
     if (run.t === "glyph") {
@@ -48,8 +68,14 @@ export function inlineToLatex(runs: Inline[], opts: { unitSize?: number } = {}):
       out += unit ? `\\svg[${opts.unitSize}]{${run.name}}` : `\\svg{${run.name}}`;
     }
     else if (run.t === "ordinal") out += `\\nth{${run.n}}`;
-    else if (run.t === "math") out += `$${run.s}$`;
+    else if (run.t === "math" || run.t === "signed") out += `$${run.s}$`;
     else if (run.t === "br") out += "\\\\\n";
+    else if (run.t === "red") out += `\\textcolor{darkcandyapplered}{${runsToLatex(run.runs, opts)}}`;
+    else if (run.t === "link") out += `\\href{${hrefTarget(run.href)}}{${runsToLatex(run.runs, opts)}}`;
+    else if (run.t === "note" && opts.notes) {
+      opts.notes.push(run.runs);
+      out += "\\footnotemark{}";
+    } else if (run.t === "note") out += `\\footnote{${runsToLatex(run.runs, {})}}`;
     else {
       let s = escapeLatex(run.s);
       if (run.i) s = `\\textit{${s}}`;
@@ -57,7 +83,34 @@ export function inlineToLatex(runs: Inline[], opts: { unitSize?: number } = {}):
       out += s;
     }
   }
-  return out.replace(/\\\\\n(?=[[*])/g, "\\\\\n{}").replace(/[ ]+$/g, "");
+  return out;
+}
+
+/**
+ * A list as nested itemize and enumerate environments. Items of one kind at
+ * one depth share an environment; an item's deeper items nest inside it. A
+ * list nested in the other kind starts that kind's first level, which the
+ * book narrows to 15pt as its own second levels are.
+ */
+function listToLatex(items: ListItem[]): string {
+  const lines: string[] = [];
+  let k = 0;
+  const env = (depth: number, levels: { itemize: number; enumerate: number }) => {
+    const numbered = items[k].numbered;
+    const name = numbered ? "enumerate" : "itemize";
+    const level = levels[name] + 1;
+    const pad = "  ".repeat(depth);
+    lines.push(`${pad}\\begin{${name}}${depth > 0 && level === 1 ? "[leftmargin=15pt]" : ""}`);
+    while (k < items.length && items[k].depth === depth && items[k].numbered === numbered) {
+      // An item's later lines indent under its first; a leading [ would read as \item's label.
+      const text = inlineToLatex(items[k++].runs).replace(/^\[/, "{}[").replace(/\n/g, `\n${pad}    `);
+      lines.push(`${pad}  \\item ${text}`);
+      while (k < items.length && items[k].depth > depth) env(depth + 1, { ...levels, [name]: level });
+    }
+    lines.push(`${pad}\\end{${name}}`);
+  };
+  while (k < items.length) env(0, { itemize: 0, enumerate: 0 });
+  return lines.join("\n");
 }
 
 /** "1.4", "18", "17.5" */
@@ -66,11 +119,20 @@ function decimal(n: number): string {
 }
 
 /** A cell macro with its height; 0.9cm, the macros' own default, is left out. */
-function cellMacro(runs: Inline[], dark: boolean, left: boolean, height: number): string {
+function cellMacro(runs: Inline[], dark: boolean, left: boolean, height: number, notes: Inline[][]): string {
   const name = `${dark ? "darkcell" : "lightcell"}${left ? "left" : ""}`;
   const size = Math.abs(height - 0.9) < 1e-9 ? "" : `[${decimal(height)}]`;
   // A cell's later lines indent under its first.
-  return `\\${name}${size}{${inlineToLatex(runs, { unitSize: 12 }).replace(/\n/g, "\n        ")}}`;
+  return `\\${name}${size}{${inlineToLatex(runs, { unitSize: 12, notes }).replace(/\n/g, "\n        ")}}`;
+}
+
+/**
+ * The text of footnotes marked in a table, after it: the counter steps back
+ * over the \footnotemarks, then forward again with each \footnotetext.
+ */
+function footnoteTexts(notes: Inline[][]): string {
+  if (!notes.length) return "";
+  return ["", `\\addtocounter{footnote}{-${notes.length}}`, ...notes.map((runs) => `\\stepcounter{footnote}\\footnotetext{${inlineToLatex(runs)}}`)].join("\n");
 }
 
 /**
@@ -78,28 +140,29 @@ function cellMacro(runs: Inline[], dark: boolean, left: boolean, height: number)
  * column, or \hommtable for one across the page, which the caller wraps in a
  * table* float. The first column is p{} as wide as its longest line needs and
  * the others share the rest (X). Cell heights and the frame height come from
- * the layout in tables.ts.
+ * the layout in tables.ts. Footnotes in the table become \footnotemarks,
+ * their texts collected in `notes` for footnoteTexts.
  */
-export function tableToLatex(table: TableDoc): string {
+export function tableToLatex(table: TableDoc, notes: Inline[][] = []): string {
   const { layout, heights, frame } = bookTable(table);
   const n = columnCount(table);
   const left = table.align === "left";
   const lines: string[] = [`\\${table.wide ? "hommtable" : "hommtablemulticol"}[]{${decimal(frame)}}{`, "  \\centering"];
-  if (table.title.length && !table.banner) lines.push("  \\medskip", `  \\textbf{${inlineToLatex(table.title)}}\\\\`, "  \\bigskip");
+  if (table.title.length && !table.banner) lines.push("  \\medskip", `  \\textbf{${inlineToLatex(table.title, { notes })}}\\\\`, "  \\bigskip");
   lines.push(`  \\begin{tabularx}{0.95\\linewidth}{p{${layout.key.toFixed(2)}\\linewidth}${"X".repeat(n - 1)}}`);
   layout.rows.forEach((row, r) => {
     const h = heights[r];
     if (row.kind === "banner") {
       const span = "p{\\dimexpr0.95\\linewidth-2\\tabcolsep\\relax}";
-      lines.push(`    \\multicolumn{${n}}{${span}}{${cellMacro(row.cells[0].runs, true, false, h)}} \\\\`);
+      lines.push(`    \\multicolumn{${n}}{${span}}{${cellMacro(row.cells[0].runs, true, false, h, notes)}} \\\\`);
     } else if (row.kind === "header") {
       // An empty corner cell is left out, as the book does above a column of row names.
-      const cells = row.cells.map((c, i) => (i === 0 && !c.runs.length ? "" : cellMacro(c.runs, true, false, h)));
+      const cells = row.cells.map((c, i) => (i === 0 && !c.runs.length ? "" : cellMacro(c.runs, true, false, h, notes)));
       lines.push(`    ${cells.join(" & ")} \\\\`.replace(/^( +) &/, "$1&"));
     } else {
       const [key, ...rest] = row.cells;
-      lines.push(`    ${cellMacro(key.runs, true, left, h)}`);
-      rest.forEach((c, i) => lines.push(`      & ${cellMacro(c.runs, false, left, h)}${i === rest.length - 1 ? " \\\\" : ""}`));
+      lines.push(`    ${cellMacro(key.runs, true, left, h, notes)}`);
+      rest.forEach((c, i) => lines.push(`      & ${cellMacro(c.runs, false, left, h, notes)}${i === rest.length - 1 ? " \\\\" : ""}`));
       if (!rest.length) lines[lines.length - 1] += " \\\\";
     }
   });
@@ -109,27 +172,24 @@ export function tableToLatex(table: TableDoc): string {
 
 function blockToLatex(block: Block): string {
   switch (block.k) {
-    case "table":
-      return tableToLatex(block.table);
+    case "table": {
+      const notes: Inline[][] = [];
+      return tableToLatex(block.table, notes) + footnoteTexts(notes);
+    }
     case "heading":
       return `\\subsection*{\\MakeUppercase{${escapeLatex(block.text)}}}`;
+    case "subheading":
+      return `\\subsubsection*{${escapeLatex(block.text)}}`;
     case "para":
       return inlineToLatex(block.runs);
     case "label":
       return `\\textbf{${inlineToLatex(block.runs)}}`;
     case "field": {
-      const value = block.href
-        ? `\\href{${block.href.replace(/[\\{}%#]/g, (c) => `\\${c}`)}}{${inlineToLatex(block.runs)}}`
-        : inlineToLatex(block.runs);
+      const value = block.href ? `\\href{${hrefTarget(block.href)}}{${inlineToLatex(block.runs)}}` : inlineToLatex(block.runs);
       return `\\textbf{${escapeLatex(block.label)}:}${value ? ` ${value}` : ""}`;
     }
     case "list":
-      // An item's later lines indent under its first.
-      return [
-        "\\begin{itemize}",
-        ...block.items.map((item) => `  \\item ${inlineToLatex(item).replace(/\n/g, "\n    ")}`),
-        "\\end{itemize}",
-      ].join("\n");
+      return listToLatex(block.items);
   }
 }
 
@@ -139,7 +199,7 @@ function blocksToLatex(blocks: Block[]): string {
   blocks.forEach((block, i) => {
     if (i > 0) {
       const prev = blocks[i - 1];
-      out += block.k === "list" && prev.k !== "heading" && prev.k !== "list" && prev.k !== "table" ? "\n" : "\n\n";
+      out += block.k === "list" && prev.k !== "heading" && prev.k !== "subheading" && prev.k !== "list" && prev.k !== "table" ? "\n" : "\n\n";
     }
     out += blockToLatex(block);
   });
@@ -178,7 +238,8 @@ export function scenarioToLatex(scenario: Scenario): string {
 
   // Tables across the page float below the columns, as the book places them.
   for (const table of doc.wide) {
-    parts.push(["\\begin{table*}[!hb]", tableToLatex(table).replace(/^/gm, "  "), "\\end{table*}"].join("\n"));
+    const notes: Inline[][] = [];
+    parts.push(["\\begin{table*}[!hb]", tableToLatex(table, notes).replace(/^/gm, "  "), "\\end{table*}"].join("\n") + footnoteTexts(notes));
   }
 
   for (const map of doc.maps) {
