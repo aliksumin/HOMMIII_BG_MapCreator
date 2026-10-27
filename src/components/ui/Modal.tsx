@@ -20,3 +20,15 @@ export function Modal({ title, children, onClose, wide }: { title: string; child
     </div>
   );
 }
+
+/** A popover's name and Close button, shown on phones, where the popover opens as a sheet across the screen. */
+export function PopHead({ title, onClose }: { title: string; onClose: () => void }) {
+  return (
+    <div className="pop-head">
+      <span>{title}</span>
+      <button type="button" className="btn small" onClick={onClose}>
+        Close
+      </button>
+    </div>
+  );
+}

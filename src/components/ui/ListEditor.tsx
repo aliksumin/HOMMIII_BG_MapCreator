@@ -1,6 +1,6 @@
 import { MarkupField } from "./MarkupField.tsx";
 import { Runs } from "./Runs.tsx";
-import { itemPrefix, MAX_DEPTH, parseInline, parseItem } from "../../lib/markup.ts";
+import { itemDepths, itemPrefix, nestedDepth, parseInline, parseItem } from "../../lib/markup.ts";
 
 interface Props {
   items: string[];
@@ -11,18 +11,12 @@ interface Props {
   chips?: readonly string[];
 }
 
-/** Each item's depth as the list prints it: never more than one level below the item before. */
-function depths(items: string[]): number[] {
-  const out: number[] = [];
-  items.forEach((item, i) => out.push(Math.min(parseItem(item).depth, i ? out[i - 1] + 1 : 0)));
-  return out;
-}
-
 /**
  * An editable bullet list: each item one markup paragraph, where Enter breaks
  * the line. Tab and Shift+Tab nest an item one level deeper or shallower (the
  * item stores it as a leading "  - "), and its marker switches between a
- * bullet and a number.
+ * bullet and a number. On touch screens, which have no Tab key, buttons
+ * on each row do the nesting.
  */
 export function ListEditor({ items, onChange, addLabel = "Add item", placeholder, chips }: Props) {
   const set = (i: number, value: string) => onChange(items.map((item, k) => (k === i ? value : item)));
@@ -33,7 +27,7 @@ export function ListEditor({ items, onChange, addLabel = "Add item", placeholder
     [next[i], next[j]] = [next[j], next[i]];
     onChange(next);
   };
-  const levels = depths(items);
+  const levels = itemDepths(items);
   return (
     <div className="list-editor">
       {items.map((item, i) => {
@@ -41,11 +35,13 @@ export function ListEditor({ items, onChange, addLabel = "Add item", placeholder
         const depth = levels[i];
         const text = item.slice(line.prefix.length);
         const store = (d: number, numbered: boolean, value = text) => set(i, itemPrefix(d, numbered) + value);
+        const deeper = nestedDepth(levels, i, 1);
+        const shallower = nestedDepth(levels, i, -1);
         const indent = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
           if (e.key !== "Tab" || e.ctrlKey || e.altKey || e.metaKey) return;
-          const to = e.shiftKey ? depth - 1 : depth + 1;
+          const to = e.shiftKey ? shallower : deeper;
           // At either end Tab keeps moving the focus, so the keyboard never gets stuck in a list.
-          if (to < 0 || to > Math.min(MAX_DEPTH, i ? levels[i - 1] + 1 : 0)) return;
+          if (to === null) return;
           e.preventDefault();
           store(to, line.numbered);
         };
@@ -68,6 +64,24 @@ export function ListEditor({ items, onChange, addLabel = "Add item", placeholder
               breaks="line"
             />
             <div className="row-tools">
+              <button
+                type="button"
+                className="tool touch-only"
+                aria-label="Nest one level back"
+                disabled={shallower === null}
+                onClick={() => shallower !== null && store(shallower, line.numbered)}
+              >
+                &#8676;
+              </button>
+              <button
+                type="button"
+                className="tool touch-only"
+                aria-label="Nest one level deeper"
+                disabled={deeper === null}
+                onClick={() => deeper !== null && store(deeper, line.numbered)}
+              >
+                &#8677;
+              </button>
               <button type="button" className="tool" title="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
                 &#9650;
               </button>

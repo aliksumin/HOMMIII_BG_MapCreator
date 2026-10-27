@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { GlyphPicker } from "./GlyphPicker.tsx";
 import { MarkupHelp } from "./MarkupHelp.tsx";
+import { breakLine } from "../../lib/markup.ts";
 
 interface Props {
   value: string;
@@ -9,7 +10,8 @@ interface Props {
   /**
    * What Enter does in a multi-line field. "paragraph" (the default) starts a
    * new paragraph, a blank line in the text. "line" breaks the line, for list
-   * items, whose box grows with its text. Shift+Enter always breaks the line.
+   * items, whose box grows with its text. Shift+Enter always breaks the line;
+   * on touch screens a toolbar button does it.
    */
   breaks?: "paragraph" | "line";
   rows?: number;
@@ -67,6 +69,18 @@ export function MarkupField({ value, onChange, multiline, breaks = "paragraph", 
     });
   };
 
+  // The touch screen's Shift+Enter. Its mousedown is cancelled, so the field keeps the focus and the keyboard stays up.
+  const lineBreak = () => {
+    const el = ref.current;
+    const next = breakLine(value, el?.selectionStart ?? value.length, el?.selectionEnd ?? value.length);
+    onChange(next.value);
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(next.caret, next.caret);
+    });
+  };
+
   // Enter starts a paragraph: a blank line, or one more newline after a line
   // break. Shift+Enter keeps the textarea's own single newline. The input
   // event lets React see the edit as typing, so its record of the value stays
@@ -107,6 +121,11 @@ export function MarkupField({ value, onChange, multiline, breaks = "paragraph", 
             <i>I</i>
           </button>
           <GlyphPicker onPick={(name) => insert(`:${name}:`)} />
+          {multiline && !lineBreaks && (
+            <button type="button" className="tool touch-only" aria-label="Line break" onMouseDown={(e) => e.preventDefault()} onClick={lineBreak}>
+              &#8629;
+            </button>
+          )}
           <MarkupHelp onWrap={wrap} />
           {!!paragraphs && (
             <select
@@ -125,7 +144,12 @@ export function MarkupField({ value, onChange, multiline, breaks = "paragraph", 
           )}
           {multiline && !lineBreaks && (
             <span className="markup-keys">
-              <kbd>Enter</kbd> new paragraph · <kbd>Shift</kbd>+<kbd>Enter</kbd> line break
+              <span className="fine-only">
+                <kbd>Enter</kbd> new paragraph · <kbd>Shift</kbd>+<kbd>Enter</kbd> line break
+              </span>
+              <span className="touch-only">
+                <kbd>Enter</kbd> new paragraph · <kbd>&#8629;</kbd> button: line break
+              </span>
             </span>
           )}
         </div>

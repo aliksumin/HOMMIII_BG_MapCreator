@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { parseInline } from "../../lib/markup.ts";
+import { PopHead } from "./Modal.tsx";
 import { Runs } from "./Runs.tsx";
 
 /** What to type, and what the book prints for it. */
@@ -22,11 +23,20 @@ const INSERTS: [string, string, string, string][] = [
   ["Footnote", "Footnote (^[note])", "^[", "]"],
 ];
 
-/** List items only. */
-const ITEMS: [string, string][] = [
-  ["Tab / Shift+Tab", "nest the item one level deeper or back"],
+/** List items only; the last field names the device a row is for, as a class that hides it on the other. */
+const ITEMS: [string, string, string?][] = [
+  ["Tab / Shift+Tab", "nest the item one level deeper or back", "fine-only"],
+  ["\u21e5 / \u21e4", "the row's buttons nest the item one level deeper or back", "touch-only"],
   ["  - text", "a nested bullet, typed"],
-  ["1. text", "a numbered item; click the marker to switch"],
+  ["1. text", "a numbered item; click the marker to switch", "fine-only"],
+  ["1. text", "a numbered item; tap the marker to switch", "touch-only"],
+];
+
+/** The toolbar's buttons, whose tooltips a touch screen never shows. */
+const BUTTONS: [string, string][] = [
+  ["B / I", "bold / italic"],
+  ["Icon", "a game icon"],
+  ["\u21b5", "a line break, in fields where Enter starts a new paragraph"],
 ];
 
 /** A button that opens the rarer markup (red, links, footnotes) and the cheat sheet of all of it. */
@@ -48,6 +58,7 @@ export function MarkupHelp({ onWrap }: { onWrap: (before: string, after?: string
       </button>
       {open && (
         <div className="markup-help-pop" role="dialog" aria-label="Markup help">
+          <PopHead title="Markup" onClose={() => setOpen(false)} />
           <div className="markup-help-tools">
             {INSERTS.map(([label, title, before, after]) => (
               <button
@@ -80,10 +91,21 @@ export function MarkupHelp({ onWrap }: { onWrap: (before: string, after?: string
               <tr>
                 <th colSpan={2}>In list items</th>
               </tr>
-              {ITEMS.map(([typed, what]) => (
-                <tr key={typed}>
+              {ITEMS.map(([typed, what, only]) => (
+                <tr key={typed + what} className={only}>
                   <td>
                     <code>{typed}</code>
+                  </td>
+                  <td>{what}</td>
+                </tr>
+              ))}
+              <tr className="touch-only">
+                <th colSpan={2}>Buttons</th>
+              </tr>
+              {BUTTONS.map(([label, what]) => (
+                <tr key={label} className="touch-only">
+                  <td>
+                    <code>{label}</code>
                   </td>
                   <td>{what}</td>
                 </tr>
