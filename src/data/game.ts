@@ -237,6 +237,21 @@ export const BOOK_TERMS: readonly string[] = [
   "unit",
 ];
 
+/**
+ * Glyphs with a yellow variant (`<name>-yellow`), which the book draws on
+ * dark backgrounds such as its tables. Unit tiers and the plain resources
+ * have none and keep their own colours.
+ */
+export const YELLOW_GLYPHS: ReadonlySet<string> = new Set([
+  "1_valuables", "2_building_materials", "2_treasure_die", "2_valuables", "3_gold", "4_building_materials", "6_gold",
+  "activation", "arrow_right", "artifact", "attack", "building_citadel", "building_city_hall", "building_mage_guild",
+  "building_special_gears", "building_special_tent", "damage", "defense", "empower", "experience", "expert", "hand",
+  "health_points", "initiative", "instant", "level1", "level4", "level6", "magic", "map", "might", "morale_negative",
+  "morale_positive", "movement", "necro", "ongoing", "paralysis", "pay", "permanent", "plusone", "recruit", "reinforce",
+  "resource", "resource_die", "skill", "spellpower", "treasure", "unit_alternative", "unit_attack", "unit_flying",
+  "unit_ground", "unit_passive", "unit_ranged", "unit_retaliation", "zero",
+]);
+
 /** Glyphs offered first in the glyph picker. */
 export const COMMON_GLYPHS: readonly string[] = [
   "gold",

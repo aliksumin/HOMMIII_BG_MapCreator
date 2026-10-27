@@ -3,10 +3,12 @@
 
 import { CREATURE_BANKS, MAP_LOCATIONS, TILES, tileGroup, tileName } from "../data/catalog.ts";
 import { BOOK_TERMS } from "../data/game.ts";
-import type { MapLayout, MapTile, Scenario } from "../model/types.ts";
+import type { MapLayout, MapTile, RulesTable, Scenario } from "../model/types.ts";
 import { cellKey, connectedGroups, fieldCell, neighbours } from "./hex.ts";
 import { countTiles, duplicateTiles } from "./document.ts";
 import { scenarioToLatex } from "./latex.ts";
+import { parseInline } from "./markup.ts";
+import { bookTable, cellText, isBlankTable, MAX_FRAME, TIERS, tableDoc } from "./tables.ts";
 import { GATE, GATE_SURFACE, GATE_UNDERGROUND } from "./tokens.ts";
 import { brokenRefs, paragraphRefs } from "./storybook.ts";
 
@@ -140,6 +142,57 @@ export function tokenFindings(layout: MapLayout): string[] {
   return out;
 }
 
+/** Every table with where it is: the editor step and a name for messages. */
+export function scenarioTables(s: Scenario): { step: string; table: RulesTable; name: string }[] {
+  const named = (where: string, tables: RulesTable[], step: string) =>
+    tables.map((table, i) => ({
+      step,
+      table,
+      name: table.title.trim() ? `Table "${cellText(parseInline(table.title.trim()))}"` : `Table ${i + 1} in ${where}`,
+    }));
+  return [
+    ...named("Additional Rules", s.rulesTables, "rules"),
+    ...s.customSections.filter((c) => c.title.trim()).flatMap((c) => named(c.title.trim(), c.tables, "rules")),
+    ...(s.aiHero.enabled ? named("AI Hero Setup", s.aiHero.tables, "opponents") : []),
+  ].filter(({ table }) => !isBlankTable(table));
+}
+
+const ORDERED_LABEL = /^(?:rounds?\s*)?\d+(?:st|nd|rd|th)?(?:\s*(?:-|--|–)\s*\d+(?:st|nd|rd|th)?)?$|^rounds?\b/i;
+
+/**
+ * What a reviewer would flag in a table: a difficulty axis that skips a tier,
+ * empty cells, Rounds across the columns, and text too wide or a table too
+ * tall for the page.
+ */
+export function tableFindings(table: RulesTable, name: string): string[] {
+  const out: string[] = [];
+  const labels = table.showHeader ? table.columns.slice(1) : [];
+  const keys = table.rows.map((r) => r[0] ?? "");
+  for (const axis of [labels, keys]) {
+    const found = TIERS.filter((tier) => axis.some((cell) => cell.trim().toLowerCase() === tier.toLowerCase()));
+    if (found.length && found.length < TIERS.length) {
+      const missing = TIERS.filter((tier) => !found.includes(tier));
+      out.push(`${name} has no ${missing.join(", ")} ${missing.length === 1 ? "tier" : "tiers"}: list every difficulty, and write "No Change" for one that changes nothing.`);
+    }
+  }
+  const empty = table.rows.reduce((n, row) => n + row.filter((cell) => !cell.trim()).length, 0) + labels.filter((c) => !c.trim()).length;
+  if (empty) out.push(`${name} has ${empty} empty cell${empty === 1 ? "" : "s"}.`);
+  if (!table.rows.length) out.push(`${name} has no rows.`);
+  if (labels.filter((label) => ORDERED_LABEL.test(label.trim())).length >= 2) {
+    out.push(`${name} runs its Rounds across the columns: put the ordered axis in the rows and the variants in the columns.`);
+  }
+  const { layout, frame } = bookTable(tableDoc(table));
+  const over = layout.overflow[0];
+  if (over) {
+    const cm = (pt: number) => (pt / (72.27 / 2.54)).toFixed(1);
+    out.push(
+      `${name}: "${over.text.replace(/ /g, " ")}" needs ${cm(over.need)} cm but its column is ${cm(over.have)} cm wide. Use fewer columns, shorter words${table.width === "column" ? " or the full page width" : ""}.`,
+    );
+  }
+  if (frame > MAX_FRAME) out.push(`${name} is taller than a page; split it into two tables.`);
+  return out;
+}
+
 export function lintScenario(s: Scenario): Finding[] {
   const out: Finding[] = [];
   const err = (step: string, message: string) => out.push({ level: "error", step, message });
@@ -194,6 +247,10 @@ export function lintScenario(s: Scenario): Finding[] {
   });
   if (s.category === "solo" && !paragraphs.length && !s.storyBook.locations.length) {
     warn("story", "Solo Scenarios usually have Story Locations that lead to numbered paragraphs.");
+  }
+
+  for (const { step, table, name } of scenarioTables(s)) {
+    for (const message of tableFindings(table, name)) warn(step, message);
   }
 
   for (const f of capsFindings(scenarioToLatex(s))) {

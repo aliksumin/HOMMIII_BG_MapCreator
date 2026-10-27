@@ -3,8 +3,10 @@ import { useScenario } from "../../model/store.ts";
 import type { Scenario } from "../../model/types.ts";
 import { Field, Panel, Toggle } from "../ui/Form.tsx";
 import { MarkupField } from "../ui/MarkupField.tsx";
+import { TablesEditor } from "../ui/TablesEditor.tsx";
+import { aiSetupRow } from "../../lib/tables.ts";
 
-const FIELDS: { key: Exclude<keyof Scenario["aiHero"], "enabled" | "faction">; label: string; placeholder: string }[] = [
+const FIELDS: { key: Exclude<keyof Scenario["aiHero"], "enabled" | "faction" | "tables">; label: string; placeholder: string }[] = [
   { key: "army", label: "Enemy Army", placeholder: "e.g. 2 :bronze:, 2 :silver:, 1 :golden: Necropolis Units" },
   { key: "deck", label: "Enemy Deck", placeholder: "e.g. Might AI Deck, Normal" },
   { key: "spellDeck", label: "Enemy Spell Deck", placeholder: "e.g. none" },
@@ -43,6 +45,9 @@ export function StepOpponents() {
               />
             </Field>
           ))}
+          <Field label="Tables" wide hint="An AI Hero setup table lists several enemy armies side by side, as campaigns do.">
+            <TablesEditor tables={s.aiHero.tables} aiRow={(columns) => aiSetupRow(s, columns)} edit={(recipe, tag) => update((d) => recipe(d.aiHero.tables), tag && `ai-table-${tag}`)} />
+          </Field>
         </>
       )}
     </Panel>
