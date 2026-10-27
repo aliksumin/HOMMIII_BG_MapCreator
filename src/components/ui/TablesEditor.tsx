@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   diceRows,
+  insertMarkup,
   newTable,
   parseUnits,
   PRESETS,
@@ -90,19 +91,16 @@ function TableCard({ table, index, count, edit, move, remove, bullets, aiRow }: 
   const cellValue = (a: Active) => (a.row < 0 ? table.columns[a.col] : table.rows[a.row]?.[a.col]) ?? "";
   const setCell = (a: Active, value: string) => edit((t) => setTableCell(t, a.row, a.col, value), `cell-${a.row}-${a.col}`);
 
-  /** Inserts markup at the caret of the active cell, or wraps its selection. */
+  /** Wraps the active cell's selection in markup, or puts markup in its place. */
   const insert = (before: string, after = "") => {
     const el = activeEl.current;
     if (!active || !el) return;
     const value = cellValue(active);
-    const start = el.selectionStart ?? value.length;
-    const end = el.selectionEnd ?? value.length;
-    const pad = !after && start > 0 && !/\s/.test(value[start - 1]) ? " " : "";
-    setCell(active, value.slice(0, start) + pad + before + value.slice(start, end) + after + value.slice(end));
+    const edited = insertMarkup(value, el.selectionStart ?? value.length, el.selectionEnd ?? value.length, before, after);
+    setCell(active, edited.value);
     requestAnimationFrame(() => {
       el.focus();
-      const at = start + pad.length + before.length + (after ? end - start : 0);
-      el.setSelectionRange(after ? start + before.length : at, at);
+      el.setSelectionRange(edited.selection[0], edited.selection[1]);
     });
   };
 

@@ -66,15 +66,17 @@ export function newTable(preset: TablePreset): RulesTable {
 /**
  * Rows keyed by the nine results of two Attack Dice. A row already keyed by
  * a result stays on it; the other filled rows take the free results in order.
+ * Filled rows beyond the nine stay below them as they were, never dropped.
  */
 export function diceRows(rows: string[][], columns: number): string[][] {
   const filled = rows.filter((r) => r.some((c) => c.trim()));
   const keyed = new Map(filled.filter((r) => DICE_KEYS.includes(r[0].trim())).map((r) => [r[0].trim(), r]));
   const others = filled.filter((r) => !keyed.has(r[0].trim()) || keyed.get(r[0].trim()) !== r);
-  return DICE_KEYS.map((key) => {
+  const dice = DICE_KEYS.map((key) => {
     const row = keyed.get(key) ?? others.shift();
     return [key, ...Array.from({ length: columns - 1 }, (_, c) => row?.[c + 1] ?? "")];
   });
+  return [...dice, ...others.map((r) => Array.from({ length: columns }, (_, c) => r[c] ?? ""))];
 }
 
 /**
@@ -93,6 +95,21 @@ export function removeTableColumn(t: RulesTable, col: number): void {
   if (t.columns.length <= 2 || col < 0 || col >= t.columns.length) return;
   t.columns.splice(col, 1);
   t.rows.forEach((r) => r.splice(col, 1));
+}
+
+/**
+ * A cell's text after a toolbar action on the selection [start, end). With
+ * `after` (bold, italic) the selection is wrapped and stays selected; without
+ * it (an icon) the markup replaces the selection, with a space before it when
+ * it would touch a word, and the caret goes after it.
+ */
+export function insertMarkup(value: string, start: number, end: number, before: string, after = ""): { value: string; selection: [number, number] } {
+  if (after) {
+    return { value: value.slice(0, start) + before + value.slice(start, end) + after + value.slice(end), selection: [start + before.length, end + before.length] };
+  }
+  const pad = start > 0 && !/\s/.test(value[start - 1]) ? " " : "";
+  const at = start + pad.length + before.length;
+  return { value: value.slice(0, start) + pad + before + value.slice(end), selection: [at, at] };
 }
 
 /** "3 :bronze: 2 :silver:" for unit counts per tier; tiers at 0 are left out. */

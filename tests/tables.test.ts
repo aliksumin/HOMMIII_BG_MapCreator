@@ -9,7 +9,7 @@ import { scenarioToLatex, tableToLatex } from "../src/lib/latex.ts";
 import { capsFindings, lintScenario, tableFindings } from "../src/lib/lint.ts";
 import { setKnownGlyphs } from "../src/lib/markup.ts";
 import { Writer } from "../src/lib/pdf.ts";
-import { aiSetupRow, bookTable, cellHeight, cellRuns, DICE_KEYS, diceRows, newTable, removeTableColumn, setTableCell, parseUnits, tableDoc, unitString } from "../src/lib/tables.ts";
+import { aiSetupRow, bookTable, cellHeight, cellRuns, DICE_KEYS, diceRows, insertMarkup, newTable, removeTableColumn, setTableCell, parseUnits, tableDoc, unitString } from "../src/lib/tables.ts";
 import { newScenario, upgradeScenario } from "../src/model/defaults.ts";
 import type { RulesTable, Scenario, TablePreset } from "../src/model/types.ts";
 
@@ -257,6 +257,22 @@ test("the dice keys keep a row on its own result and fill the rest in order", ()
   );
   assert.deepEqual(rows.map((r) => r[0]), DICE_KEYS);
   assert.deepEqual(rows.slice(0, 5).map((r) => r[1]), ["Low Clouds", "Hailstorm", "", "", "Calm"]);
+
+  // more filled rows than results: the rest stay below the nine, untouched
+  const ten = Array.from({ length: 10 }, (_, i) => [`k${i}`, `Omen ${i}`]);
+  const kept = diceRows(ten, 2);
+  assert.equal(kept.length, 10);
+  assert.deepEqual(kept.slice(0, 9).map((r) => r[0]), DICE_KEYS);
+  assert.deepEqual(kept[9], ["k9", "Omen 9"]);
+  assert.deepEqual(kept.map((r) => r[1]), ten.map((r) => r[1]));
+});
+
+test("an icon replaces the selected text; bold and italic wrap it", () => {
+  // "old" selected in "Gain old now"
+  assert.deepEqual(insertMarkup("Gain old now", 5, 8, ":gold:"), { value: "Gain :gold: now", selection: [11, 11] });
+  assert.deepEqual(insertMarkup("Gain old now", 5, 8, "**", "**"), { value: "Gain **old** now", selection: [7, 10] });
+  // at a caret touching a word, the icon gets a space before it
+  assert.deepEqual(insertMarkup("Gain", 4, 4, ":gold:"), { value: "Gain :gold:", selection: [11, 11] });
 });
 
 test("a cell write after its column went leaves the table rectangular", () => {
