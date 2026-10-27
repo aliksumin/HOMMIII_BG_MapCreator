@@ -321,9 +321,20 @@ export function MapEditor() {
                 <ActionBar
                   name={selectionName(picked.length, pickedTokens.length)}
                   onRotate={rotateSelected}
-                  onAgain={again ? () => setArmed(again) : undefined}
+                  onAgain={
+                    again
+                      ? () => {
+                          setAdding(false);
+                          setArmed(again);
+                        }
+                      : undefined
+                  }
                   adding={adding}
-                  onAdding={setAdding}
+                  onAdding={(on) => {
+                    // a tap can't both place and pick: More stops placing, Same again stops More
+                    if (on) setArmed(null);
+                    setAdding(on);
+                  }}
                   onDelete={removeSelected}
                   onDone={unselect}
                 />
