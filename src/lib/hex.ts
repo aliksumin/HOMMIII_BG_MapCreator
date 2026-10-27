@@ -145,6 +145,33 @@ export function canPlace(tiles: MapTile[], row: number, col: number, except?: st
   return footprint(row, col).every(([r, c]) => !taken.has(cellKey(r, c)));
 }
 
+/** What keeps a tile or token off a spot: the board's top or left edge, or the tile or token already there. */
+export type Blocker = { kind: "edge" } | { kind: "tile" | "token"; id: string };
+
+/** The first of these Fields that a tile covers or a token beside the tiles holds. */
+function takenBy(tiles: MapTile[], tokens: readonly TokenSpot[], cells: [number, number][]): Blocker | null {
+  const taken = occupancy(tiles);
+  const tileIds = new Set(taken.values());
+  for (const t of tokens) for (const [r, c] of t.cells) taken.set(cellKey(r, c), t.id);
+  for (const [r, c] of cells) {
+    const id = taken.get(cellKey(r, c));
+    if (id) return { kind: tileIds.has(id) ? "tile" : "token", id };
+  }
+  return null;
+}
+
+/** Why a tile can't sit at (row, col), or null when canPlace allows it. */
+export function tileBlocker(tiles: MapTile[], row: number, col: number, tokens: readonly TokenSpot[] = []): Blocker | null {
+  if (row < 1 || col < 1) return { kind: "edge" };
+  return takenBy(tiles, tokens, footprint(row, col));
+}
+
+/** Why a token beside the tiles can't cover these Fields, or null when canPlaceToken allows it. */
+export function tokenBlocker(tiles: MapTile[], tokens: readonly TokenSpot[], cells: [number, number][]): Blocker | null {
+  if (cells.some(([r, c]) => r < 0 || c < 0)) return { kind: "edge" };
+  return takenBy(tiles, tokens, cells);
+}
+
 /** Axial coordinates [q, r] of a Field, so a shift by whole hexes is plain addition. */
 function toAxial(row: number, col: number): [number, number] {
   return [col - (row - (row & 1)) / 2, row];

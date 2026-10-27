@@ -30,6 +30,7 @@ export function MapEditor() {
   const [busy, setBusy] = useState("");
   const [fitCount, setFitCount] = useState(0);
   const [adding, setAdding] = useState(false);
+  const [full, setFull] = useState(false);
   const touch = useTouch();
 
   const index = Math.min(layoutIndex, s.maps.length - 1);
@@ -112,6 +113,17 @@ export function MapEditor() {
   useEffect(() => {
     if (!pickedCount) setAdding(false);
   }, [pickedCount]);
+
+  // The page behind a full-screen map holds still.
+  useEffect(() => {
+    document.documentElement.classList.toggle("map-full", full);
+    return () => document.documentElement.classList.remove("map-full");
+  }, [full]);
+
+  const toggleFull = (on: boolean) => {
+    setFull(on);
+    setFitCount((n) => n + 1);
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -278,7 +290,7 @@ export function MapEditor() {
         )}
       </div>
 
-      <div className="map-body">
+      <div className={`map-body ${full ? "full" : ""}`}>
         <Palette armed={armed} onArm={setArmed} />
         <div className="board-col">
           <Board
@@ -287,10 +299,13 @@ export function MapEditor() {
             selectedIds={selected}
             selectedField={field}
             armed={armed}
+            onArm={setArmed}
+            full={full}
+            onFull={toggleFull}
             layoutKey={`${layout.id}-${fitCount}`}
             onPlace={(a, row, col) => {
               if (a.kind === "tile") {
-                const t = newTile(a.id, row, col);
+                const t = { ...newTile(a.id, row, col), rotation: a.turn ?? 0 };
                 setTiles((list) => void list.push(t));
                 setSelected([t.id]);
               } else {
@@ -371,7 +386,10 @@ export function MapEditor() {
               </span>
             )}
             {touch ? (
-              <span className="keys">Tap a tile to select it; use the bar to rotate or delete</span>
+              <span className="keys">
+                Tap: place/select &middot; Hold a tile, then drag: move it &middot; Swipe: pan &middot; Two fingers: zoom &middot; The bar over the map: rotate,
+                select more, delete
+              </span>
             ) : (
               <span className="keys">
                 Click: place/select &middot; Shift+click: add to selection &middot; Ctrl+drag: select with a frame &middot; Drag: move or pan &middot;
@@ -396,8 +414,17 @@ export function MapEditor() {
         ) : pickedCount > 1 ? (
           <aside className="inspector empty">
             <h4>{selectionName(picked.length, pickedTokens.length)} selected</h4>
-            <p className="hint">Drag any of them to move them all together. R rotates each one in place, Del removes them.</p>
-            <p className="hint">Shift+click a tile or token to add it or drop it from the selection. Esc or a click on the empty board clears it.</p>
+            {touch ? (
+              <>
+                <p className="hint">Drag any of them to move them all together. The bar over the map rotates each one in place or removes them.</p>
+                <p className="hint">With More on, tap a tile or token to add it or drop it, or swipe over the empty board to frame several. Done clears the selection.</p>
+              </>
+            ) : (
+              <>
+                <p className="hint">Drag any of them to move them all together. R rotates each one in place, Del removes them.</p>
+                <p className="hint">Shift+click a tile or token to add it or drop it from the selection. Esc or a click on the empty board clears it.</p>
+              </>
+            )}
             <button type="button" className="btn small danger" onClick={removeSelected}>
               Remove {pickedCount}
             </button>

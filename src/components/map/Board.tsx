@@ -1,11 +1,12 @@
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { barEdge, screenBox } from "../../lib/actionbar.ts";
+import { tileName } from "../../data/catalog.ts";
+import { barEdge, screenBox, type View } from "../../lib/actionbar.ts";
 import { duplicateTiles } from "../../lib/document.ts";
+import { HOLD_MS, pinchView, TOUCH_SLOP, tapToPlace, touchStart, zoomAt } from "../../lib/gestures.ts";
 import {
+  type Blocker,
   boardBounds,
-  canPlace,
   canPlaceGroup,
-  canPlaceToken,
   cellCenter,
   fieldCenter,
   type Piece,
@@ -14,17 +15,21 @@ import {
   shiftCell,
   TILE_H,
   TILE_W,
+  tileBlocker,
+  tokenBlocker,
 } from "../../lib/hex.ts";
 import { boardTokenOverlays, cellsOutlinePath, flowerPath, hexPoints, TOKEN_SIZE, tileImageUrl } from "../../lib/mapdraw.ts";
-import { gateHalves, tokenCells, tokenSpot } from "../../lib/tokens.ts";
+import { boardTokenName, GATE, gateHalves, tokenCells, tokenSpot } from "../../lib/tokens.ts";
+import { useTouch } from "./ActionBar.tsx";
 import { MapLayers } from "./MapLayers.tsx";
+import { PlaceBanner } from "./PlaceBanner.tsx";
 import type { BoardToken, MapTile } from "../../model/types.ts";
 
 /** What the palette holds ready to place: a tile, or a Location token for empty Fields. */
 export interface Armed {
   kind: "tile" | "token";
   id: string;
-  /** how far a token is turned before it is placed, in steps of 60 degrees */
+  /** how far the tile or token is turned before it is placed, in steps of 60 degrees */
   turn?: number;
 }
 
@@ -37,6 +42,8 @@ interface Props {
   selectedField: number | null;
   /** a palette tile or token waiting to be placed */
   armed: Armed | null;
+  /** turns the waiting tile or token, or stops placing (null) */
+  onArm?: (armed: Armed | null) => void;
   onPlace: (armed: Armed, row: number, col: number) => void;
   onMove: (moves: Piece[]) => void;
   onSelect: (ids: string[], field: number | null) => void;
@@ -46,6 +53,9 @@ interface Props {
   adding?: boolean;
   /** the action bar for the selection, shown over the board while nothing is dragged */
   actions?: ReactNode;
+  /** the map fills the screen */
+  full?: boolean;
+  onFull?: (full: boolean) => void;
 }
 
 type Drag =
@@ -62,8 +72,21 @@ type Drag =
       grab: Point;
       moved: boolean;
       cell: [number, number];
+      /** a finger on an unselected piece: a swipe pans until the finger has held still long enough */
+      waiting?: boolean;
+      /** the hold is over and the piece follows the finger */
+      lifted?: boolean;
     }
   | { mode: "frame"; sx: number; sy: number; start: Point; end: Point; moved: boolean; base: string[]; pieceId: string | null };
+
+/** Two fingers on the board: who they are, where they started and the view then. */
+interface Pinch {
+  a: number;
+  b: number;
+  a0: Point;
+  b0: Point;
+  view: View;
+}
 
 const MIN_K = 0.15;
 const MAX_K = 2.5;
@@ -72,10 +95,28 @@ const BAR_MARGIN = 10;
 
 const toggled = (ids: string[], id: string) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]);
 
+/** A finger or a pen; everything else is handled as the mouse always was. */
+const isTouch = (e: React.PointerEvent) => e.pointerType === "touch" || e.pointerType === "pen";
+
 /** A token about to be placed from the palette, at a board Field. */
 const armedToken = (a: Armed, row: number, col: number): BoardToken => ({ id: "armed", location: a.id, row, col, rotation: a.turn ?? 0 });
 
-export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlace, onMove, onSelect, layoutKey, adding = false, actions }: Props) {
+export function Board({
+  tiles,
+  tokens,
+  selectedIds,
+  selectedField,
+  armed,
+  onArm,
+  onPlace,
+  onMove,
+  onSelect,
+  layoutKey,
+  adding = false,
+  actions,
+  full = false,
+  onFull,
+}: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const [edge, setEdge] = useState<"bottom" | "top">("bottom");
@@ -83,9 +124,16 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
   const [barHeight, setBarHeight] = useState(0);
   const [view, setView] = useState({ x: 40, y: 30, k: 0.55 });
   const [hover, setHover] = useState<[number, number] | null>(null);
+  /** where a tap on a touch screen shows the waiting piece before a second tap places it */
+  const [shown, setShown] = useState<[number, number] | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
+  /** fingers on the board, by pointer id, in client pixels */
+  const fingers = useRef(new Map<number, Point>());
+  const pinch = useRef<Pinch | null>(null);
+  const holdTimer = useRef(0);
+  const touch = useTouch();
 
   const spots = useMemo(() => tokens.map(tokenSpot), [tokens]);
 
@@ -93,6 +141,12 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
     const r = wrapRef.current?.getBoundingClientRect();
     const v = viewRef.current;
     return { x: (clientX - (r?.left ?? 0) - v.x) / v.k, y: (clientY - (r?.top ?? 0) - v.y) / v.k };
+  }, []);
+
+  /** A client point in pixels inside the board. */
+  const local = useCallback((p: Point): Point => {
+    const r = wrapRef.current?.getBoundingClientRect();
+    return { x: p.x - (r?.left ?? 0), y: p.y - (r?.top ?? 0) };
   }, []);
 
   const fit = useCallback(() => {
@@ -115,22 +169,25 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
     fit();
   }, [layoutKey]);
 
+  // A piece shown by a tap goes when another one waits, or none.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only another tile or token clears it
+  useEffect(() => {
+    setShown(null);
+  }, [armed?.kind, armed?.id]);
+
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const r = el.getBoundingClientRect();
-      const px = e.clientX - r.left;
-      const py = e.clientY - r.top;
-      setView((v) => {
-        const k = Math.max(MIN_K, Math.min(MAX_K, v.k * Math.exp(-e.deltaY * 0.0015)));
-        return { k, x: px - ((px - v.x) * k) / v.k, y: py - ((py - v.y) * k) / v.k };
-      });
+      setView((v) => zoomAt(v, e.clientX - r.left, e.clientY - r.top, Math.exp(-e.deltaY * 0.0015), MIN_K, MAX_K));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
+
+  useEffect(() => () => window.clearTimeout(holdTimer.current), []);
 
   const extent = useMemo(() => {
     const rows = Math.max(26, ...tiles.map((t) => t.row + 8), ...tokens.map((t) => t.row + 8));
@@ -176,7 +233,8 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
     return [...tiles.filter((t) => inside(cellCenter(t.row, t.col))), ...spots.filter((s) => inside(middle(s.cells)))].map((p) => p.id);
   };
 
-  const dragging = drag?.mode === "piece" && drag.moved ? drag : null;
+  const dragging = drag?.mode === "piece" && drag.moved && !drag.waiting ? drag : null;
+  const lifted = drag?.mode === "piece" && drag.lifted ? drag : null;
   const framing = drag?.mode === "frame" && drag.moved ? drag : null;
   const moves = dragging ? groupMoves(dragging) : [];
   const moveById = new Map(moves.map((m) => [m.id, m]));
@@ -184,16 +242,18 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
     const m = moveById.get(p.id);
     return m ? { ...p, row: m.row, col: m.col } : p;
   };
-  const shown = tiles.map(moved);
+  const shownTiles = tiles.map(moved);
   const shownTokens = tokens.map(moved);
   const dragValid = dragging ? canPlaceGroup(tiles, moves, spots) : true;
-  const ghostToken = armed?.kind === "token" && hover ? armedToken(armed, hover[0], hover[1]) : null;
-  const ghostValid =
-    armed && hover
-      ? armed.kind === "tile"
-        ? canPlace(tiles, hover[0], hover[1], undefined, spots)
-        : canPlaceToken(tiles, spots, tokenCells(ghostToken as BoardToken))
-      : false;
+
+  /** What keeps the waiting piece off (row, col), or null when it fits there. */
+  const blocker = (a: Armed, row: number, col: number): Blocker | null =>
+    a.kind === "tile" ? tileBlocker(tiles, row, col, spots) : tokenBlocker(tiles, spots, tokenCells(armedToken(a, row, col)));
+
+  const spot = shown ?? hover;
+  const ghostToken = armed?.kind === "token" && spot ? armedToken(armed, spot[0], spot[1]) : null;
+  const ghostBlocker = armed && spot ? blocker(armed, spot[0], spot[1]) : null;
+  const ghostValid = !!armed && !!spot && !ghostBlocker;
 
   const nearestField = (tile: MapTile, p: Point): number => {
     let best = 3;
@@ -209,12 +269,20 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
     return best;
   };
 
-  const place = (a: Armed, row: number, col: number) => {
-    const ok = a.kind === "tile" ? canPlace(tiles, row, col, undefined, spots) : canPlaceToken(tiles, spots, tokenCells(armedToken(a, row, col)));
+  /** Places the waiting piece if it fits; says whether it did. */
+  const place = (a: Armed, row: number, col: number): boolean => {
+    const ok = !blocker(a, row, col);
     if (ok) onPlace(a, row, col);
+    return ok;
   };
 
+  const stopHold = () => window.clearTimeout(holdTimer.current);
+
   const onPointerDown = (e: React.PointerEvent) => {
+    if (isTouch(e)) {
+      onTouchDown(e);
+      return;
+    }
     if (e.button !== 0 && e.button !== 1) return;
     const target = (e.target as Element).closest("[data-tile], [data-token]");
     const id = target ? (target.getAttribute("data-tile") ?? target.getAttribute("data-token")) : null;
@@ -245,23 +313,104 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
     }
   };
 
-  const onPointerMove = (e: React.PointerEvent) => {
+  /** A finger lands: a second one starts a pinch, a single one a pan, a hold, a piece drag or a frame. */
+  const onTouchDown = (e: React.PointerEvent) => {
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    fingers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (fingers.current.size === 2) {
+      stopHold();
+      setDrag(null);
+      const [[a, pa], [b, pb]] = [...fingers.current];
+      pinch.current = { a, b, a0: local(pa), b0: local(pb), view: viewRef.current };
+      return;
+    }
+    if (fingers.current.size > 2 || pinch.current) return;
+    const target = (e.target as Element).closest("[data-tile], [data-token]");
+    const id = target ? (target.getAttribute("data-tile") ?? target.getAttribute("data-token")) : null;
+    const piece = id ? pieceById.get(id) : undefined;
+    const start = touchStart({ piece: !!piece, selected: !!piece && selectedIds.includes(piece.id), armed: !!armed, adding });
     const p = toBoard(e.clientX, e.clientY);
-    setHover(pixelToCell(p.x, p.y));
+    if (start === "frame") {
+      setDrag({ mode: "frame", sx: e.clientX, sy: e.clientY, start: p, end: p, moved: false, base: selectedIds, pieceId: null });
+    } else if (piece && (start === "piece" || start === "hold")) {
+      const group = selectedIds.includes(piece.id) ? selectedIds : adding ? [...selectedIds, piece.id] : [piece.id];
+      const c = cellCenter(piece.row, piece.col);
+      setDrag({
+        mode: "piece",
+        id: piece.id,
+        group,
+        toggle: adding,
+        sx: e.clientX,
+        sy: e.clientY,
+        grab: { x: p.x - c.x, y: p.y - c.y },
+        moved: false,
+        cell: [piece.row, piece.col],
+        waiting: start === "hold",
+      });
+      if (start === "hold") {
+        stopHold();
+        holdTimer.current = window.setTimeout(() => {
+          setDrag((d) => (d?.mode === "piece" && d.id === piece.id && d.waiting ? { ...d, waiting: false, lifted: true } : d));
+          navigator.vibrate?.(12);
+        }, HOLD_MS);
+      }
+    } else {
+      setDrag({ mode: "pan", sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false });
+    }
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    const finger = isTouch(e);
+    if (finger) {
+      if (!fingers.current.has(e.pointerId)) return;
+      fingers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const pz = pinch.current;
+      if (pz) {
+        const a = fingers.current.get(pz.a);
+        const b = fingers.current.get(pz.b);
+        if (a && b) setView(pinchView(pz.view, pz.a0, pz.b0, local(a), local(b), MIN_K, MAX_K));
+        return;
+      }
+    }
+    const p = toBoard(e.clientX, e.clientY);
+    if (!finger) setHover(pixelToCell(p.x, p.y));
     if (!drag) return;
-    const moved = drag.moved || Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 5;
+    const moved = drag.moved || Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > (finger ? TOUCH_SLOP : 5);
     if (drag.mode === "pan") {
       if (moved) setView((v) => ({ ...v, x: drag.vx + e.clientX - drag.sx, y: drag.vy + e.clientY - drag.sy }));
       if (moved !== drag.moved) setDrag({ ...drag, moved });
     } else if (drag.mode === "frame") {
       if (moved) setDrag({ ...drag, moved, end: p });
+    } else if (drag.waiting) {
+      // a swipe before the hold is over pans the map
+      if (moved) {
+        stopHold();
+        setView((v) => ({ ...v, x: view.x + e.clientX - drag.sx, y: view.y + e.clientY - drag.sy }));
+        setDrag({ mode: "pan", sx: drag.sx, sy: drag.sy, vx: view.x, vy: view.y, moved: true });
+      }
     } else {
       const cell = pixelToCell(p.x - drag.grab.x, p.y - drag.grab.y);
       if (moved !== drag.moved || cell[0] !== drag.cell[0] || cell[1] !== drag.cell[1]) setDrag({ ...drag, moved, cell });
     }
   };
 
+  /** A finger lifts or is taken over by the browser; true when the pinch it was part of still holds the board. */
+  const liftFinger = (e: React.PointerEvent): boolean => {
+    fingers.current.delete(e.pointerId);
+    if (!pinch.current) return false;
+    if (fingers.current.size < 2) {
+      pinch.current = null;
+      // the finger left behind pans on, and lifting it is no tap
+      const rest = [...fingers.current.values()][0];
+      setDrag(rest ? { mode: "pan", sx: rest.x, sy: rest.y, vx: viewRef.current.x, vy: viewRef.current.y, moved: true } : null);
+    }
+    return true;
+  };
+
   const onPointerUp = (e: React.PointerEvent) => {
+    const finger = isTouch(e);
+    if (finger && liftFinger(e)) return;
+    stopHold();
     const d = drag;
     setDrag(null);
     if (!d) return;
@@ -272,7 +421,7 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
     } else if (d.mode === "piece") {
       if (!pieceById.has(d.id)) return;
       const tile = tiles.find((t) => t.id === d.id);
-      if (d.moved) {
+      if (d.moved && !d.waiting) {
         const m = groupMoves(d);
         if (canPlaceGroup(tiles, m, spots)) onMove(m);
         onSelect(d.group, null);
@@ -284,35 +433,41 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
     } else if (!d.moved) {
       if (armed) {
         const [row, col] = pixelToCell(p.x, p.y);
-        place(armed, row, col);
+        if (!finger) place(armed, row, col);
+        else if (tapToPlace(shown, [row, col]) === "show") setShown([row, col]);
+        else if (place(armed, row, col)) setShown(null);
       } else if (!e.shiftKey && !adding) {
         onSelect([], null);
       }
     }
   };
 
+  const onPointerCancel = (e: React.PointerEvent) => {
+    if (isTouch(e) && liftFinger(e)) return;
+    stopHold();
+    setDrag(null);
+  };
+
   const zoom = (factor: number) => {
     const el = wrapRef.current;
     if (!el) return;
-    const px = el.clientWidth / 2;
-    const py = el.clientHeight / 2;
-    setView((v) => {
-      const k = Math.max(MIN_K, Math.min(MAX_K, v.k * factor));
-      return { k, x: px - ((px - v.x) * k) / v.k, y: py - ((py - v.y) * k) / v.k };
-    });
+    setView((v) => zoomAt(v, el.clientWidth / 2, el.clientHeight / 2, factor, MIN_K, MAX_K));
   };
 
-  const outlinedIds = dragging ? dragging.group : framing ? [...new Set([...framing.base, ...inFrame(framing)])] : selectedIds;
-  const outlinedTiles = shown.filter((t) => outlinedIds.includes(t.id));
+  const held = dragging ?? lifted;
+  const outlinedIds = held ? held.group : framing ? [...new Set([...framing.base, ...inFrame(framing)])] : selectedIds;
+  const outlinedTiles = shownTiles.filter((t) => outlinedIds.includes(t.id));
   const outlinedTokens = shownTokens.filter((t) => outlinedIds.includes(t.id));
   const dupes = duplicateTiles(tiles);
   // Gate halves on the tiles with no other half next to them
-  const unpaired = gateHalves(shown).unpaired;
+  const unpaired = gateHalves(shownTiles).unpaired;
   const single = !framing && outlinedTiles.length === 1 && !outlinedTokens.length ? outlinedTiles[0] : null;
   const ghostUrl = armed?.kind === "tile" ? tileImageUrl(armed.id) : null;
-  const showBar = !!actions && !dragging && !framing;
+  const ghostTurn = armed?.kind === "tile" ? (armed.turn ?? 0) * 60 : 0;
+  const showBar = !!actions && !dragging && !lifted && !framing;
 
   // Keep the bar off the selection: after each render, move it to the top when it would cover the selection at the bottom.
+  // While a piece waits to be placed its banner holds the top.
   useLayoutEffect(() => {
     const el = wrapRef.current;
     // the toolbar itself, not its full-width holder
@@ -322,9 +477,30 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
       tiles.filter((t) => selectedIds.includes(t.id)),
       spots.filter((t) => selectedIds.includes(t.id)),
     );
-    setEdge(barEdge(box && screenBox(box, view), { width: el.clientWidth, height: el.clientHeight }, { width: bar.offsetWidth, height: bar.offsetHeight }, BAR_MARGIN));
+    setEdge(
+      armed
+        ? "bottom"
+        : barEdge(box && screenBox(box, view), { width: el.clientWidth, height: el.clientHeight }, { width: bar.offsetWidth, height: bar.offsetHeight }, BAR_MARGIN),
+    );
     setBarHeight(bar.offsetHeight);
   });
+
+  /** The reason the waiting piece can't go where it is shown, in words. */
+  const blockerText = (b: Blocker): string => {
+    if (b.kind === "edge") return "Too near the top or left edge of the board";
+    if (b.kind === "tile") {
+      const t = tiles.find((x) => x.id === b.id);
+      return `Overlaps ${t ? tileName(t.tileId) : "a tile"}`;
+    }
+    const t = tokens.find((x) => x.id === b.id);
+    return `Overlaps the ${t ? boardTokenName(t.location) : "token"} beside the tiles`;
+  };
+
+  const placeHint = (a: Armed): string => {
+    const where = a.kind === "tile" ? "a spot on the board" : a.id === GATE ? "two empty Fields side by side" : "an empty Field";
+    if (!touch) return `click ${where}`;
+    return shown && ghostValid ? "tap it again to place it" : `tap ${where}`;
+  };
 
   return (
     <div
@@ -333,7 +509,12 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       onPointerLeave={() => setHover(null)}
+      onContextMenu={(e) => {
+        // a long press picks up a piece, not the browser's menu
+        if (fingers.current.size) e.preventDefault();
+      }}
       onDragOver={(e) => {
         e.preventDefault();
         const p = toBoard(e.clientX, e.clientY);
@@ -353,10 +534,10 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
         <title>Scenario map</title>
         <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
           <path d={gridPath} className="grid-hex" />
-          <MapLayers tiles={shown} tokens={shownTokens} fadedIds={dragging?.group} clipId="board-hero-clip" />
+          <MapLayers tiles={shownTiles} tokens={shownTokens} fadedIds={dragging?.group} clipId="board-hero-clip" />
           {dupes.size > 0 && (
             <g className="dupes">
-              {shown
+              {shownTiles
                 .filter((t) => dupes.has(t.tileId))
                 .map((t) => (
                   <path key={t.id} d={flowerPath(cellCenter(t.row, t.col).x, cellCenter(t.row, t.col).y)} />
@@ -371,14 +552,14 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
             </g>
           )}
           {(outlinedTiles.length > 0 || outlinedTokens.length > 0) && (
-            <g className="selection">
+            <g className={`selection ${lifted && !dragging ? "lifted" : ""}`}>
               {outlinedTiles.map((t) => (
                 <path key={t.id} d={flowerPath(cellCenter(t.row, t.col).x, cellCenter(t.row, t.col).y)} className={dragValid ? "" : "invalid"} />
               ))}
               {outlinedTokens.map((t) => (
                 <path key={t.id} d={cellsOutlinePath(tokenCells(t))} className={dragValid ? "" : "invalid"} />
               ))}
-              {single && selectedField !== null && !dragging && (
+              {single && selectedField !== null && !dragging && !lifted && (
                 <polygon points={hexPoints(fieldCenter(single, selectedField).x, fieldCenter(single, selectedField).y, 0.9)} className="field-sel" />
               )}
             </g>
@@ -392,15 +573,16 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
               height={Math.abs(framing.end.y - framing.start.y)}
             />
           )}
-          {armed && hover && (
+          {armed && spot && (
             <g className={`ghost ${ghostValid ? "ok" : "bad"}`}>
               {ghostUrl && (
                 <image
                   href={ghostUrl}
-                  x={cellCenter(hover[0], hover[1]).x - TILE_W / 2}
-                  y={cellCenter(hover[0], hover[1]).y - TILE_H / 2}
+                  x={cellCenter(spot[0], spot[1]).x - TILE_W / 2}
+                  y={cellCenter(spot[0], spot[1]).y - TILE_H / 2}
                   width={TILE_W}
                   height={TILE_H}
+                  transform={ghostTurn ? `rotate(${ghostTurn} ${cellCenter(spot[0], spot[1]).x} ${cellCenter(spot[0], spot[1]).y})` : undefined}
                 />
               )}
               {ghostToken &&
@@ -417,13 +599,22 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
                     />
                   ) : null,
                 )}
-              <path
-                d={ghostToken ? cellsOutlinePath(tokenCells(ghostToken)) : flowerPath(cellCenter(hover[0], hover[1]).x, cellCenter(hover[0], hover[1]).y)}
-              />
+              <path d={ghostToken ? cellsOutlinePath(tokenCells(ghostToken)) : flowerPath(cellCenter(spot[0], spot[1]).x, cellCenter(spot[0], spot[1]).y)} />
             </g>
           )}
         </g>
       </svg>
+      {armed && (
+        <PlaceBanner
+          name={armed.kind === "tile" ? tileName(armed.id) : boardTokenName(armed.id)}
+          hint={placeHint(armed)}
+          problem={ghostBlocker ? blockerText(ghostBlocker) : ""}
+          keys={armed.kind === "token"}
+          onTurn={onArm && ((step) => onArm({ ...armed, turn: ((armed.turn ?? 0) + step) % 6 }))}
+          onPlace={touch && shown && ghostValid ? () => place(armed, shown[0], shown[1]) && setShown(null) : undefined}
+          onCancel={onArm && (() => onArm(null))}
+        />
+      )}
       {showBar && (
         <div ref={barRef} className={`board-actions ${edge}`} onPointerDown={(e) => e.stopPropagation()}>
           {actions}
@@ -444,9 +635,16 @@ export function Board({ tiles, tokens, selectedIds, selectedField, armed, onPlac
         <button type="button" title="Fit the map" onClick={fit}>
           &#x2922;
         </button>
+        {onFull && (
+          <button type="button" className={full ? "on" : ""} title={full ? "Leave full screen" : "Full screen"} aria-pressed={full} onClick={() => onFull(!full)}>
+            {full ? <>&#x2715;</> : <>&#x26F6;</>}
+          </button>
+        )}
       </div>
       {!tiles.length && !tokens.length && !armed && (
-        <div className="board-empty">Pick a tile on the left, then click the board to place it &mdash; or drag it in.</div>
+        <div className="board-empty">
+          {touch ? "Pick a tile above, then tap the board to place it." : "Pick a tile on the left, then click the board to place it — or drag it in."}
+        </div>
       )}
     </div>
   );
