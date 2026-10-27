@@ -34,7 +34,9 @@ from the start screen and the map editor to the checks and the Mission Book bund
 6. **AI Opponent** - AI Hero Setup for campaigns and coops.
 7. **Victory & Defeat** - Victory conditions.
 8. **Timed Events** - Description of the Timed Events.
-9. **Rules** - Additional Rules for the scenario.
+9. **Rules** - Additional Rules and own sections, with tables in the Mission Book's framed style: difficulty matrices
+   with a unit-count picker, dice lookups, difficulty settings, AI Hero setups and free grids. Cell and frame heights
+   for the `.tex` are worked out for you.
 10. **Review & Export** - checklist (including the Mission Book capitalisation lint), live page preview, LaTeX, exports.
 
 Work is saved automatically in the browser; use **Save file** to keep a project file.

@@ -5,8 +5,9 @@
 
 import { CATEGORIES, categoryInfo, RESOURCES, BUILDINGS, TILE_GROUPS, INCOME_TRACK } from "../data/game.ts";
 import { isRandomTile, tileGroup } from "../data/catalog.ts";
-import type { MapLayout, MapTile, ResourceValues, Scenario, TileCount, TileGroupKey, TitleImage, Rating } from "../model/types.ts";
+import type { MapLayout, MapTile, ResourceValues, RulesTable, Scenario, TileCount, TileGroupKey, TitleImage, Rating } from "../model/types.ts";
 import { type Inline, paragraphs, parseInline, parseItem } from "./markup.ts";
+import { isBlankTable, type TableDoc, tableDoc } from "./tables.ts";
 
 export interface ListItem {
   runs: Inline[];
@@ -17,12 +18,14 @@ export interface ListItem {
 
 export type Block =
   | { k: "heading"; text: string }
-  /** a heading inside a section, the book's subsubsection* */
+  /** a heading inside a section, the book's \subsubsection* */
   | { k: "subheading"; text: string }
   | { k: "para"; runs: Inline[] }
   | { k: "label"; runs: Inline[] }
   | { k: "field"; label: string; runs: Inline[]; href?: string }
-  | { k: "list"; items: ListItem[] };
+  | { k: "list"; items: ListItem[] }
+  /** a table inside the text column */
+  | { k: "table"; table: TableDoc };
 
 export interface DocMap {
   layout: MapLayout;
@@ -40,6 +43,8 @@ export interface ScenarioDoc {
   /** campaigns: set on the first scenario, which opens the campaign in the table of contents */
   campaignToc: string;
   body: Block[];
+  /** tables across both columns, set below them */
+  wide: TableDoc[];
   maps: DocMap[];
   story: Block[];
 }
@@ -158,6 +163,31 @@ function listBlock(items: string[]): Block | null {
 }
 
 /**
+ * A section's bullets with its tables between them: each table goes after
+ * as many bullets as its `after` says (empty bullets count, as the editor
+ * shows them). Tables across both columns go to `wide` instead.
+ */
+function itemsWithTables(items: string[], tables: RulesTable[], wide: TableDoc[]): Block[] {
+  const out: Block[] = [];
+  const placed = tables
+    .filter((t) => !isBlankTable(t))
+    .map((t) => ({ at: t.after === null ? items.length : Math.max(0, Math.min(t.after, items.length)), table: tableDoc(t) }));
+  let start = 0;
+  for (const at of [...new Set(placed.map((p) => p.at))].sort((a, b) => a - b)) {
+    const list = listBlock(items.slice(start, at));
+    if (list) out.push(list);
+    for (const p of placed.filter((p) => p.at === at)) {
+      if (p.table.wide) wide.push(p.table);
+      else out.push({ k: "table", table: p.table });
+    }
+    start = at;
+  }
+  const list = listBlock(items.slice(start));
+  if (list) out.push(list);
+  return out;
+}
+
+/**
  * "10 :gold:, 2 :building_materials:" for a resource line. Starting Resources
  * leave 0s out and read None when nothing is left; Starting Income prints
  * every track, an unset one at its lowest position.
@@ -250,6 +280,7 @@ function storyBookBlocks(s: Scenario): Block[] {
 /** Lays the scenario out. */
 export function buildDocument(s: Scenario): ScenarioDoc {
   const body: Block[] = [];
+  const wide: TableDoc[] = [];
   const push = (...blocks: (Block | null)[]) => {
     for (const b of blocks) if (b) body.push(b);
   };
@@ -319,10 +350,10 @@ export function buildDocument(s: Scenario): ScenarioDoc {
       ["Special", ai.special],
     ];
     const filled = fields.filter(([, v]) => v.trim());
-    if (filled.length) {
-      push({ k: "heading", text: "AI Hero Setup" });
-      for (const [label, value] of filled) push(...fieldBlocks(label, value));
-    }
+    const tables = itemsWithTables([], ai.tables, wide);
+    if (filled.length || tables.length) push({ k: "heading", text: "AI Hero Setup" });
+    for (const [label, value] of filled) push(...fieldBlocks(label, value));
+    push(...tables);
   }
 
   // Map Setup. Counted automatically, every layout with its own tile totals
@@ -384,14 +415,14 @@ export function buildDocument(s: Scenario): ScenarioDoc {
     for (const event of events) push({ k: "label", runs: roundsLabel(event.rounds) }, listBlock(event.items));
   }
 
-  const rules = listBlock(s.rules);
-  if (rules || s.rulesIntro.trim()) {
-    push({ k: "heading", text: "Additional Rules" }, ...paraBlocks(s.rulesIntro), rules);
+  const rules = itemsWithTables(s.rules, s.rulesTables, wide);
+  if (rules.length || s.rulesIntro.trim()) {
+    push({ k: "heading", text: "Additional Rules" }, ...paraBlocks(s.rulesIntro), ...rules);
   }
 
   for (const section of s.customSections) {
     if (!section.title.trim()) continue;
-    push({ k: "heading", text: section.title.trim() }, ...paraBlocks(section.text), listBlock(section.items));
+    push({ k: "heading", text: section.title.trim() }, ...paraBlocks(section.text), ...itemsWithTables(section.items, section.tables, wide));
     for (const sub of section.subsections) {
       if (!sub.title.trim() && !sub.text.trim() && !sub.items.some((i) => i.trim())) continue;
       if (sub.title.trim()) push({ k: "subheading", text: sub.title.trim() });
@@ -410,6 +441,7 @@ export function buildDocument(s: Scenario): ScenarioDoc {
     image: s.titleImage,
     campaignToc: campaign && s.campaignIndex === 1 ? s.campaignName.trim() : "",
     body,
+    wide,
     maps: mapFiles(s),
     story,
   };

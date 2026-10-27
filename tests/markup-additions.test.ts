@@ -6,6 +6,7 @@ import { scenarioToLatex } from "../src/lib/latex.ts";
 import { capsFindings } from "../src/lib/lint.ts";
 import { itemPrefix, parseInline, parseItem, plain, type Inline } from "../src/lib/markup.ts";
 import { Writer } from "../src/lib/pdf.ts";
+import { newTable, tableDoc } from "../src/lib/tables.ts";
 import { newScenario } from "../src/model/defaults.ts";
 
 const br: Inline = { t: "br" };
@@ -151,6 +152,7 @@ test("own sections carry sub-headings with their own text and bullets", () => {
       title: "Additional Rules",
       text: "",
       items: [],
+      tables: [],
       subsections: [
         { id: "b", title: "Setup Changes", text: "Before the game:", items: ["Remove the Prison."] },
         { id: "c", title: "", text: "", items: [] },
@@ -180,7 +182,7 @@ function sample() {
     "[Optional] Play with 4 players.",
   ];
   s.customSections = [
-    { id: "a", title: "Other Rules", text: "", items: [], subsections: [{ id: "b", title: "Setup Changes", text: "", items: ["Remove -1 :gold:."] }] },
+    { id: "a", title: "Other Rules", text: "", items: [], tables: [], subsections: [{ id: "b", title: "Setup Changes", text: "", items: ["Remove -1 :gold:."] }] },
   ];
   return s;
 }
@@ -346,4 +348,58 @@ test("campaign titles in the guide follow the existing entries", () => {
   assert.ok(readmeRow(s).includes("<td>\ud83d\uddfa\ufe0f Rampart: Graduation Exercise (2)</td>"));
   s.category = "solo";
   assert.ok(submitGuide(s).includes("no mark for this kind of scenario"));
+});
+
+// ---- rules tables ----
+
+/** A two-column table whose cells use the new markup; a footnote in its title and in a cell. */
+function markupTable(width: "column" | "page") {
+  const t = newTable("lookup");
+  t.width = width;
+  t.title = "Omens^[Roll at the start of each Round.]";
+  t.rows = [
+    ["+1/-1", "!!Storm!!: lose 2 :gold:"],
+    ["0/0", "Read the [rulebook](https://example.org/r)^[Page 35.]."],
+  ];
+  return t;
+}
+
+test("table cells write red, links, signed numbers and footnotes the Mission Book way", () => {
+  const s = newScenario("clash");
+  s.rules = ["Before^[One.]"];
+  s.rulesTables = [markupTable("column")];
+  s.customSections = [{ id: "a", title: "Wide", text: "After^[Four.]", items: [], tables: [markupTable("page")], subsections: [] }];
+  const tex = scenarioToLatex(s);
+  assert.ok(tex.includes("\\darkcell{$+1$/$-1$}"));
+  assert.ok(tex.includes("\\lightcell{\\textcolor{darkcandyapplered}{Storm}: lose 2~\\svg{gold}}"));
+  // \footnote is lost inside the cell macros: a mark there, the text after the table
+  assert.ok(tex.includes("\\textbf{Omens\\footnotemark{}}"));
+  assert.ok(tex.includes("Read the \\href{https://example.org/r}{rulebook}\\footnotemark{}."));
+  const after = "\\addtocounter{footnote}{-2}\n\\stepcounter{footnote}\\footnotetext{Roll at the start of each Round.}\n\\stepcounter{footnote}\\footnotetext{Page 35.}";
+  assert.ok(tex.includes(`  \\end{tabularx}\n}\n${after}`), "after a column table");
+  assert.ok(tex.includes(`\\end{table*}\n${after}`), "after a page table, outside its float");
+  assert.ok(tex.includes("Before\\footnote{One.}") && tex.includes("After\\footnote{Four.}"));
+  assert.ok(!/[^\S\n]$/m.test(tex) && !tex.includes("\t"));
+  assert.deepEqual(capsFindings(tex), []);
+});
+
+test("the preview and PDF number table footnotes in reading order with the text around them", () => {
+  const s = newScenario("clash");
+  s.rules = ["Before^[One.]"];
+  s.rulesTables = [markupTable("column")];
+  s.customSections = [{ id: "a", title: "Later", text: "After^[Four.]", items: [], tables: [], subsections: [] }];
+  const doc = buildDocument(s);
+  const { writer, drawn, links } = recorder();
+  writer.blocks(doc.body);
+  writer.drawNotes();
+  const notes = ["One.", "Roll", "Page", "Four."].map((word) => drawn.find((d) => d.text === word));
+  assert.ok(notes.every(Boolean), "every note is drawn");
+  const ys = notes.map((d) => d!.y);
+  assert.deepEqual([...ys].sort((a, b) => a - b), ys, "in the order 1-4");
+  assert.equal(writer.noteCount, 4);
+  // cell words keep their ink and link
+  assert.equal(drawn.find((d) => d.text === "Storm")?.color, "163,0,0");
+  assert.ok(links.some((l) => l.url === "https://example.org/r"));
+  assert.ok(drawn.some((d) => d.text === "+1") && drawn.some((d) => d.text === "\u22121"));
+  assert.ok(tableDoc(markupTable("column")).rows[0][0].some((r) => r.t === "signed"));
 });

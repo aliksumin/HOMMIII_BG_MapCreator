@@ -10,7 +10,9 @@ import { artUse, pdfCredit } from "./credits.ts";
 import { type Block, buildDocument, type ListItem, type ScenarioDoc } from "./document.ts";
 import { loadImage, rasterise } from "./images.ts";
 import { renderMapPng } from "./mapdraw.ts";
-import { type Inline, LINK, ordinalSuffix, RED } from "./markup.ts";
+import type { Inline } from "./markup.ts";
+import { bookTable, layoutTable, TABLE_SHARE, type TableDoc, type TableLayout } from "./tables.ts";
+import { breakLines, lineWidth, type Measure, numberNotes, type Piece, type Rgb, type Style, styleOf, toPieces } from "./textlayout.ts";
 import { fitTitle, PAGE_W_PT, TITLE_W_PT } from "./titlefit.ts";
 
 const PAGE_W = PAGE_W_PT;
@@ -33,23 +35,7 @@ const KIND_INK: [number, number, number] = [203, 181, 116];
 const HEAD_SHADOW: [number, number, number] = [20, 15, 10];
 const FONT = "Liberation";
 
-type Style = "normal" | "bold" | "italic" | "bolditalic";
-type Rgb = [number, number, number];
-
-/** What a word or glyph carries besides its shape: red or link ink, a link target, a footnote it marks. */
-interface Mark {
-  color?: Rgb;
-  url?: string;
-  /** set on a footnote number: the note's number and text */
-  note?: { n: number; runs: Inline[] };
-}
-
-export type Piece =
-  | ({ kind: "word"; text: string; style: Style; size: number; w: number; rise: number } & Mark)
-  | ({ kind: "glyph"; name: string; w: number; h: number } & Mark)
-  | { kind: "space"; w: number }
-  /** a line break the contributor typed */
-  | { kind: "break"; w: 0 };
+export { breakLines, type Piece };
 
 // Footnotes: \footnotesize on the book's 11pt body, hung 1em (footmisc
 // [hang], \footnotemargin 1em) under a rule 0.4 of the text width.
@@ -68,6 +54,18 @@ export interface Assets {
   heading: string;
   bullet: string;
   icon: { data: string; ratio: number } | null;
+  /** the rules tables' dark background, when the scenario has tables */
+  table?: string;
+}
+
+/** A table's cell pieces in reading order: header, then rows, left to right. */
+function cellPieces(layout: TableLayout): Piece[] {
+  return layout.rows.flatMap((row) => row.cells.flatMap((cell) => cell.lines.flat(2)));
+}
+
+/** Every piece a table draws, its title first. */
+function tablePieces(t: PdfTable): Piece[] {
+  return [...t.title.flat(2), ...cellPieces(t.layout)];
 }
 
 /** i, ii, iii... for the third level of a numbered list. */
@@ -78,8 +76,31 @@ function roman(n: number): string {
   return out;
 }
 
-function styleOf(b?: boolean, i?: boolean): Style {
-  return b && i ? "bolditalic" : b ? "bold" : i ? "italic" : "normal";
+// Rules tables, in the colours of the book's table macros.
+const TABLE_SIZE = 10;
+const TABLE_LEADING = 1.22;
+const CELL_PAD = 4.5;
+const ROW_GAP = 2.5;
+const TITLE_INK: [number, number, number] = [245, 227, 148];
+const CELL_INK: [number, number, number] = [255, 255, 255];
+const FRAME_OUT: [number, number, number] = [219, 202, 134];
+const FRAME_MID: [number, number, number] = [111, 103, 73];
+const FRAME_IN: [number, number, number] = [176, 158, 105];
+const CELL_FILL: [number, number, number] = [32, 22, 12];
+const DARK_BORDER: [number, number, number] = [99, 72, 49];
+const LIGHT_BORDER: [number, number, number] = [119, 84, 62];
+
+/** A table laid out for the PDF, ready to draw. */
+interface PdfTable {
+  doc: TableDoc;
+  layout: TableLayout;
+  /** height of each row's cells */
+  heights: number[];
+  frameW: number;
+  frameH: number;
+  /** the title above the table, broken into lines; empty for none or a banner */
+  title: Piece[][][];
+  titleH: number;
 }
 
 async function fontBase64(file: string): Promise<string> {
@@ -107,10 +128,13 @@ function glyphNames(doc: ScenarioDoc): Set<string> {
       if (r.t === "glyph") names.add(r.name);
       else if (r.t === "red" || r.t === "link" || r.t === "note") visit(r.runs);
     });
+  const visitTable = (t: TableDoc) => [t.title, ...(t.header ?? []), ...t.rows.flat()].forEach(visit);
   for (const block of [...doc.body, ...doc.story]) {
     if (block.k === "list") block.items.forEach((item) => visit(item.runs));
+    else if (block.k === "table") visitTable(block.table);
     else if (block.k !== "heading" && block.k !== "subheading") visit(block.runs);
   }
+  doc.wide.forEach(visitTable);
   // The heading badge draws the rating glyph even when the text never uses it.
   if (doc.rating) names.add(doc.rating);
   return names;
@@ -138,53 +162,11 @@ async function loadAssets(doc: ScenarioDoc): Promise<Assets> {
     heading: await rasterise(assetUrl("assets/pdf/section_heading.png"), 1200),
     bullet: await rasterise(assetUrl("assets/pdf/listdot.png"), 60),
     icon,
+    table:
+      doc.wide.length || doc.body.some((b) => b.k === "table")
+        ? await rasterise(assetUrl("assets/layout/table-background.webp"), 1000, undefined, "image/jpeg")
+        : undefined,
   };
-}
-
-/**
- * Breaks pieces into lines no wider than `width`: at spaces when the line is
- * full, and always at a break the contributor typed.
- */
-export function breakLines(pieces: Piece[], width: number): Piece[][][] {
-  const clusters: { parts: Piece[]; w: number; space: number; newLine: boolean }[] = [];
-  let current: Piece[] = [];
-  let space = 0;
-  let newLine = false;
-  const flush = () => {
-    if (!current.length) return;
-    clusters.push({ parts: current, w: current.reduce((s, p) => s + p.w, 0), space, newLine });
-    current = [];
-    newLine = false;
-  };
-  for (const p of pieces) {
-    if (p.kind === "break") {
-      flush();
-      newLine = true;
-      space = 0;
-    } else if (p.kind === "space") {
-      flush();
-      space = p.w;
-    } else {
-      if (!current.length && clusters.length === 0) space = 0;
-      current.push(p);
-    }
-  }
-  flush();
-  const lines: Piece[][][] = [];
-  let line: Piece[][] = [];
-  let w = 0;
-  for (const c of clusters) {
-    const add = (line.length ? c.space : 0) + c.w;
-    if (line.length && (c.newLine || w + add > width)) {
-      lines.push(line);
-      line = [];
-      w = 0;
-    }
-    line.push(c.parts);
-    w += line.length > 1 ? c.space + c.w : c.w;
-  }
-  if (line.length) lines.push(line);
-  return lines;
 }
 
 /** Sets the pages; exported for the layout tests. */
@@ -322,48 +304,39 @@ export class Writer {
     return this.pdf.getTextWidth(text);
   }
 
-  /**
-   * Words and glyphs of runs at one size. Spaces split words; a no-break
-   * space stays inside its word, so a number keeps to its glyph.
-   */
-  pieces(runs: Inline[], size: number, force?: { b?: boolean; i?: boolean }, mark: Mark = {}): Piece[] {
-    const out: Piece[] = [];
-    const word = (text: string, style: Style, at = size, rise = 0) =>
-      out.push({ kind: "word", text, style, size: at, w: this.measure(text, style, at), rise, ...mark });
-    for (const run of runs) {
-      if (run.t === "glyph") {
-        const g = this.assets.glyphs.get(run.name);
-        const h = size * 1.05;
-        out.push({ kind: "glyph", name: run.name, w: g ? h * g.ratio : h, h, ...mark });
-      } else if (run.t === "ordinal") {
-        const style = styleOf(force?.b, force?.i);
-        word(String(run.n), style);
-        word(ordinalSuffix(run.n), style, size * 0.62, size * 0.36);
-      } else if (run.t === "br") {
-        out.push({ kind: "break", w: 0 });
-      } else if (run.t === "signed") {
-        // maths: upright, with a true minus sign
-        word(run.s.replace("-", "\u2212"), "normal");
-      } else if (run.t === "red") {
-        out.push(...this.pieces(run.runs, size, force, { ...mark, color: RED }));
-      } else if (run.t === "link") {
-        out.push(...this.pieces(run.runs, size, force, { ...mark, color: LINK, url: run.href }));
-      } else if (run.t === "note") {
-        // The number joins the word before it, as \footnote does.
-        const n = ++this.noteCount;
-        const text = String(n);
-        const style: Style = "normal";
-        out.push({ kind: "word", text, style, size: size * 0.62, w: this.measure(text, style, size * 0.62), rise: size * 0.36, ...mark, note: { n, runs: run.runs } });
-      } else {
-        const style = run.t === "math" ? styleOf(force?.b, true) : styleOf(run.b || force?.b, run.i || force?.i);
-        for (const part of run.s.split(/([ \t]+)/)) {
-          if (!part) continue;
-          if (/^[ \t]+$/.test(part)) out.push({ kind: "space", w: this.measure(" ", style, size) });
-          else word(part, style);
-        }
-      }
-    }
+  /** How the PDF measures text and icons. */
+  get measurer(): Measure {
+    return {
+      text: (text, style, at) => this.measure(text, style, at),
+      glyph: (name, at) => {
+        const g = this.assets.glyphs.get(name);
+        const h = at * 1.05;
+        return { w: g ? h * g.ratio : h, h };
+      },
+    };
+  }
+
+  /** Words and glyphs of runs at one size; their footnotes number on from the ones before. */
+  pieces(runs: Inline[], size: number, force?: { b?: boolean; i?: boolean }): Piece[] {
+    const out = toPieces(runs, size, this.measurer, force);
+    this.noteCount = numberNotes(out, this.noteCount + 1, this.measurer) - 1;
     return out;
+  }
+
+  /** The footnotes marked among pieces, laid out for the foot of the page, and the room they need there. */
+  notesOf(pieces: Iterable<Piece>): { notes: { n: number; lines: Piece[][][] }[]; room: number } {
+    const notes = [...pieces].flatMap((p) => (p.kind === "word" && p.note ? [{ n: p.note.n, lines: this.noteLines(p.note.runs) }] : []));
+    let room = notes.length && !this.notes.length ? NOTE_GAP : 0;
+    for (const note of notes) room += note.lines.length * NOTE * NOTE_LEADING + 2;
+    return { notes, room };
+  }
+
+  /** Puts footnotes on this page. */
+  addNotes(notes: { n: number; lines: Piece[][][] }[]): void {
+    for (const note of notes) {
+      this.notesH += this.notesRoom(note.lines.length);
+      this.notes.push(note);
+    }
   }
 
   drawLine(line: Piece[][], x: number, baseline: number, size: number, color: Rgb): void {
@@ -397,15 +370,9 @@ export class Writer {
     const lines = breakLines(this.pieces(runs, size, opts.force), COL_W - indent);
     lines.forEach((line, i) => {
       // A footnote goes on the page of the line that marks it.
-      const marked = line.flat().flatMap((p) => (p.kind === "word" && p.note ? [p.note] : []));
-      const notes = marked.map((note) => ({ n: note.n, lines: this.noteLines(note.runs) }));
-      let room = 0;
-      for (const note of notes) room += note.lines.length * NOTE * NOTE_LEADING + 2;
-      this.ensure(lh, notes.length ? room + (this.notes.length ? 0 : NOTE_GAP) : 0);
-      for (const note of notes) {
-        this.notesH += this.notesRoom(note.lines.length);
-        this.notes.push(note);
-      }
+      const { notes, room } = this.notesOf(line.flat());
+      this.ensure(lh, room);
+      this.addNotes(notes);
       const baseline = this.y + size * 0.9;
       if (i === 0 && opts.label === "bullet") {
         this.pdf.addImage(this.assets.bullet, "PNG", this.x0 + indent - 16, baseline - size * 0.33 - 3, 6, 6, "bullet", "FAST");
@@ -513,6 +480,112 @@ export class Writer {
       case "list":
         this.list(block.items);
         break;
+      case "table": {
+        const t = this.layoutTable(block.table, COL_W);
+        const { notes, room } = this.notesOf(tablePieces(t));
+        // A table does not split. The right column starts as low as the left
+        // one, under the heading, so check again there and go on to a new page.
+        this.ensure(t.frameH + 3, room);
+        this.ensure(t.frameH + 3, room);
+        this.addNotes(notes);
+        this.drawTable(t, this.x0, this.y + 3);
+        this.y += t.frameH + 3 + BODY * 0.6;
+        break;
+      }
+    }
+  }
+
+  /**
+   * Sizes a table for the PDF with the column proportions of its .tex, so the
+   * two read alike: cells grow with their lines, a row with its tallest cell.
+   */
+  layoutTable(doc: TableDoc, frameW: number): PdfTable {
+    const measure = this.measurer;
+    const lh = TABLE_SIZE * TABLE_LEADING;
+    // the title first, so footnotes number in reading order
+    const title = doc.title.length && !doc.banner ? breakLines(this.pieces(doc.title, TABLE_SIZE, { b: true }), frameW * 0.9) : [];
+    const layout = layoutTable(doc, {
+      lineWidth: 0.95 * frameW,
+      size: TABLE_SIZE,
+      tabcolsep: 3,
+      leftskip: 4,
+      inset: 2 * CELL_PAD,
+      measure,
+      key: bookTable(doc).layout.key,
+    });
+    this.noteCount = numberNotes(cellPieces(layout), this.noteCount + 1, measure) - 1;
+    const heights = layout.rows.map((row) => Math.max(...row.cells.map((c) => Math.max(1, c.lines.length))) * lh + 2 * CELL_PAD);
+    const titleH = title.length ? title.length * lh + 8 : 0;
+    const frameH = 2 * 12 + titleH + heights.reduce((sum, h) => sum + h + ROW_GAP, -ROW_GAP);
+    return { doc, layout, heights, frameW, frameH, title, titleH };
+  }
+
+  /** Draws a table's frame, background and cells with its top left corner at (x, y). */
+  drawTable(t: PdfTable, x: number, y: number): void {
+    const { pdf } = this;
+    const { doc, layout, frameW, frameH } = t;
+    if (this.assets.table) pdf.addImage(this.assets.table, "JPEG", x, y, frameW, frameH, "table-bg", "FAST");
+    pdf.setLineWidth(0.8);
+    const frame = (inset: number, color: [number, number, number]) => {
+      pdf.setDrawColor(...color);
+      pdf.rect(x + inset, y + inset, frameW - 2 * inset, frameH - 2 * inset, "S");
+    };
+    frame(0, FRAME_OUT);
+    frame(1, FRAME_MID);
+    frame(3, FRAME_IN);
+
+    const lh = TABLE_SIZE * TABLE_LEADING;
+    const space = this.measure(" ", "normal", TABLE_SIZE);
+    let cy = y + 12;
+    t.title.forEach((line, i) => {
+      this.drawLine(line, x + (frameW - lineWidth(line, space)) / 2, cy + i * lh + TABLE_SIZE * 0.9, TABLE_SIZE, TITLE_INK);
+    });
+    cy += t.titleH;
+    const tableW = TABLE_SHARE * 0.95 * frameW;
+    const sep = 3;
+    // Cell fills are translucent, as in the book; without graphics states only the borders are drawn.
+    const GState = (pdf as unknown as { GState?: new (o: { opacity: number }) => unknown }).GState;
+    const translucent = typeof GState === "function" && !!GState.prototype;
+    layout.rows.forEach((row, r) => {
+      const h = t.heights[r];
+      let cx = x + (frameW - tableW) / 2;
+      row.cells.forEach((cell, c) => {
+        const width = row.kind === "banner" ? tableW - 2 * sep : layout.widths[c];
+        const cellX = cx + sep;
+        cx += width + 2 * sep;
+        // The book leaves an empty corner cell above the row names out.
+        if (row.kind === "header" && c === 0 && !cell.runs.length) return;
+        if (translucent) {
+          pdf.setGState(new GState({ opacity: cell.dark ? 0.5 : 0.25 }) as never);
+          pdf.setFillColor(...CELL_FILL);
+          pdf.rect(cellX, cy, width, h, "F");
+          pdf.setGState(new GState({ opacity: 1 }) as never);
+        }
+        pdf.setLineWidth(0.8);
+        pdf.setDrawColor(...(cell.dark ? DARK_BORDER : LIGHT_BORDER));
+        pdf.rect(cellX, cy, width, h, "S");
+        const left = doc.align === "left" && row.kind === "body";
+        const top = cy + (h - cell.lines.length * lh) / 2;
+        cell.lines.forEach((line, i) => {
+          const lx = left ? cellX + CELL_PAD + 4 : cellX + (width - lineWidth(line, space)) / 2;
+          this.drawLine(line, lx, top + i * lh + TABLE_SIZE * 0.9, TABLE_SIZE, cell.dark ? TITLE_INK : CELL_INK);
+        });
+      });
+      cy += h + ROW_GAP;
+    });
+  }
+
+  /** Tables across both columns, below the text: on a new page when the right column has text or the table does not fit. */
+  wideTables(tables: TableDoc[]): void {
+    for (const table of tables) {
+      const t = this.layoutTable(table, CONTENT_W);
+      const { notes, room } = this.notesOf(tablePieces(t));
+      if (this.col === 1 || this.y + 14 + t.frameH > this.bottom - room) this.newPage();
+      this.addNotes(notes);
+      const y = this.y + (this.y > this.top + 1 ? 14 : 0);
+      this.drawTable(t, MARGIN_X, y);
+      this.col = 0;
+      this.y = y + t.frameH + 14;
     }
   }
 
@@ -639,6 +712,7 @@ export async function scenarioToPdf(scenario: Scenario, onProgress?: (what: stri
 
   onProgress?.("Setting the text...");
   w.blocks(doc.body);
+  w.wideTables(doc.wide);
 
   for (const map of doc.maps) {
     onProgress?.(`Drawing the map ${map.layout.name}...`);

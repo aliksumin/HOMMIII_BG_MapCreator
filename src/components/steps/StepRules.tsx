@@ -4,9 +4,12 @@ import { useScenario } from "../../model/store.ts";
 import { Field, Panel, TextInput } from "../ui/Form.tsx";
 import { ListEditor } from "../ui/ListEditor.tsx";
 import { MarkupField } from "../ui/MarkupField.tsx";
+import { TablesEditor } from "../ui/TablesEditor.tsx";
+import { aiSetupRow } from "../../lib/tables.ts";
 
 export function StepRules() {
   const [s, update] = useScenario();
+  const aiRow = (columns: number) => aiSetupRow(s, columns);
   return (
     <>
       <Panel title="Additional Rules">
@@ -14,6 +17,9 @@ export function StepRules() {
           <MarkupField multiline rows={2} value={s.rulesIntro} onChange={(v) => update((d) => void (d.rulesIntro = v), "rulesIntro")} />
         </Field>
         <ListEditor items={s.rules} onChange={(items) => update((d) => void (d.rules = items), "rules")} addLabel="Add a rule" chips={RULE_CHIPS} />
+        <Field label="Tables" wide hint="Difficulty matrices, dice lookups and setups in the mission book's framed style.">
+          <TablesEditor tables={s.rulesTables} bullets={s.rules} aiRow={aiRow} edit={(recipe, tag) => update((d) => recipe(d.rulesTables), tag && `rules-table-${tag}`)} />
+        </Field>
       </Panel>
       <Panel
         title="Own sections"
@@ -21,7 +27,7 @@ export function StepRules() {
           <button
             type="button"
             className="btn small"
-            onClick={() => update((d) => void d.customSections.push({ id: uid(), title: "", text: "", items: [], subsections: [] }))}
+            onClick={() => update((d) => void d.customSections.push({ id: uid(), title: "", text: "", items: [], tables: [], subsections: [] }))}
           >
             + Add section
           </button>
@@ -64,6 +70,14 @@ export function StepRules() {
           </Field>
           <Field label="Bullets" wide>
             <ListEditor items={section.items} onChange={(items) => update((d) => void (d.customSections[index].items = items), `sec-items-${section.id}`)} />
+          </Field>
+          <Field label="Tables" wide>
+            <TablesEditor
+              tables={section.tables}
+              bullets={section.items}
+              aiRow={aiRow}
+              edit={(recipe, tag) => update((d) => recipe(d.customSections[index].tables), tag && `sec-table-${tag}`)}
+            />
           </Field>
           {section.subsections.map((sub, k) => {
             const edit = (fn: (target: (typeof section.subsections)[number]) => void, tag: string) =>

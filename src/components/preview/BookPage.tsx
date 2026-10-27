@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { assetUrl, titleImageUrl } from "../../data/catalog.ts";
 import type { Block, ListItem, ScenarioDoc } from "../../lib/document.ts";
 import type { Inline } from "../../lib/markup.ts";
+import { bookTable, columnCount, type TableDoc } from "../../lib/tables.ts";
 import { fitTitle, PAGE_W_PT, TITLE_W_PT } from "../../lib/titlefit.ts";
 import { MapView } from "../map/MapLayers.tsx";
 import { Glyph, NoteNumbers, Runs } from "../ui/Runs.tsx";
@@ -32,18 +33,21 @@ function useFittedTitle(title: string, lines: 1 | 2): { size: number; lines: str
   return useMemo(() => fitTitle(title, lines, TITLE_W_PT, measureTitle), [title, lines, fontReady]);
 }
 
-/** The footnotes in blocks, in reading order. */
-function notesIn(blocks: Block[]): (Inline & { t: "note" })[] {
+/** The footnotes in blocks and then in tables across the page, in reading order (a table's title, then its cells row by row). */
+function notesIn(blocks: Block[], wide: TableDoc[] = []): (Inline & { t: "note" })[] {
   const found: (Inline & { t: "note" })[] = [];
   const visit = (runs: Inline[]): void =>
     runs.forEach((r) => {
       if (r.t === "note") found.push(r);
       else if (r.t === "red" || r.t === "link") visit(r.runs);
     });
+  const visitTable = (t: TableDoc) => [t.title, ...(t.header ?? []), ...t.rows.flat()].forEach(visit);
   for (const block of blocks) {
     if (block.k === "list") block.items.forEach((item) => visit(item.runs));
+    else if (block.k === "table") visitTable(block.table);
     else if (block.k !== "heading" && block.k !== "subheading") visit(block.runs);
   }
+  wide.forEach(visitTable);
   return found;
 }
 
@@ -92,8 +96,73 @@ function Notes({ notes, numbers }: { notes: (Inline & { t: "note" })[]; numbers:
   );
 }
 
+/** A rules table in the book's frame: dark header row and first column, light cells, yellow icons. */
+export function TableView({ table }: { table: TableDoc }) {
+  const n = columnCount(table);
+  // The first column takes the share of the width it takes in the .tex, plus
+  // the room the cell padding and spacing take here.
+  const key = useMemo(() => bookTable(table).layout.key / 0.95 + 0.03, [table]);
+  const align = table.align === "left" ? "left" : "center";
+  return (
+    <div className={`bk-table ${table.wide ? "wide" : ""}`} style={{ backgroundImage: `url(${assetUrl("assets/layout/table-background.webp")})` }}>
+      {table.title.length > 0 && !table.banner && (
+        <p className="bk-table-title">
+          <Runs runs={table.title} />
+        </p>
+      )}
+      <table>
+        <colgroup>
+          <col style={{ width: `${(key * 100).toFixed(1)}%` }} />
+          {Array.from({ length: n - 1 }, (_, i) => (
+            <col key={i} />
+          ))}
+        </colgroup>
+        <tbody>
+          {table.banner && (
+            <tr>
+              <th colSpan={n} className="dark">
+                <Runs runs={table.title} />
+              </th>
+            </tr>
+          )}
+          {table.header && (
+            <tr>
+              {table.header.map((cell, c) =>
+                c === 0 && !cell.length ? (
+                  <td key={c} className="corner" />
+                ) : (
+                  <th key={c} className="dark">
+                    <Runs runs={cell} />
+                  </th>
+                ),
+              )}
+            </tr>
+          )}
+          {table.rows.map((row, r) => (
+            <tr key={r}>
+              {Array.from({ length: n }, (_, c) =>
+                c === 0 ? (
+                  <th key={c} className="dark" style={{ textAlign: align }}>
+                    <Runs runs={row[c] ?? []} />
+                  </th>
+                ) : (
+                  <td key={c} className="light" style={{ textAlign: align }}>
+                    <Runs runs={row[c] ?? []} />
+                  </td>
+                ),
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function BlockView({ block }: { block: Block }) {
   switch (block.k) {
+    case "table":
+      return <TableView table={block.table} />;
     case "heading":
       return <h3 className="bk-h">{block.text}</h3>;
     case "subheading":
@@ -136,7 +205,7 @@ export function BookPage({ doc, showMaps = true }: { doc: ScenarioDoc; showMaps?
     doc.image?.kind === "upload" ? doc.image.dataUrl : doc.image?.kind === "library" ? titleImageUrl(doc.image.name) : undefined;
   const title = useFittedTitle(doc.title, doc.titleLines === 2 ? 2 : 1);
   // Footnotes number on through the scenario, as \footnote does.
-  const bodyNotes = notesIn(doc.body);
+  const bodyNotes = notesIn(doc.body, doc.wide);
   const storyNotes = notesIn(doc.story);
   const numbers = new Map<Inline, number>([...bodyNotes, ...storyNotes].map((note, i) => [note, i + 1]));
   return (
@@ -169,6 +238,9 @@ export function BookPage({ doc, showMaps = true }: { doc: ScenarioDoc; showMaps?
             <BlockView key={i} block={block} />
           ))}
         </div>
+        {doc.wide.map((table, i) => (
+          <TableView key={i} table={table} />
+        ))}
         {showMaps &&
           doc.maps.map((m) => (
             <figure key={m.layout.id} className="bk-figure">
