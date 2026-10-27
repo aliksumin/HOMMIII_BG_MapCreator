@@ -2499,6 +2499,18 @@ textarea {
   }
 }
 
+/* The smallest phones show only the logo, leaving room for four buttons
+   (with the page view's Show page). It still goes back to the start screen. */
+@media (max-width: 420px) {
+  .brand {
+    min-width: 44px;
+    justify-content: center;
+  }
+  .brand span {
+    display: none;
+  }
+}
+
 /* Fingers need about 44px: the buttons grow on touch screens, the mouse look
    stays. The map editor sizes its own controls. */
 @media (pointer: coarse) {
